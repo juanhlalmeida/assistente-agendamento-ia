@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Agendamento{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+              <div class="card-header">
+                <h3 class="mb-0">Editando Agendamento de: <strong>{{ agendamento.nome_cliente }}</strong></h3>
+              </div>
+              <div class="card-body">
+                <form method="post" action="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label for="nome_cliente" class="form-label">Nome do Cliente</label>
+                      <input type="text" id="nome_cliente" name="nome_cliente" class="form-control" value="{{ agendamento.nome_cliente }}" required>
+                    </div>
+                    <div class="col-md-6">
+                      <label for="telefone_cliente" class="form-label">Telefone</label>
+                      <input type="text" id="telefone_cliente" name="telefone_cliente" class="form-control" value="{{ agendamento.telefone_cliente }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="profissional_id" class="form-label">Profissional</label>
+                        <select id="profissional_id" name="profissional_id" class="form-select" required>
+                            {% for profissional in profissionais %}
+                                <option value="{{ profissional.id }}" {% if profissional.id == agendamento.profissional_id %}selected{% endif %}>
+                                    {{ profissional.nome }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="servico_id" class="form-label">Serviço</label>
+                        <select id="servico_id" name="servico_id" class="form-select" required>
+                            {% for servico in servicos %}
+                                <option value="{{ servico.id }}" {% if servico.id == agendamento.servico_id %}selected{% endif %}>
+                                    {{ servico.nome }} ({{ servico.duracao }} min)
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12">
+                      <label for="data_hora" class="form-label">Data e Hora</label>
+                      <input type="datetime-local" id="data_hora" name="data_hora" class="form-control" value="{{ agendamento.data_hora.strftime('%Y-%m-%dT%H:%M') }}" required>
+                    </div>
+                  </div>
+                  <div class="mt-4">
+                    <a href="{{ url_for('main.agenda', data=agendamento.data_hora.strftime('%Y-%m-%d'), profissional_id=agendamento.profissional_id) }}" class="btn btn-secondary">Voltar para a Agenda</a>
+                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

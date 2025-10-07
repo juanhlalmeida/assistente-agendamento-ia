@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+
+{% block title %}Painel de Controle - Agenda{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+<div class="row g-4">
+
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header bg-dark text-white">
+        <h5 class="mb-0"><i class="fas fa-search"></i> Consultar Disponibilidade</h5>
+      </div>
+      <div class="card-body">
+        <form method="get" action="{{ url_for('main.agenda') }}">
+          <div class="mb-3">
+            <label for="profissional_id_filtro" class="form-label">Profissional</label>
+            <select name="profissional_id" id="profissional_id_filtro" class="form-select" onchange="this.form.submit()">
+              {% for p in profissionais %}
+                <option value="{{ p.id }}" {% if profissional_selecionado and p.id == profissional_selecionado.id %}selected{% endif %}>{{ p.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="data_filtro" class="form-label">Data</label>
+            <input type="date" name="data" id="data_filtro" class="form-control" value="{{ data_selecionada.strftime('%Y-%m-%d') }}" onchange="this.form.submit()">
+          </div>
+        </form>
+        <hr>
+        <h6>Horários Livres para {{ data_selecionada.strftime('%d/%m/%Y') }}</h6>
+        <div class="d-flex flex-wrap gap-2">
+          {% for horario in horarios_disponiveis %}
+            <button class="btn btn-outline-success btn-sm horario-btn" data-horario="{{ horario.strftime('%Y-%m-%dT%H:%M') }}">
+              {{ horario.strftime('%H:%M') }}
+            </button>
+          {% else %}
+            <p class="text-muted small mt-2">Nenhum horário disponível ou o dia já passou.</p>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h3 class="mb-0">📅 Agendamentos do Dia</h3>
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#novoAgendamentoModal">
+        <i class="fas fa-plus"></i> Novo Agendamento
+      </button>
+    </div>
+    <div class="card shadow-sm">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Cliente</th>
+                <th>Hora</th>
+                <th>Serviço</th>
+                <th>Profissional</th>
+                <th class="text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for agendamento in agendamentos %}
+              <tr>
+                <td>
+                    <div class="fw-bold">{{ agendamento.nome_cliente }}</div>
+                    <div class="small text-muted">{{ agendamento.telefone_cliente }}</div>
+                </td>
+                <td>{{ agendamento.data_hora.strftime('%H:%M') }}</td>
+                <td>{{ agendamento.servico.nome }}</td>
+                <td>{{ agendamento.profissional.nome }}</td>
+                <td class="text-center">
+                    <a href="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+                        <i class="fas fa-pencil-alt"></i>
+                    </a>
+                    <form action="{{ url_for('main.excluir_agendamento', agendamento_id=agendamento.id) }}" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir este agendamento?');">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">Nenhum agendamento para o dia selecionado.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="novoAgendamentoModal" tabindex="-1" aria-labelledby="novoAgendamentoModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="novoAgendamentoModalLabel">Novo Agendamento Manual</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{{ url_for('main.agenda') }}">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="nome_cliente" class="form-label">Nome do Cliente</label>
+              <input type="text" id="nome_cliente" name="nome_cliente" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label for="telefone_cliente" class="form-label">Telefone</label>
+              <input type="text" id="telefone_cliente" name="telefone_cliente" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+                <label for="profissional_id" class="form-label">Profissional</label>
+                <select id="profissional_id" name="profissional_id" class="form-select" required>
+                    <option value="" disabled selected>Selecione...</option>
+                    {% for profissional in profissionais %}
+                        <option value="{{ profissional.id }}">{{ profissional.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label for="servico_id" class="form-label">Serviço</label>
+                <select id="servico_id" name="servico_id" class="form-select" required>
+                    <option value="" disabled selected>Selecione...</option>
+                    {% for servico in servicos %}
+                        <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min)</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12">
+              <label for="data_hora" class="form-label">Data e Hora</label>
+              <input type="datetime-local" id="data_hora" name="data_hora" class="form-control" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+          <button type="submit" class="btn btn-primary">Agendar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const modal = new bootstrap.Modal(document.getElementById('novoAgendamentoModal'));
+  const profissionalSelect = document.getElementById('profissional_id');
+  const dataHoraInput = document.getElementById('data_hora');
+  
+  document.querySelectorAll('.horario-btn').forEach(button => {
+    button.addEventListener('click', function () {
+      const horarioSelecionado = this.dataset.horario;
+      const profissionalSelecionadoId = document.getElementById('profissional_id_filtro').value;
+      
+      if (profissionalSelect) {
+        profissionalSelect.value = profissionalSelecionadoId;
+      }
+      if (dataHoraInput) {
+        dataHoraInput.value = horarioSelecionado;
+      }
+      
+      modal.show();
+    });
+  });
+});
+</script>
+{% endblock %}
