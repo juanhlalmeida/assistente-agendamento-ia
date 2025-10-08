@@ -14,3 +14,4 @@ python-dotenv
 Flask-SQLAlchemy
 click
 gunicorn
+psycopg2-binary
