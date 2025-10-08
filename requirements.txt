@@ -9,3 +9,8 @@ Flask
 python-dotenv
 Flask-SQLAlchemy
 click
+Flask
+python-dotenv
+Flask-SQLAlchemy
+click
+gunicorn
