@@ -16,3 +16,10 @@ click
 gunicorn
 psycopg2-binary
 requests
+Flask
+python-dotenv
+Flask-SQLAlchemy
+click
+gunicorn
+psycopg2-binary
+requests

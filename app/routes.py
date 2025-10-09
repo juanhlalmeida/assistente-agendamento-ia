@@ -1,16 +1,18 @@
 # app/routes.py
 import os
+import logging
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
 from datetime import datetime, date, timedelta
+from .services.whatsapp_service import send_whatsapp_message
 
-# ✅ A LINHA QUE FALTAVA ESTÁ AQUI, NO LUGAR CERTO.
+# Configura o logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 bp = Blueprint('main', __name__)
 
-# A função de cálculo de horários (sem alterações)
 def calcular_horarios_disponiveis(profissional, dia_selecionado):
-    # ... (código da função que já tínhamos, não precisa mudar)
     HORA_INICIO_TRABALHO = 9
     HORA_FIM_TRABALHO = 20
     INTERVALO_MINUTOS = 30
@@ -36,9 +38,7 @@ def calcular_horarios_disponiveis(profissional, dia_selecionado):
 
 @bp.route('/agenda', methods=['GET', 'POST'])
 def agenda():
-    # ... (código da função agenda que já tínhamos, não precisa mudar)
     if request.method == 'POST':
-        # --- LÓGICA PARA CRIAR NOVO AGENDAMENTO ---
         nome_cliente = request.form.get('nome_cliente')
         telefone_cliente = request.form.get('telefone_cliente')
         data_hora_str = request.form.get('data_hora')
@@ -72,7 +72,6 @@ def agenda():
         except Exception as e:
             flash(f'Ocorreu um erro ao processar o agendamento: {str(e)}', 'danger')
         return redirect(url_for('main.agenda', data=novo_inicio.strftime('%Y-%m-%d'), profissional_id=profissional_id))
-    # --- LÓGICA PARA EXIBIR A PÁGINA (MÉTODO GET) ---
     data_selecionada_str = request.args.get('data', date.today().strftime('%Y-%m-%d'))
     profissional_selecionado_id = request.args.get('profissional_id')
     data_selecionada = datetime.strptime(data_selecionada_str, '%Y-%m-%d')
@@ -93,7 +92,6 @@ def agenda():
         horarios_disponiveis=horarios_disponiveis, data_selecionada=data_selecionada, profissional_selecionado=profissional_selecionado
     )
 
-# ... (rotas de excluir e editar, sem alterações) ...
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
 def excluir_agendamento(agendamento_id):
     agendamento = Agendamento.query.get_or_404(agendamento_id)
@@ -118,14 +116,8 @@ def editar_agendamento(agendamento_id):
         return redirect(url_for('main.agenda', data=agendamento.data_hora.strftime('%Y-%m-%d'), profissional_id=agendamento.profissional_id))
     profissionais = Profissional.query.all()
     servicos = Servico.query.all()
-    return render_template(
-        'editar_agendamento.html',
-        agendamento=agendamento,
-        profissionais=profissionais,
-        servicos=servicos
-    )
+    return render_template('editar_agendamento.html', agendamento=agendamento, profissionais=profissionais, servicos=servicos)
 
-# Rota do Webhook (sem alterações)
 @bp.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     if request.method == 'GET':
@@ -134,16 +126,37 @@ def webhook():
         token = request.args.get('hub.verify_token', '')
         challenge = request.args.get('hub.challenge', '')
         if mode == 'subscribe' and token == VERIFY_TOKEN:
-            print('WEBHOOK VERIFICADO COM SUCESSO!')
+            logging.info('WEBHOOK VERIFICADO COM SUCESSO!')
             return challenge, 200
         else:
-            print('FALHA NA VERIFICAÇÃO DO WEBHOOK')
+            logging.warning('FALHA NA VERIFICAÇÃO DO WEBHOOK')
             return 'Forbidden', 403
 
     if request.method == 'POST':
         data = request.get_json()
-        print("MENSAGEM DO WHATSAPP RECEBIDA:", data)
-        # Na Fase 2, vamos processar 'data' e responder
+        logging.info(f"MENSAGEM DO WHATSAPP RECEBIDA: {data}")
+
+        try:
+            changes = data.get('entry', [{}])[0].get('changes', [{}])[0]
+            value = changes.get('value', {})
+            message = value.get('messages', [{}])[0]
+            
+            if message:
+                from_number = message.get('from')
+                msg_body = message.get('text', {}).get('body')
+                profile_name = value.get('contacts', [{}])[0].get('profile', {}).get('name', 'Cliente')
+
+                if from_number and msg_body:
+                    logging.info(f"Extraído: De={from_number}, Mensagem='{msg_body}', Nome={profile_name}")
+                    response_text = f"Olá, {profile_name}! Recebi sua mensagem: '{msg_body}'"
+                    send_whatsapp_message(from_number, response_text)
+                else:
+                    logging.warning("Webhook: Não é uma mensagem de texto do usuário.")
+            else:
+                logging.info("Webhook: Sem conteúdo de mensagem válido.")
+        except Exception as e:
+            logging.error(f"Erro ao processar o payload do webhook: {e}", exc_info=True)
+
         return 'OK', 200
 
 def init_app(app):
