@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload
 
 from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
-from whatsapp_client import WhatsAppClient, sanitize_msisdn
+from .whatsapp_client import WhatsAppClient, sanitize_msisdn
 
 # Logging básico (pode mover para a app factory se preferir)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
