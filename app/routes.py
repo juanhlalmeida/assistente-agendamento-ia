@@ -4,7 +4,6 @@ import json
 import logging
 from datetime import datetime, date, time, timedelta
 
-import requests
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from sqlalchemy.orm import joinedload
 
@@ -12,17 +11,17 @@ from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
 from whatsapp_client import WhatsAppClient, sanitize_msisdn
 
-# Logging básico (pode mover para a app factory depois)
+# Logging básico (pode mover para a app factory se preferir)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 bp = Blueprint('main', __name__)
 
 # ----------------- Helpers -----------------
 def _range_do_dia(dia_dt: datetime) -> tuple[datetime, datetime]:
-    """Retorna (início_do_dia, início_dia_seguinte) para usar em filtros >= e < (melhor uso de índice)."""
+    """Retorna (início do dia, início do dia seguinte) para usar em filtros >= e < (melhor uso de índice)."""
     inicio = datetime.combine(dia_dt.date(), time.min)
     fim = inicio + timedelta(days=1)
     return inicio, fim
-
 
 # ----------------- Regras de agenda (painel web) -----------------
 def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime):
@@ -63,7 +62,6 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
 
     return horarios_disponiveis
 
-
 @bp.route('/agenda', methods=['GET', 'POST'])
 def agenda():
     if request.method == 'POST':
@@ -95,13 +93,10 @@ def agenda():
                 .all()
             )
 
-            conflito = False
-            for ag in ags:
-                existente_inicio = ag.data_hora
-                existente_fim = existente_inicio + timedelta(minutes=ag.servico.duracao)
-                if max(novo_inicio, existente_inicio) < min(novo_fim, existente_fim):
-                    conflito = True
-                    break
+            conflito = any(
+                max(novo_inicio, ag.data_hora) < min(novo_fim, ag.data_hora + timedelta(minutes=ag.servico.duracao))
+                for ag in ags
+            )
 
             if conflito:
                 flash('Erro: O profissional já está ocupado neste horário.', 'danger')
@@ -142,7 +137,6 @@ def agenda():
     if profissional_selecionado:
         horarios_disponiveis = calcular_horarios_disponiveis(profissional_selecionado, data_selecionada)
 
-    # Lista do dia (todos os profissionais), ordenada
     inicio, fim = _range_do_dia(data_selecionada)
     agendamentos_do_dia = (
         Agendamento.query
@@ -162,7 +156,6 @@ def agenda():
         profissional_selecionado=profissional_selecionado
     )
 
-
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
 def excluir_agendamento(agendamento_id):
     agendamento = Agendamento.query.get_or_404(agendamento_id)
@@ -172,7 +165,6 @@ def excluir_agendamento(agendamento_id):
     db.session.commit()
     flash('Agendamento excluído com sucesso!', 'warning')
     return redirect(url_for('main.agenda', data=data_redirect, profissional_id=profissional_redirect))
-
 
 @bp.route('/agendamento/editar/<int:agendamento_id>', methods=['GET', 'POST'])
 def editar_agendamento(agendamento_id):
@@ -196,7 +188,6 @@ def editar_agendamento(agendamento_id):
                            agendamento=agendamento,
                            profissionais=profissionais,
                            servicos=servicos)
-
 
 # ----------------- Webhook WhatsApp (corrigido) -----------------
 @bp.route('/webhook', methods=['GET', 'POST'])
@@ -243,6 +234,3 @@ def webhook():
         logging.error("Erro ao processar webhook ou enviar resposta: %s", e, exc_info=True)
 
     return 'OK', 200
-
-
-def init_app(app):
