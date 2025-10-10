@@ -245,4 +245,4 @@ def webhook():
     return 'OK', 200
 
 
-def init_app(app):
+    def init_app(app):
