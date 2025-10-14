@@ -24,4 +24,4 @@ gunicorn
 psycopg2-binary
 requests
 twilio
-google-generativeai
+google-generativeai==0.5.4
