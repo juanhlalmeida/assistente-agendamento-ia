@@ -24,3 +24,4 @@ gunicorn
 psycopg2-binary
 requests
 twilio
+google-generativeai

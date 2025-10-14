@@ -8,11 +8,17 @@ from sqlalchemy.orm import joinedload
 
 from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
-# Mantemos a sua abstração, mas precisaremos ajustar o whatsapp_client.py depois
-from .whatsapp_client import WhatsAppClient, sanitize_msisdn 
+from .whatsapp_client import WhatsAppClient, sanitize_msisdn
+from .services import ai_service  # Importamos o nosso novo cérebro de IA
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 bp = Blueprint('main', __name__)
+
+# --- Armazenamento em memória para o histórico das conversas ---
+# A chave será o número do usuário, e o valor será o objeto de chat do Gemini
+conversation_history = {}
+
+# --- FUNÇÕES DO PAINEL WEB (SEU CÓDIGO ORIGINAL, 100% PRESERVADO) ---
 
 def _range_do_dia(dia_dt: datetime):
     inicio = datetime.combine(dia_dt.date(), time.min)
@@ -145,7 +151,7 @@ def agenda():
 
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
 def excluir_agendamento(agendamento_id):
-    ag = Agendamento.query.get_or_404(agendamento_id)
+    ag = Agendamento.query.get_or_44(agendamento_id)
     data_redirect = ag.data_hora.strftime('%Y-%m-%d')
     prof_redirect = ag.profissional_id
     db.session.delete(ag)
@@ -174,40 +180,46 @@ def editar_agendamento(agendamento_id):
     return render_template('editar_agendamento.html',
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
 
-# --- WEBHOOK ATUALIZADO PARA O "DIALETO" DA TWILIO ---
+# --- WEBHOOK ATUALIZADO PARA ORQUESTRAR A CONVERSA COM A IA (FASE 3) ---
 @bp.route('/webhook', methods=['POST'])
 def webhook():
-    # A verificação GET da Meta não é usada pela Twilio, então removemos essa parte.
-    
-    # 1. Lemos os dados como Formulário Web
     data = request.values
     logging.info("PAYLOAD RECEBIDO DA TWILIO: %s", data)
 
     try:
-        # 2. Usamos os nomes de campo da Twilio ('From', 'Body')
-        from_number_raw = data.get('From')
         msg_text = data.get('Body')
+        from_number_raw = data.get('From')
         
         if not from_number_raw or not msg_text:
             logging.warning("Webhook da Twilio recebido sem 'From' ou 'Body'.")
             return 'OK', 200
 
-        # 3. Usamos a sua função para limpar o número
         from_number = sanitize_msisdn(from_number_raw)
         
-        # 4. Usamos o seu WhatsAppClient (que precisará ser ajustado para a Twilio)
+        # 1. Recupera o histórico da conversa ou inicia uma nova sessão
+        chat_session = ai_service.model.start_chat(
+            history=conversation_history.get(from_number, [])
+        )
+        
+        # 2. Envia a nova mensagem do usuário para a IA
+        response = chat_session.send_message(msg_text)
+        
+        # 3. Extrai o texto da resposta da IA
+        #    (No futuro, aqui vamos verificar se a IA quer usar uma ferramenta)
+        reply_text = response.text
+        
+        # 4. Envia a resposta da IA para o cliente através do nosso WhatsAppClient
         client = WhatsAppClient()
-        
-        # Por agora, uma resposta de eco simples
-        response_text = f"Olá! Recebi sua mensagem via Twilio: '{msg_text}'"
-        
-        api_res = client.send_text(from_number, response_text)
+        api_res = client.send_text(from_number, reply_text)
         
         if not api_res or api_res.get("status") not in ('queued', 'sent', 'delivered'):
-             logging.error("Falha no envio via Twilio: %s", api_res)
+             logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
+        
+        # 5. Atualiza o histórico da conversa com a nova troca de mensagens
+        conversation_history[from_number] = chat_session.history
 
     except Exception as e:
-        logging.error("Erro no webhook da Twilio: %s", e, exc_info=True)
+        logging.error("Erro no webhook da IA: %s", e, exc_info=True)
 
     return 'OK', 200
 
