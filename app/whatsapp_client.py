@@ -1,3 +1,4 @@
+# app/whatsapp_client.py
 from __future__ import annotations
 
 import os
@@ -6,74 +7,51 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
-import requests
+# A biblioteca da Twilio substitui a necessidade do 'requests' para envio
+from twilio.rest import Client
 
 logger = logging.getLogger(__name__)
 
 def sanitize_msisdn(value: str) -> str:
-    return re.sub(r"\D+", "", value or "")
+    """Para a Twilio, o número vem como 'whatsapp:+5511...'. Esta função remove o prefixo."""
+    return (value or "").replace('whatsapp:', '').strip()
 
 class WhatsAppClient:
-    def __init__(
-        self,
-        access_token: Optional[str] = None,
-        phone_number_id: Optional[str] = None,
-        api_version: str = "",
-        default_timeout: int = 20,
-    ) -> None:
-        self.access_token = access_token or os.getenv("WHATSAPP_ACCESS_TOKEN")
-        self.phone_number_id = phone_number_id or os.getenv("WHATSAPP_PHONE_NUMBER_ID")
-        self.api_version = api_version or os.getenv("WHATSAPP_API_VERSION", "v20.0")
-        self.default_timeout = default_timeout
+    def __init__(self) -> None:
+        # Usamos as credenciais da Twilio, que guardamos na Render
+        self.account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+        self.auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+        # Este é o número fixo do Sandbox da Twilio
+        self.from_number = 'whatsapp:+14155238886'
+        
+        # Inicializa o cliente da Twilio
+        if not all([self.account_sid, self.auth_token]):
+            logger.error("ERRO CRÍTICO: Variáveis de ambiente TWILIO_ACCOUNT_SID ou TWILIO_AUTH_TOKEN não configuradas!")
+            self.client = None
+        else:
+            self.client = Client(self.account_sid, self.auth_token)
 
-        self.base_url: Optional[str] = (
-            f"https://graph.facebook.com/{self.api_version}/{self.phone_number_id}/messages"
-            if self.phone_number_id else None
-        )
-
-    def _simulated(self, to_number: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-        msg = {
-            "status": "simulated",
-            "reason": "Config ausente (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID).",
-            "to": to_number,
-            "payload": payload,
-        }
-        logger.info("[WhatsApp SIMULADO] %s", json.dumps(msg, ensure_ascii=False))
-        return msg
-
-    def send_text(self, to_number: str, text: str, timeout: Optional[int] = None) -> Dict[str, Any]:
-        msisdn = sanitize_msisdn(to_number)
-        payload = {
-            "messaging_product": "whatsapp",
-            "to": msisdn,
-            "type": "text",
-            "text": {"body": text},
-        }
-
-        if not self.access_token or not self.base_url:
-            return self._simulated(msisdn, payload)
-
-        headers = {
-            "Authorization": f"Bearer {self.access_token}",
-            "Content-Type": "application/json",
-        }
-
-        tout = timeout or self.default_timeout
+    def send_text(self, to_number: str, text: str, **kwargs) -> Dict[str, Any]:
+        """Envia uma mensagem de texto usando a API da Twilio."""
+        if not self.client:
+            logger.error("Falha no envio: Cliente Twilio não inicializado por falta de credenciais.")
+            return {"status": "error", "message": "Cliente Twilio não inicializado."}
+        
+        # A API da Twilio espera o número do destinatário no formato 'whatsapp:+55...'
+        recipient_number = f"whatsapp:{to_number}"
+        
+        logger.info(f"Preparando para enviar via Twilio: '{text}' de {self.from_number} para {recipient_number}")
+        
         try:
-            resp = requests.post(self.base_url, headers=headers, json=payload, timeout=tout)
-            try:
-                body = resp.json() if resp.content else {"status_code": resp.status_code}
-            except Exception:
-                body = {"raw_text": resp.text, "status_code": resp.status_code}
-
-            if not resp.ok:
-                logger.error("WhatsApp API ERRO %s: %s", resp.status_code, body)
-
-            if resp.status_code == 429:
-                logger.warning("Rate limit (429) ao enviar mensagem para %s: %s", msisdn, body)
-
-            return {"status": "sent" if resp.ok else "error",
-                    "status_code": resp.status_code, "response": body}
-        except Exception as exc:
-            logger.exception("Falha ao enviar mensagem WhatsApp: %s", exc)
-            return {"status": "error", "error": str(exc)}
+            message = self.client.messages.create(
+              from_=self.from_number,
+              body=text,
+              to=recipient_number
+            )
+            
+            logger.info(f"Mensagem enviada com sucesso pela Twilio! SID: {message.sid}, Status: {message.status}")
+            return {"status": message.status, "sid": message.sid}
+            
+        except Exception as e:
+            logger.exception("Erro CRÍTICO ao enviar mensagem via Twilio: %s", e)
+            return {"status": "error", "message": str(e)}
