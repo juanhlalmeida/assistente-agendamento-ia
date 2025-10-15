@@ -5,7 +5,7 @@ import google.generativeai as genai
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
-from google.generativeai.types import FunctionDeclaration, Tool  # Import para tools
+from google.generativeai.types import FunctionDeclaration, Tool  # Mantido para FunctionDeclaration e Tool
 from app.models.tables import Agendamento, Profissional, Servico
 from app.extensions import db
 
@@ -131,75 +131,75 @@ def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, 
         db.session.rollback()
         return f"Erro ao criar agendamento: {str(e)}"
 
-# Definição das tools no formato CORRETO do Gemini (corrigido: use Type em vez de SchemaType)
+# Definição das tools no formato DEFINITIVO: dicts JSON Schema (sem protobufs)
 listar_profissionais_func = FunctionDeclaration(
     name="listar_profissionais",
     description="Lista todos os profissionais disponíveis no sistema.",
-    parameters=genai.protos.Schema(
-        type=genai.protos.Type.OBJECT,
-        properties={},
-        required=[]
-    )
+    parameters={
+        "type": "object",
+        "properties": {},
+        "required": []
+    }
 )
 
 listar_servicos_func = FunctionDeclaration(
     name="listar_servicos",
     description="Lista todos os serviços disponíveis no sistema.",
-    parameters=genai.protos.Schema(
-        type=genai.protos.Type.OBJECT,
-        properties={},
-        required=[]
-    )
+    parameters={
+        "type": "object",
+        "properties": {},
+        "required": []
+    }
 )
 
 calcular_horarios_disponiveis_func = FunctionDeclaration(
     name="calcular_horarios_disponiveis",
     description="Consulta horários disponíveis para um profissional em um dia específico.",
-    parameters=genai.protos.Schema(
-        type=genai.protos.Type.OBJECT,
-        properties={
-            "profissional_nome": genai.protos.Schema(
-                type=genai.protos.Type.STRING,
-                description="Nome do profissional (ex.: Bruno)"
-            ),
-            "dia": genai.protos.Schema(
-                type=genai.protos.Type.STRING,
-                description="Dia no formato YYYY-MM-DD, 'hoje' ou 'amanhã'"
-            )
+    parameters={
+        "type": "object",
+        "properties": {
+            "profissional_nome": {
+                "type": "string",
+                "description": "Nome do profissional (ex.: Bruno)"
+            },
+            "dia": {
+                "type": "string",
+                "description": "Dia no formato YYYY-MM-DD, 'hoje' ou 'amanhã'"
+            }
         },
-        required=["profissional_nome", "dia"]
-    )
+        "required": ["profissional_nome", "dia"]
+    }
 )
 
 criar_agendamento_func = FunctionDeclaration(
     name="criar_agendamento",
     description="Cria um novo agendamento no sistema.",
-    parameters=genai.protos.Schema(
-        type=genai.protos.Type.OBJECT,
-        properties={
-            "nome_cliente": genai.protos.Schema(
-                type=genai.protos.Type.STRING,
-                description="Nome do cliente"
-            ),
-            "telefone_cliente": genai.protos.Schema(
-                type=genai.protos.Type.STRING,
-                description="Telefone do cliente (ex.: +5513988057145)"
-            ),
-            "data_hora": genai.protos.Schema(
-                type=genai.protos.Type.STRING,
-                description="Data e hora no formato YYYY-MM-DD HH:MM"
-            ),
-            "profissional_nome": genai.protos.Schema(
-                type=genai.protos.Type.STRING,
-                description="Nome do profissional"
-            ),
-            "servico_nome": genai.protos.Schema(
-                type=genai.protos.Type.STRING,
-                description="Nome do serviço (ex.: Corte de Cabelo)"
-            )
+    parameters={
+        "type": "object",
+        "properties": {
+            "nome_cliente": {
+                "type": "string",
+                "description": "Nome do cliente"
+            },
+            "telefone_cliente": {
+                "type": "string",
+                "description": "Telefone do cliente (ex.: +5513988057145)"
+            },
+            "data_hora": {
+                "type": "string",
+                "description": "Data e hora no formato YYYY-MM-DD HH:MM"
+            },
+            "profissional_nome": {
+                "type": "string",
+                "description": "Nome do profissional"
+            },
+            "servico_nome": {
+                "type": "string",
+                "description": "Nome do serviço (ex.: Corte de Cabelo)"
+            }
         },
-        required=["nome_cliente", "telefone_cliente", "data_hora", "profissional_nome", "servico_nome"]
-    )
+        "required": ["nome_cliente", "telefone_cliente", "data_hora", "profissional_nome", "servico_nome"]
+    }
 )
 
 tools = Tool(
@@ -211,11 +211,11 @@ tools = Tool(
     ]
 )
 
-# Nosso modelo de IA com tools corrigidas
+# Nosso modelo de IA com tools no formato definitivo
 try:
     model = genai.GenerativeModel(
         model_name='gemini-2.5-flash',
-        tools=[tools],  # Agora no formato correto
+        tools=[tools],
         system_instruction="""
         Você é o assistente de agendamento premium da BinahTech, uma barbearia/salão de elite. Sua missão é fornecer um serviço excepcional: ágil, personalizado e impecável, maximizando a satisfação do cliente para fidelização e upsell sutil.
 
@@ -234,5 +234,5 @@ try:
         """
     )
 except Exception as e:
-    logging.error(f"Erro ao inicializar o modelo Gemini: {str(e)}")  # Logging mais detalhado para depuração
+    logging.error(f"Erro ao inicializar o modelo Gemini: {str(e)}")  # Logging detalhado
     model = None
