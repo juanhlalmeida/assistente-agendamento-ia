@@ -6,9 +6,8 @@ import google.generativeai as genai
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
-from ..models.tables import Agendamento, Profissional, Servico
-git add .
-from .extensions import db  # Assumindo que db está disponível
+from app.models.tables import Agendamento, Profissional, Servico  # Import ABSOLUTO: começa com 'app.'
+from app.extensions import db  # Import ABSOLUTO (ajustado para consistency)
 
 # Configuração do cliente Gemini
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -157,7 +156,33 @@ tools = [
             'required': []
         }
     },
-    # ... (mantenha as outras tools: calcular_horarios_disponiveis e criar_agendamento como antes)
+    {
+        'name': 'calcular_horarios_disponiveis',
+        'description': 'Consulta horários disponíveis para um profissional em um dia específico.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'profissional_nome': {'type': 'string', 'description': 'Nome do profissional (ex.: Bruno)'},
+                'dia': {'type': 'string', 'description': 'Dia no formato YYYY-MM-DD, "hoje" ou "amanhã"'}
+            },
+            'required': ['profissional_nome', 'dia']
+        }
+    },
+    {
+        'name': 'criar_agendamento',
+        'description': 'Cria um novo agendamento no sistema.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'nome_cliente': {'type': 'string', 'description': 'Nome do cliente'},
+                'telefone_cliente': {'type': 'string', 'description': 'Telefone do cliente (ex.: +5513988057145)'},
+                'data_hora': {'type': 'string', 'description': 'Data e hora no formato YYYY-MM-DD HH:MM'},
+                'profissional_nome': {'type': 'string', 'description': 'Nome do profissional'},
+                'servico_nome': {'type': 'string', 'description': 'Nome do serviço (ex.: Corte de Cabelo)'}
+            },
+            'required': ['nome_cliente', 'telefone_cliente', 'data_hora', 'profissional_nome', 'servico_nome']
+        }
+    }
 ]
 
 # Nosso modelo de IA com tools e system_instruction atualizado
