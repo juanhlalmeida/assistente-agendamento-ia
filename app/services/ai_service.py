@@ -1,96 +1,184 @@
 # app/services/ai_service.py
 import os
 import logging
+import json
 import google.generativeai as genai
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
+from flask import current_app
 from sqlalchemy.orm import joinedload
+from .models.tables import Agendamento, Profissional, Servico
+from .extensions import db  # Assumindo que db está disponível
 
-# Importamos as ferramentas do nosso banco de dados
-from app.models.tables import Agendamento, Profissional, Servico
-from app.extensions import db
-
-# Configuração do logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# --- FERRAMENTAS (FUNÇÕES) QUE A IA PODE USAR ---
-
-def calcular_horarios_disponiveis(profissional_nome: str, dia: str) -> str:
-    """Calcula e retorna uma string com os horários disponíveis para um profissional em um dia específico."""
-    logging.info(f"Executando ferramenta: calcular_horarios_disponiveis para {profissional_nome} no dia {dia}")
-    try:
-        profissional = Profissional.query.filter(Profissional.nome.ilike(f"%{profissional_nome}%")).first()
-        if not profissional:
-            return "Profissional não encontrado. Por favor, verifique o nome. Os profissionais disponíveis são [Liste os nomes aqui se necessário]."
-
-        if dia.lower() == 'hoje':
-            dia_dt = datetime.now()
-        elif dia.lower() == 'amanhã':
-            dia_dt = datetime.now() + timedelta(days=1)
-        else:
-            dia_dt = datetime.strptime(dia, '%Y-%m-%d')
-
-        HORA_INICIO_TRABALHO = 9
-        HORA_FIM_TRABALHO = 20
-        INTERVALO_MINUTOS = 30
-        horarios_disponiveis = []
-        horario_iteracao = dia_dt.replace(hour=HORA_INICIO_TRABALHO, minute=0, second=0, microsecond=0)
-        fim_do_dia = dia_dt.replace(hour=HORA_FIM_TRABALHO, minute=0, second=0, microsecond=0)
-        inicio_dia, fim_dia_query = (dia_dt.replace(hour=0, minute=0), dia_dt.replace(hour=23, minute=59))
-        
-        agendamentos_do_dia = Agendamento.query.options(joinedload(Agendamento.servico)).filter(
-            Agendamento.profissional_id == profissional.id,
-            Agendamento.data_hora >= inicio_dia, Agendamento.data_hora < fim_dia_query
-        ).all()
-        
-        intervalos_ocupados = [(ag.data_hora, ag.data_hora + timedelta(minutes=ag.servico.duracao)) for ag in agendamentos_do_dia]
-        
-        agora = datetime.now()
-        while horario_iteracao < fim_do_dia:
-            esta_ocupado = any(i <= horario_iteracao < f for i, f in intervalos_ocupados)
-            if not esta_ocupado and horario_iteracao > agora:
-                horarios_disponiveis.append(horario_iteracao.strftime('%H:%M'))
-            horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
-
-        resultado = f"Resultado da consulta de horários: Os horários disponíveis para {profissional_nome} no dia {dia_dt.strftime('%d/%m/%Y')} são: {', '.join(horarios_disponiveis) if horarios_disponiveis else 'Nenhum horário disponível.'}"
-        logging.info(resultado)
-        return resultado
-    except Exception as e:
-        logging.error(f"Erro na ferramenta calcular_horarios_disponiveis: {e}")
-        return f"Ocorreu um erro interno ao calcular os horários: {str(e)}"
-
-def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
-    """Cria um novo agendamento no sistema após verificar conflitos."""
-    logging.info(f"Executando ferramenta: criar_agendamento para {nome_cliente} em {data_hora}")
-    # ... (O código completo da função criar_agendamento que o seu dev sugeriu)
-    return "Função criar_agendamento executada." # Placeholder
-
-# --- CONFIGURAÇÃO DO MODELO DE IA ---
-
+# Configuração do cliente Gemini
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
     logging.error("Chave da API do Gemini não encontrada!")
 else:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# Descrevemos nossas ferramentas para a IA
-tools_definitions = {
-    "calcular_horarios_disponiveis": calcular_horarios_disponiveis,
-    "criar_agendamento": criar_agendamento
-}
+# Funções reais (tools) que a IA pode chamar
+def listar_profissionais() -> str:
+    """Lista todos os profissionais disponíveis no sistema."""
+    try:
+        with current_app.app_context():
+            profissionais = Profissional.query.all()
+            if not profissionais:
+                return "Nenhum profissional cadastrado no momento."
+            nomes = [p.nome for p in profissionais]
+            return f"Profissionais disponíveis: {', '.join(nomes)}."
+    except Exception as e:
+        return f"Erro ao listar profissionais: {str(e)}"
 
+def listar_servicos() -> str:
+    """Lista todos os serviços disponíveis no sistema."""
+    try:
+        with current_app.app_context():
+            servicos = Servico.query.all()
+            if not servicos:
+                return "Nenhum serviço cadastrado no momento."
+            nomes = [s.nome for s in servicos]
+            return f"Serviços disponíveis: {', '.join(nomes)}."
+    except Exception as e:
+        return f"Erro ao listar serviços: {str(e)}"
+
+def calcular_horarios_disponiveis(profissional_nome: str, dia: str) -> str:
+    """Calcula horários disponíveis para um profissional em um dia específico."""
+    try:
+        with current_app.app_context():
+            profissional = Profissional.query.filter_by(nome=profissional_nome).first()
+            if not profissional:
+                return "Profissional não encontrado. Por favor, verifique o nome."
+
+            # Parseia o dia (ex.: 'hoje', 'amanhã', '2025-10-16')
+            agora = datetime.now()
+            if dia.lower() == 'hoje':
+                dia_dt = agora
+            elif dia.lower() == 'amanhã':
+                dia_dt = agora + timedelta(days=1)
+            else:
+                dia_dt = datetime.strptime(dia, '%Y-%m-%d')
+
+            # Lógica de cálculo (adaptada do routes.py)
+            HORA_INICIO_TRABALHO = 9
+            HORA_FIM_TRABALHO = 20
+            INTERVALO_MINUTOS = 30
+
+            horarios_disponiveis = []
+            horario_iteracao = dia_dt.replace(hour=HORA_INICIO_TRABALHO, minute=0, second=0, microsecond=0)
+            fim_do_dia = dia_dt.replace(hour=HORA_FIM_TRABALHO, minute=0, second=0, microsecond=0)
+
+            inicio, fim = (dia_dt.replace(hour=0, minute=0), dia_dt.replace(hour=23, minute=59))
+            agendamentos_do_dia = (
+                Agendamento.query
+                .options(joinedload(Agendamento.servico))
+                .filter(Agendamento.profissional_id == profissional.id)
+                .filter(Agendamento.data_hora >= inicio, Agendamento.data_hora < fim)
+                .all()
+            )
+
+            intervalos_ocupados = [(ag.data_hora, ag.data_hora + timedelta(minutes=ag.servico.duracao)) for ag in agendamentos_do_dia]
+
+            while horario_iteracao < fim_do_dia:
+                esta_ocupado = any(i <= horario_iteracao < f for i, f in intervalos_ocupados)
+                if not esta_ocupado and horario_iteracao > agora:
+                    horarios_disponiveis.append(horario_iteracao.strftime('%H:%M'))
+                horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
+
+            return f"Horários disponíveis para {profissional_nome} em {dia_dt.strftime('%Y-%m-%d')}: {', '.join(horarios_disponiveis) or 'Nenhum disponível.'}"
+    except Exception as e:
+        return f"Erro ao calcular horários: {str(e)}"
+
+def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
+    """Cria um novo agendamento no banco de dados."""
+    try:
+        with current_app.app_context():
+            profissional = Profissional.query.filter_by(nome=profissional_nome).first()
+            if not profissional:
+                return "Profissional não encontrado."
+
+            servico = Servico.query.filter_by(nome=servico_nome).first()
+            if not servico:
+                return "Serviço não encontrado."
+
+            # Parseia data_hora (ex.: '2025-10-15 18:00')
+            data_hora_dt = datetime.strptime(data_hora, '%Y-%m-%d %H:%M')
+
+            # Verifica conflitos
+            novo_fim = data_hora_dt + timedelta(minutes=servico.duracao)
+            inicio_dia = data_hora_dt.replace(hour=0, minute=0)
+            fim_dia = data_hora_dt.replace(hour=23, minute=59)
+            ags = (
+                Agendamento.query
+                .options(joinedload(Agendamento.servico))
+                .filter(Agendamento.profissional_id == profissional.id)
+                .filter(Agendamento.data_hora >= inicio_dia, Agendamento.data_hora < fim_dia)
+                .all()
+            )
+            conflito = any(
+                max(data_hora_dt, ag.data_hora) < min(novo_fim, ag.data_hora + timedelta(minutes=ag.servico.duracao))
+                for ag in ags
+            )
+            if conflito:
+                return "Conflito de horário. Por favor, escolha outro."
+
+            # Cria o agendamento
+            novo_agendamento = Agendamento(
+                nome_cliente=nome_cliente,
+                telefone_cliente=telefone_cliente,
+                data_hora=data_hora_dt,
+                profissional_id=profissional.id,
+                servico_id=servico.id,
+            )
+            db.session.add(novo_agendamento)
+            db.session.commit()
+            return f"Agendamento criado com sucesso para {nome_cliente} em {data_hora} com {profissional_nome} para {servico_nome}. Confirmação enviada!"
+    except Exception as e:
+        db.session.rollback()
+        return f"Erro ao criar agendamento: {str(e)}"
+
+# Definição das tools para o Gemini (adiciona listagens)
+tools = [
+    {
+        'name': 'listar_profissionais',
+        'description': 'Lista todos os profissionais disponíveis no sistema.',
+        'parameters': {
+            'type': 'object',
+            'properties': {},
+            'required': []
+        }
+    },
+    {
+        'name': 'listar_servicos',
+        'description': 'Lista todos os serviços disponíveis no sistema.',
+        'parameters': {
+            'type': 'object',
+            'properties': {},
+            'required': []
+        }
+    },
+    # ... (mantenha as outras tools: calcular_horarios_disponiveis e criar_agendamento como antes)
+]
+
+# Nosso modelo de IA com tools e system_instruction atualizado
 try:
     model = genai.GenerativeModel(
-        model_name='models/gemini-2.5-flash',
-        tools=[calcular_horarios_disponiveis, criar_agendamento], # Habilita o Function Calling
+        model_name='gemini-2.5-flash',
+        tools=tools,
         system_instruction="""
-        Você é o assistente de agendamento premium da BinahTech, uma barbearia/salão de elite. Sua missão é fornecer um serviço excepcional: ágil, personalizado e impecável, maximizando a satisfação do cliente para fidelização e upsell sutil (ex.: sugerir serviços complementares como barba após corte).
+        Você é o assistente de agendamento premium da BinahTech, uma barbearia/salão de elite. Sua missão é fornecer um serviço excepcional: ágil, personalizado e impecável, maximizando a satisfação do cliente para fidelização e upsell sutil.
 
         Regras de Alto Nível para Excelência:
-        - Seja empático e proativo: Sempre pergunte por preferências (ex.: 'Prefere manhã ou tarde?') e confirme detalhes para evitar erros.
-        - Foque exclusivamente em agendamentos: Ignore ou redirecione tópicos irrelevantes com 'Desculpe, sou especializado em agendamentos. Como posso ajudar com isso?'.
-        - Use ferramentas inteligentemente: Chame 'calcular_horarios_disponiveis' ANTES de sugerir horários; chame 'criar_agendamento' SOMENTE após confirmação explícita do cliente.
-        - Valide tudo: Verifique nomes de profissionais/serviços disponíveis. Trate erros graciosamente (ex.: 'Horário indisponível, sugiro alternativas.').
-        - Otimização: Mantenha respostas concisas, use linguagem natural em português, e inclua chamadas para ação (ex.: 'Confirma?').
+        - Sempre comece listando profissionais/serviços reais chamando 'listar_profissionais' ou 'listar_servicos' se não souber ou se o usuário perguntar.
+        - Nunca invente nomes; use apenas dados reais do sistema via tools.
+        - Seja empático e proativo: Pergunte preferências e confirme detalhes. Para "hoje", use data atual (15/10/2025).
+        - Foque em agendamentos: Ignore irrelevantes.
+        - Use tools: Chame 'listar_*' primeiro; 'calcular_horarios_disponiveis' antes de sugerir horários; 'criar_agendamento' SOMENTE após confirmação total (nome, telefone, data_hora exata, profissional, serviço).
+        - Valide: Trate erros (ex.: 'Nome inválido, aqui a lista: ...'). Sugira alternativas.
+        - Otimização: Respostas concisas, em português. Inclua upsell (ex.: 'Adicionar barba?').
+        - Retenção: Ao final, sugira retorno ou avaliação.
+        - Edge Cases: Para reagendamentos, adicione tools futuras.
+
+        Sempre confirme final com detalhes completos.
         """
     )
 except Exception as e:
