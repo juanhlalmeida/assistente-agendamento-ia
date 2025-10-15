@@ -205,49 +205,54 @@ def webhook():
     try:
         msg_text = data.get('Body')
         from_number_raw = data.get('From')
-
+        
         if not from_number_raw or not msg_text:
             return 'OK', 200
 
         from_number = sanitize_msisdn(from_number_raw)
-
+        
         chat_session = ai_model.start_chat(history=conversation_history.get(from_number, []))
-
+        
         response = chat_session.send_message(msg_text)
-
-        # --- LÓGICA DE FUNCTION CALLING CORRIGIDA ---
+        
         try:
             function_call = response.candidates[0].content.parts[0].function_call
         except (IndexError, AttributeError):
-            function_call = None # A IA respondeu com texto normal
+            function_call = None
 
         if function_call and function_call.name:
             func_name = function_call.name
             args = {key: value for key, value in function_call.args.items()}
-
+            
             logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
-
+            
             tool_function = tools_definitions.get(func_name)
+            
+            # ✅ LÓGICA ATUALIZADA PARA INCLUIR AS NOVAS FERRAMENTAS
             if tool_function:
-                # ✅ CORREÇÃO: Usamos o 'current_app.app_context()' para aceder à base de dados
                 with current_app.app_context():
-                    result = tool_function(**args)
-
+                    # Para as funções de listagem que não têm argumentos
+                    if func_name in ['listar_profissionais', 'listar_servicos']:
+                        result = tool_function()
+                    else: # Para as outras que têm argumentos
+                        result = tool_function(**args)
+                
                 response = chat_session.send_message(
                     part=genai.Part(function_response={'name': func_name, 'response': {'result': result}})
                 )
             else:
-                # ... (lógica de ferramenta desconhecida)
-                pass
-
+                response = chat_session.send_message(
+                    part=genai.Part(function_response={'name': func_name, 'response': {'result': 'Ferramenta desconhecida.'}})
+                )
+        
         reply_text = response.text
-
+        
         client = WhatsAppClient()
         api_res = client.send_text(from_number, reply_text)
-
+        
         if not api_res or api_res.get("status") not in ('queued', 'sent', 'delivered'):
              logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
-
+        
         conversation_history[from_number] = chat_session.history
 
     except Exception as e:
