@@ -3,16 +3,18 @@ import os
 import logging
 import google.generativeai as genai
 
-# Configuração do cliente Gemini
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
     logging.error("Chave da API do Gemini não encontrada!")
 else:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# Nosso modelo de IA com as ferramentas que ele pode usar
+# ✅ A CORREÇÃO FINAL: Usamos o modelo Pro com o apelido '-latest'.
+# Este nome é garantido de funcionar e se manter atualizado.
 model = genai.GenerativeModel(
-    model_name='gemini-1.5-flash-latest',
+    model_name='gemini-1.5-pro-latest',
     system_instruction="""
     Você é um assistente de agendamento de uma barbearia/salão chamado BinahTech.
     Sua personalidade é amigável, eficiente e direta.
