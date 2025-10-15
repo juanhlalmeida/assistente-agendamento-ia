@@ -1,13 +1,13 @@
 # app/services/ai_service.py
 import os
 import logging
-import json
 import google.generativeai as genai
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
-from app.models.tables import Agendamento, Profissional, Servico  # Import ABSOLUTO: começa com 'app.'
-from app.extensions import db  # Import ABSOLUTO (ajustado para consistency)
+from google.generativeai.types import FunctionDeclaration, Tool  # Adicione isso para tools corretas
+from app.models.tables import Agendamento, Profissional, Servico
+from app.extensions import db
 
 # Configuração do cliente Gemini
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -16,7 +16,7 @@ if not GEMINI_API_KEY:
 else:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# Funções reais (tools) que a IA pode chamar
+# Funções reais (tools) que a IA pode chamar (mantidas iguais)
 def listar_profissionais() -> str:
     """Lista todos os profissionais disponíveis no sistema."""
     try:
@@ -49,7 +49,6 @@ def calcular_horarios_disponiveis(profissional_nome: str, dia: str) -> str:
             if not profissional:
                 return "Profissional não encontrado. Por favor, verifique o nome."
 
-            # Parseia o dia (ex.: 'hoje', 'amanhã', '2025-10-16')
             agora = datetime.now()
             if dia.lower() == 'hoje':
                 dia_dt = agora
@@ -58,7 +57,6 @@ def calcular_horarios_disponiveis(profissional_nome: str, dia: str) -> str:
             else:
                 dia_dt = datetime.strptime(dia, '%Y-%m-%d')
 
-            # Lógica de cálculo (adaptada do routes.py)
             HORA_INICIO_TRABALHO = 9
             HORA_FIM_TRABALHO = 20
             INTERVALO_MINUTOS = 30
@@ -100,10 +98,8 @@ def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, 
             if not servico:
                 return "Serviço não encontrado."
 
-            # Parseia data_hora (ex.: '2025-10-15 18:00')
             data_hora_dt = datetime.strptime(data_hora, '%Y-%m-%d %H:%M')
 
-            # Verifica conflitos
             novo_fim = data_hora_dt + timedelta(minutes=servico.duracao)
             inicio_dia = data_hora_dt.replace(hour=0, minute=0)
             fim_dia = data_hora_dt.replace(hour=23, minute=59)
@@ -121,7 +117,6 @@ def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, 
             if conflito:
                 return "Conflito de horário. Por favor, escolha outro."
 
-            # Cria o agendamento
             novo_agendamento = Agendamento(
                 nome_cliente=nome_cliente,
                 telefone_cliente=telefone_cliente,
@@ -136,67 +131,98 @@ def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, 
         db.session.rollback()
         return f"Erro ao criar agendamento: {str(e)}"
 
-# Definição das tools para o Gemini (adiciona listagens)
-tools = [
-    {
-        'name': 'listar_profissionais',
-        'description': 'Lista todos os profissionais disponíveis no sistema.',
-        'parameters': {
-            'type': 'object',
-            'properties': {},
-            'required': []
-        }
-    },
-    {
-        'name': 'listar_servicos',
-        'description': 'Lista todos os serviços disponíveis no sistema.',
-        'parameters': {
-            'type': 'object',
-            'properties': {},
-            'required': []
-        }
-    },
-    {
-        'name': 'calcular_horarios_disponiveis',
-        'description': 'Consulta horários disponíveis para um profissional em um dia específico.',
-        'parameters': {
-            'type': 'object',
-            'properties': {
-                'profissional_nome': {'type': 'string', 'description': 'Nome do profissional (ex.: Bruno)'},
-                'dia': {'type': 'string', 'description': 'Dia no formato YYYY-MM-DD, "hoje" ou "amanhã"'}
-            },
-            'required': ['profissional_nome', 'dia']
-        }
-    },
-    {
-        'name': 'criar_agendamento',
-        'description': 'Cria um novo agendamento no sistema.',
-        'parameters': {
-            'type': 'object',
-            'properties': {
-                'nome_cliente': {'type': 'string', 'description': 'Nome do cliente'},
-                'telefone_cliente': {'type': 'string', 'description': 'Telefone do cliente (ex.: +5513988057145)'},
-                'data_hora': {'type': 'string', 'description': 'Data e hora no formato YYYY-MM-DD HH:MM'},
-                'profissional_nome': {'type': 'string', 'description': 'Nome do profissional'},
-                'servico_nome': {'type': 'string', 'description': 'Nome do serviço (ex.: Corte de Cabelo)'}
-            },
-            'required': ['nome_cliente', 'telefone_cliente', 'data_hora', 'profissional_nome', 'servico_nome']
-        }
+# Definição das tools no formato CORRETO do Gemini (isso resolve o erro de init)
+listar_profissionais_func = FunctionDeclaration(
+    name="listar_profissionais",
+    description="Lista todos os profissionais disponíveis no sistema.",
+    parameters={
+        "type": genai.protos.SchemaType.OBJECT,
+        "properties": {},
+        "required": []
     }
-]
+)
 
-# Nosso modelo de IA com tools e system_instruction atualizado
+listar_servicos_func = FunctionDeclaration(
+    name="listar_servicos",
+    description="Lista todos os serviços disponíveis no sistema.",
+    parameters={
+        "type": genai.protos.SchemaType.OBJECT,
+        "properties": {},
+        "required": []
+    }
+)
+
+calcular_horarios_disponiveis_func = FunctionDeclaration(
+    name="calcular_horarios_disponiveis",
+    description="Consulta horários disponíveis para um profissional em um dia específico.",
+    parameters={
+        "type": genai.protos.SchemaType.OBJECT,
+        "properties": {
+            "profissional_nome": {
+                "type": genai.protos.SchemaType.STRING,
+                "description": "Nome do profissional (ex.: Bruno)"
+            },
+            "dia": {
+                "type": genai.protos.SchemaType.STRING,
+                "description": "Dia no formato YYYY-MM-DD, 'hoje' ou 'amanhã'"
+            }
+        },
+        "required": ["profissional_nome", "dia"]
+    }
+)
+
+criar_agendamento_func = FunctionDeclaration(
+    name="criar_agendamento",
+    description="Cria um novo agendamento no sistema.",
+    parameters={
+        "type": genai.protos.SchemaType.OBJECT,
+        "properties": {
+            "nome_cliente": {
+                "type": genai.protos.SchemaType.STRING,
+                "description": "Nome do cliente"
+            },
+            "telefone_cliente": {
+                "type": genai.protos.SchemaType.STRING,
+                "description": "Telefone do cliente (ex.: +5513988057145)"
+            },
+            "data_hora": {
+                "type": genai.protos.SchemaType.STRING,
+                "description": "Data e hora no formato YYYY-MM-DD HH:MM"
+            },
+            "profissional_nome": {
+                "type": genai.protos.SchemaType.STRING,
+                "description": "Nome do profissional"
+            },
+            "servico_nome": {
+                "type": genai.protos.SchemaType.STRING,
+                "description": "Nome do serviço (ex.: Corte de Cabelo)"
+            }
+        },
+        "required": ["nome_cliente", "telefone_cliente", "data_hora", "profissional_nome", "servico_nome"]
+    }
+)
+
+tools = Tool(
+    function_declarations=[
+        listar_profissionais_func,
+        listar_servicos_func,
+        calcular_horarios_disponiveis_func,
+        criar_agendamento_func
+    ]
+)
+
+# Nosso modelo de IA com tools corrigidas
 try:
     model = genai.GenerativeModel(
         model_name='gemini-2.5-flash',
-        tools=tools,
+        tools=[tools],  # Agora no formato correto
         system_instruction="""
         Você é o assistente de agendamento premium da BinahTech, uma barbearia/salão de elite. Sua missão é fornecer um serviço excepcional: ágil, personalizado e impecável, maximizando a satisfação do cliente para fidelização e upsell sutil.
 
         Regras de Alto Nível para Excelência:
         - Sempre comece listando profissionais/serviços reais chamando 'listar_profissionais' ou 'listar_servicos' se não souber ou se o usuário perguntar.
         - Nunca invente nomes; use apenas dados reais do sistema via tools.
-        - Seja empático e proativo: Pergunte preferências e confirme detalhes. Para "hoje", use data atual (15/10/2025).
+        - Seja empático e proativo: Pergunte preferências e confirme detalhes. Para "hoje", use data atual.
         - Foque em agendamentos: Ignore irrelevantes.
         - Use tools: Chame 'listar_*' primeiro; 'calcular_horarios_disponiveis' antes de sugerir horários; 'criar_agendamento' SOMENTE após confirmação total (nome, telefone, data_hora exata, profissional, serviço).
         - Valide: Trate erros (ex.: 'Nome inválido, aqui a lista: ...'). Sugira alternativas.
