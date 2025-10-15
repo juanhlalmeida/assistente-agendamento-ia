@@ -12,9 +12,9 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 try:
-    # ✅ USANDO O MODELO SUGERIDO PELA SUA PESQUISA
+    # ✅ A CORREÇÃO FINAL: Usamos o nome exato da lista que obtivemos.
     model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash', # Usando um nome de modelo estável e sem o '-latest'
+        model_name='models/gemini-2.5-flash',
         system_instruction="""
         Você é um assistente de agendamento de uma barbearia/salão chamado BinahTech.
         Sua personalidade é amigável, eficiente e direta.
