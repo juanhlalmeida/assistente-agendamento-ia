@@ -1,23 +1,15 @@
 # app/routes.py
 import os
 import logging
-import google.generativeai as genai
-
 from datetime import datetime, date, time, timedelta
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
-
-
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from sqlalchemy.orm import joinedload
-from .services.ai_service import model as ai_model, tools_definitions
-
-
 
 from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
 from .whatsapp_client import WhatsAppClient, sanitize_msisdn
-from .services import ai_service  # Importamos o nosso novo cérebro de IA
+from .services import ai_service  # Importamos o serviço de IA completo (sem tools_definitions, pois não é necessário aqui)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 bp = Blueprint('main', __name__)
@@ -159,7 +151,7 @@ def agenda():
 
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
 def excluir_agendamento(agendamento_id):
-    ag = Agendamento.query.get_or_44(agendamento_id)
+    ag = Agendamento.query.get_or_404(agendamento_id)
     data_redirect = ag.data_hora.strftime('%Y-%m-%d')
     prof_redirect = ag.profissional_id
     db.session.delete(ag)
@@ -188,17 +180,9 @@ def editar_agendamento(agendamento_id):
     return render_template('editar_agendamento.html',
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
 
-# --- WEBHOOK ATUALIZADO PARA ORQUESTRAR A CONVERSA COM A IA (FASE 4) ---
-# app/routes.py
-
-# ... (todo o seu código anterior, imports, funções do painel, etc.) ...
-
+# --- WEBHOOK ATUALIZADO PARA ORQUESTRAR A CONVERSA COM A IA ---
 @bp.route('/webhook', methods=['POST'])
 def webhook():
-    if not ai_model:
-        logging.error("MODELO DE IA NÃO INICIALIZADO.")
-        return "OK", 200
-
     data = request.values
     logging.info("PAYLOAD RECEBIDO DA TWILIO: %s", data)
 
@@ -207,55 +191,65 @@ def webhook():
         from_number_raw = data.get('From')
         
         if not from_number_raw or not msg_text:
+            logging.warning("Webhook da Twilio recebido sem 'From' ou 'Body'.")
             return 'OK', 200
 
         from_number = sanitize_msisdn(from_number_raw)
         
-        chat_session = ai_model.start_chat(history=conversation_history.get(from_number, []))
+        # 1. Recupera o histórico da conversa ou inicia uma nova sessão
+        chat_session = ai_service.model.start_chat(
+            history=conversation_history.get(from_number, [])
+        )
         
+        # 2. Envia a nova mensagem do usuário para a IA
         response = chat_session.send_message(msg_text)
         
-        try:
-            function_call = response.candidates[0].content.parts[0].function_call
-        except (IndexError, AttributeError):
-            function_call = None
-
-        if function_call and function_call.name:
-            func_name = function_call.name
-            args = {key: value for key, value in function_call.args.items()}
-            
-            logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
-            
-            tool_function = tools_definitions.get(func_name)
-            
-            # ✅ LÓGICA ATUALIZADA PARA INCLUIR AS NOVAS FERRAMENTAS
-            if tool_function:
-                with current_app.app_context():
-                    # Para as funções de listagem que não têm argumentos
-                    if func_name in ['listar_profissionais', 'listar_servicos']:
-                        result = tool_function()
-                    else: # Para as outras que têm argumentos
-                        result = tool_function(**args)
-                
-                response = chat_session.send_message(
-                    part=genai.Part(function_response={'name': func_name, 'response': {'result': result}})
-                )
-            else:
-                response = chat_session.send_message(
-                    part=genai.Part(function_response={'name': func_name, 'response': {'result': 'Ferramenta desconhecida.'}})
-                )
+        # 3. Lida com chamadas de funções (tools)
+        while response.parts and any(part.function_call for part in response.parts):
+            for part in response.parts:
+                if part.function_call:
+                    func_name = part.function_call.name
+                    args = dict(part.function_call.args)  # Converte para dict
+                    
+                    logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
+                    
+                    if func_name == 'listar_profissionais':
+                        result = ai_service.listar_profissionais()
+                    elif func_name == 'listar_servicos':
+                        result = ai_service.listar_servicos()
+                    elif func_name == 'calcular_horarios_disponiveis':
+                        result = ai_service.calcular_horarios_disponiveis(**args)
+                    elif func_name == 'criar_agendamento':
+                        result = ai_service.criar_agendamento(**args)
+                    else:
+                        result = "Ferramenta desconhecida."
+                    
+                    # Envia resultado de volta para IA
+                    function_response = genai.protos.Part(
+                        function_response=genai.protos.FunctionResponse(
+                            name=func_name,
+                            response={"result": result}
+                        )
+                    )
+                    response = chat_session.send_message([function_response])
         
+        # 4. Extrai o texto da resposta final da IA
         reply_text = response.text
         
+        # 5. Envia a resposta da IA para o cliente através do nosso WhatsAppClient
         client = WhatsAppClient()
         api_res = client.send_text(from_number, reply_text)
         
-        if not api_res or api_res.get("status") not in ('queued', 'sent', 'delivered'):
+        if api_res.get("status") not in ('queued', 'sent', 'delivered'):
              logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
         
+        # 6. Atualiza o histórico da conversa com a nova troca de mensagens
         conversation_history[from_number] = chat_session.history
 
     except Exception as e:
         logging.error("Erro no webhook da IA: %s", e, exc_info=True)
 
     return 'OK', 200
+
+def init_app(app):
+    app.register_blueprint(bp)
