@@ -2,6 +2,7 @@
 import os
 import logging
 from datetime import datetime, date, time, timedelta
+import google.generativeai as genai  # Adicionado: Para genai.protos.Part no loop de tools
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from sqlalchemy.orm import joinedload
@@ -9,13 +10,12 @@ from sqlalchemy.orm import joinedload
 from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
 from .whatsapp_client import WhatsAppClient, sanitize_msisdn
-from .services import ai_service  # Importamos o serviço de IA completo (sem tools_definitions, pois não é necessário aqui)
+from .services import ai_service  # Importamos o serviço de IA completo
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 bp = Blueprint('main', __name__)
 
 # --- Armazenamento em memória para o histórico das conversas ---
-# A chave será o número do usuário, e o valor será o objeto de chat do Gemini
 conversation_history = {}
 
 # --- FUNÇÕES DO PAINEL WEB (SEU CÓDIGO ORIGINAL, 100% PRESERVADO) ---
@@ -195,6 +195,14 @@ def webhook():
             return 'OK', 200
 
         from_number = sanitize_msisdn(from_number_raw)
+        
+        # Fallback se model não inicializado
+        if ai_service.model is None:
+            logging.error("Modelo da IA não inicializado. Usando fallback.")
+            reply_text = "Olá! Estamos com um problema técnico. Tente novamente em breve."
+            client = WhatsAppClient()
+            client.send_text(from_number, reply_text)
+            return 'OK', 200
         
         # 1. Recupera o histórico da conversa ou inicia uma nova sessão
         chat_session = ai_service.model.start_chat(
