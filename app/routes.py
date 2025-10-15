@@ -183,10 +183,14 @@ def editar_agendamento(agendamento_id):
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
 
 # --- WEBHOOK ATUALIZADO PARA ORQUESTRAR A CONVERSA COM A IA (FASE 4) ---
+# app/routes.py
+
+# ... (todo o seu código anterior, imports, funções do painel, etc.) ...
+
 @bp.route('/webhook', methods=['POST'])
 def webhook():
     if not ai_model:
-        logging.error("MODELO DE IA NÃO INICIALIZADO. VERIFIQUE A CHAVE DA API E O NOME DO MODELO.")
+        logging.error("MODELO DE IA NÃO INICIALIZADO.")
         return "OK", 200
 
     data = request.values
@@ -195,57 +199,53 @@ def webhook():
     try:
         msg_text = data.get('Body')
         from_number_raw = data.get('From')
-        
+
         if not from_number_raw or not msg_text:
             return 'OK', 200
 
         from_number = sanitize_msisdn(from_number_raw)
-        
+
         chat_session = ai_model.start_chat(history=conversation_history.get(from_number, []))
-        
+
         # Envia a mensagem do usuário para a IA
         response = chat_session.send_message(msg_text)
-        
-        # --- LÓGICA DE FUNCTION CALLING ---
-        # Verifica se a IA quer chamar uma de nossas ferramentas
-        if response.function_calls:
-            # Executa a(s) função(ões) que a IA pediu
-            for function_call in response.function_calls:
-                func_name = function_call.name
-                args = {key: value for key, value in function_call.args.items()}
-                
-                logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
-                
-                # Encontra e executa a função correta
-                tool_function = tools_definitions.get(func_name)
-                if tool_function:
+
+        # --- ✅ LÓGICA DE FUNCTION CALLING CORRIGIDA ---
+        # A forma correta de verificar é procurar por 'function_call' nas 'parts' da resposta.
+        function_call = response.candidates[0].content.parts[0].function_call
+
+        if function_call.name:
+            func_name = function_call.name
+            args = {key: value for key, value in function_call.args.items()}
+
+            logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
+
+            tool_function = tools_definitions.get(func_name)
+            if tool_function:
+                # Usamos o contexto do app Flask para garantir que a função tenha acesso ao 'db'
+                with bp.app.app_context():
                     result = tool_function(**args)
-                    # Envia o resultado da ferramenta de volta para a IA
-                    response = chat_session.send_message(
-                        part=genai.Part(function_response={'name': func_name, 'response': {'result': result}})
-                    )
-                else:
-                    response = chat_session.send_message(
-                        part=genai.Part(function_response={'name': func_name, 'response': {'result': 'Ferramenta desconhecida.'}})
-                    )
-        
-        # Pega a resposta final da IA (seja a primeira ou a resposta após usar a ferramenta)
+
+                # Envia o resultado da ferramenta de volta para a IA
+                response = chat_session.send_message(
+                    part=genai.Part(function_response={'name': func_name, 'response': {'result': result}})
+                )
+            else:
+                response = chat_session.send_message(
+                    part=genai.Part(function_response={'name': func_name, 'response': {'result': 'Ferramenta desconhecida.'}})
+                )
+
         reply_text = response.text
-        
-        # Envia a resposta da IA para o cliente
+
         client = WhatsAppClient()
         api_res = client.send_text(from_number, reply_text)
-        
+
         if not api_res or api_res.get("status") not in ('queued', 'sent', 'delivered'):
              logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
-        
-        # Atualiza o histórico da conversa
+
         conversation_history[from_number] = chat_session.history
 
     except Exception as e:
         logging.error("Erro no webhook da IA: %s", e, exc_info=True)
 
     return 'OK', 200
-
-def init_app(app):
-    app.register_blueprint(bp)
