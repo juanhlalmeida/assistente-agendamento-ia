@@ -6,7 +6,8 @@ import google.generativeai as genai
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
-from .models.tables import Agendamento, Profissional, Servico
+from ..models.tables import Agendamento, Profissional, Servico
+git add .
 from .extensions import db  # Assumindo que db está disponível
 
 # Configuração do cliente Gemini
