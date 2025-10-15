@@ -5,6 +5,8 @@ from datetime import datetime, date, time, timedelta
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from sqlalchemy.orm import joinedload
+from .services.ai_service import model as ai_model, tools_definitions
+
 
 from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
@@ -180,9 +182,13 @@ def editar_agendamento(agendamento_id):
     return render_template('editar_agendamento.html',
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
 
-# --- WEBHOOK ATUALIZADO PARA ORQUESTRAR A CONVERSA COM A IA (FASE 3) ---
+# --- WEBHOOK ATUALIZADO PARA ORQUESTRAR A CONVERSA COM A IA (FASE 4) ---
 @bp.route('/webhook', methods=['POST'])
 def webhook():
+    if not ai_model:
+        logging.error("MODELO DE IA NÃO INICIALIZADO. VERIFIQUE A CHAVE DA API E O NOME DO MODELO.")
+        return "OK", 200
+
     data = request.values
     logging.info("PAYLOAD RECEBIDO DA TWILIO: %s", data)
 
@@ -191,31 +197,49 @@ def webhook():
         from_number_raw = data.get('From')
         
         if not from_number_raw or not msg_text:
-            logging.warning("Webhook da Twilio recebido sem 'From' ou 'Body'.")
             return 'OK', 200
 
         from_number = sanitize_msisdn(from_number_raw)
         
-        # 1. Recupera o histórico da conversa ou inicia uma nova sessão
-        chat_session = ai_service.model.start_chat(
-            history=conversation_history.get(from_number, [])
-        )
+        chat_session = ai_model.start_chat(history=conversation_history.get(from_number, []))
         
-        # 2. Envia a nova mensagem do usuário para a IA
+        # Envia a mensagem do usuário para a IA
         response = chat_session.send_message(msg_text)
         
-        # 3. Extrai o texto da resposta da IA
-        #    (No futuro, aqui vamos verificar se a IA quer usar uma ferramenta)
+        # --- LÓGICA DE FUNCTION CALLING ---
+        # Verifica se a IA quer chamar uma de nossas ferramentas
+        if response.function_calls:
+            # Executa a(s) função(ões) que a IA pediu
+            for function_call in response.function_calls:
+                func_name = function_call.name
+                args = {key: value for key, value in function_call.args.items()}
+                
+                logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
+                
+                # Encontra e executa a função correta
+                tool_function = tools_definitions.get(func_name)
+                if tool_function:
+                    result = tool_function(**args)
+                    # Envia o resultado da ferramenta de volta para a IA
+                    response = chat_session.send_message(
+                        part=genai.Part(function_response={'name': func_name, 'response': {'result': result}})
+                    )
+                else:
+                    response = chat_session.send_message(
+                        part=genai.Part(function_response={'name': func_name, 'response': {'result': 'Ferramenta desconhecida.'}})
+                    )
+        
+        # Pega a resposta final da IA (seja a primeira ou a resposta após usar a ferramenta)
         reply_text = response.text
         
-        # 4. Envia a resposta da IA para o cliente através do nosso WhatsAppClient
+        # Envia a resposta da IA para o cliente
         client = WhatsAppClient()
         api_res = client.send_text(from_number, reply_text)
         
         if not api_res or api_res.get("status") not in ('queued', 'sent', 'delivered'):
              logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
         
-        # 5. Atualiza o histórico da conversa com a nova troca de mensagens
+        # Atualiza o histórico da conversa
         conversation_history[from_number] = chat_session.history
 
     except Exception as e:
