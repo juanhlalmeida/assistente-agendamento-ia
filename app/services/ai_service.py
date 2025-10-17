@@ -207,9 +207,15 @@ tools_list = [
 # Nosso modelo de IA com tools no formato definitivo
 try:
     model = genai.GenerativeModel(
-        model_name='gemini-1.5-pro-latest', # Usando o Pro, que tem melhor capacidade de seguir instruções
-        tools=tools_list, # Passamos a lista de funções diretamente
-        # ✅ NOVA SYSTEM_INSTRUCTION
+        # ✅ A CORREÇÃO FINAL E DEFINITIVA: Usando o modelo que sabemos que funciona.
+        model_name='models/gemini-2.5-flash',
+        # ✅ Passamos a lista de funções diretamente, a forma mais moderna.
+        tools=[
+            listar_profissionais, 
+            listar_servicos, 
+            calcular_horarios_disponiveis, 
+            criar_agendamento
+        ],
         system_instruction=f"""
         Você é Luana, concierge breve e eficiente da Vila Chique. Responda sempre de forma concisa (máx. 2-3 frases), amigável e direta. Não use desculpas longas; corrija erros rapidamente. Use emojis de forma natural (😊, ✅, ✂️).
         Fluxo de agendamento:
@@ -246,5 +252,5 @@ try:
         """
     )
 except Exception as e:
-    logging.error(f"Erro ao inicializar o modelo Gemini: {e}")
+    logging.error(f"Erro CRÍTICO ao inicializar o modelo Gemini: {str(e)}", exc_info=True)
     model = None
