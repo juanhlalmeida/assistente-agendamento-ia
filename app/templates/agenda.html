@@ -79,7 +79,7 @@
                     <div class="small text-muted">{{ agendamento.telefone_cliente }}</div>
                 </td>
                 <td>{{ agendamento.data_hora.strftime('%H:%M') }}</td>
-                <td>{{ agendamento.servico.nome }}</td>
+                <td>{{ agendamento.servico.nome }} (R$ {{ "%.2f"|format(agendamento.servico.preco) }})</td>
                 <td>{{ agendamento.profissional.nome }}</td>
                 <td class="text-center">
                     <a href="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
@@ -137,7 +137,7 @@
                 <select id="servico_id" name="servico_id" class="form-select" required>
                     <option value="" disabled selected>Selecione...</option>
                     {% for servico in servicos %}
-                        <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min)</option>
+                        <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
                     {% endfor %}
                 </select>
             </div>
