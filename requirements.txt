@@ -6,4 +6,5 @@ click
 gunicorn
 psycopg2-binary
 twilio
-google-generativeai
+# Força a instalação da versão mais recente diretamente do repositório do Google
+git+https://github.com/google-ai/generativelanguage-python.git
