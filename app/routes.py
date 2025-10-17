@@ -9,7 +9,7 @@ from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
 from .whatsapp_client import WhatsAppClient, sanitize_msisdn
 from .services import ai_service  # Importamos o serviço de IA completo
-from .commands import seed_db_command  # Importamos o nosso comando de criação do banco
+from .commands import reset_database_logic  # ✅ IMPORTAMOS A NOVA FUNÇÃO DE LÓGICA
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 bp = Blueprint('main', __name__)
 # --- Armazenamento em memória para o histórico das conversas ---
@@ -224,21 +224,21 @@ def webhook():
     except Exception as e:
         logging.error("Erro no webhook da IA: %s", e, exc_info=True)
     return 'OK', 200
-# --- ✅ NOVA ROTA SECRETA PARA RECRIAR O BANCO DE DADOS ---
+# --- ✅ ROTA SECRETA ATUALIZADA PARA USAR A NOVA FUNÇÃO ---
 @bp.route('/admin/reset-database/<string:secret_key>')
 def reset_database(secret_key):
-    # Lemos a chave secreta do ambiente da Render
     expected_key = os.getenv('RESET_DB_KEY')
-    
-    # Verificação de segurança: só executa se a chave na URL for a correta
+   
     if not expected_key or secret_key != expected_key:
-        abort(404) # Se a chave for errada, finge que a página não existe
+        abort(404)
     try:
-        # Executa a lógica do nosso comando seed_db
-        with current_app.app_context():
-            seed_db_command.callback()
+        logging.info("Iniciando o reset do banco de dados via rota segura...")
+        # Chamamos a função de lógica diretamente, dentro do contexto do app
+        reset_database_logic()
+        logging.info("Banco de dados recriado com sucesso.")
         return "<h1>Banco de dados recriado com sucesso!</h1><p>Pode voltar para a <a href='/agenda'>página da agenda</a>.</p>"
     except Exception as e:
+        logging.error("Erro ao recriar o banco de dados: %s", e, exc_info=True)
         return f"<h1>Ocorreu um erro ao recriar o banco de dados:</h1><p>{str(e)}</p>"
 def init_app(app):
     app.register_blueprint(bp)
