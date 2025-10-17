@@ -3,11 +3,12 @@ import os
 import logging
 from datetime import datetime, date, time, timedelta
 import google.generativeai as genai
+from .services.ai_service import model as ai_model, SYSTEM_INSTRUCTION_TEMPLATE
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
 from sqlalchemy.orm import joinedload
 from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
-from .whatsapp_client import WhatsAppClient, sanitize_msisdn
+from .whatsapp_client import WhatsAppClient, sanitize_msisdn    
 from .services import ai_service
 from .commands import reset_database_logic
 
