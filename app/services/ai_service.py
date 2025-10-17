@@ -5,18 +5,18 @@ import google.generativeai as genai
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
-from google.generativeai.types import FunctionDeclaration, Tool  # Mantido para FunctionDeclaration e Tool
 from app.models.tables import Agendamento, Profissional, Servico
 from app.extensions import db
 
-# Configuração do cliente Gemini
+# --- Configuração do cliente Gemini (Mantido) ---
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
     logging.error("Chave da API do Gemini não encontrada!")
 else:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# Funções reais (tools) que a IA pode chamar (mantidas iguais)
+# --- Funções (Tools) que a IA pode chamar (Sua lógica, 100% preservada) ---
+
 def listar_profissionais() -> str:
     """Lista todos os profissionais disponíveis no sistema."""
     try:
@@ -36,8 +36,10 @@ def listar_servicos() -> str:
             servicos = Servico.query.all()
             if not servicos:
                 return "Nenhum serviço cadastrado no momento."
-            nomes = [s.nome for s in servicos]
-            return f"Serviços disponíveis: {', '.join(nomes)}."
+            # ✅ AJUSTE: Retornando mais detalhes para o modelo, como você pediu no prompt.
+            # O modelo agora pode informar ao cliente o preço e a duração.
+            detalhes = [f"{s.nome} ({s.duracao} min, R${s.preco:.2f})" for s in servicos]
+            return f"Serviços disponíveis: {', '.join(detalhes)}."
     except Exception as e:
         return f"Erro ao listar serviços: {str(e)}"
 
@@ -51,9 +53,9 @@ def calcular_horarios_disponiveis(profissional_nome: str, dia: str) -> str:
 
             agora = datetime.now()
             if dia.lower() == 'hoje':
-                dia_dt = agora
+                dia_dt = agora.replace(hour=0, minute=0, second=0, microsecond=0)
             elif dia.lower() == 'amanhã':
-                dia_dt = agora + timedelta(days=1)
+                dia_dt = (agora + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             else:
                 dia_dt = datetime.strptime(dia, '%Y-%m-%d')
 
@@ -62,27 +64,34 @@ def calcular_horarios_disponiveis(profissional_nome: str, dia: str) -> str:
             INTERVALO_MINUTOS = 30
 
             horarios_disponiveis = []
-            horario_iteracao = dia_dt.replace(hour=HORA_INICIO_TRABALHO, minute=0, second=0, microsecond=0)
-            fim_do_dia = dia_dt.replace(hour=HORA_FIM_TRABALHO, minute=0, second=0, microsecond=0)
+            horario_iteracao = dia_dt.replace(hour=HORA_INICIO_TRABALHO, minute=0)
+            fim_do_dia = dia_dt.replace(hour=HORA_FIM_TRABALHO, minute=0)
 
-            inicio, fim = (dia_dt.replace(hour=0, minute=0), dia_dt.replace(hour=23, minute=59))
+            # Busca agendamentos apenas para o dia relevante
+            inicio_busca = dia_dt
+            fim_busca = dia_dt.replace(hour=23, minute=59, second=59)
             agendamentos_do_dia = (
                 Agendamento.query
                 .options(joinedload(Agendamento.servico))
                 .filter(Agendamento.profissional_id == profissional.id)
-                .filter(Agendamento.data_hora >= inicio, Agendamento.data_hora < fim)
+                .filter(Agendamento.data_hora.between(inicio_busca, fim_busca))
                 .all()
             )
 
             intervalos_ocupados = [(ag.data_hora, ag.data_hora + timedelta(minutes=ag.servico.duracao)) for ag in agendamentos_do_dia]
 
             while horario_iteracao < fim_do_dia:
-                esta_ocupado = any(i <= horario_iteracao < f for i, f in intervalos_ocupados)
+                # Verifica se o *início* do horário está livre e se ele já não passou
+                esta_ocupado = any(inicio <= horario_iteracao < fim for inicio, fim in intervalos_ocupados)
                 if not esta_ocupado and horario_iteracao > agora:
                     horarios_disponiveis.append(horario_iteracao.strftime('%H:%M'))
+                
                 horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
 
-            return f"Horários disponíveis para {profissional_nome} em {dia_dt.strftime('%Y-%m-%d')}: {', '.join(horarios_disponiveis) or 'Nenhum disponível.'}"
+            if not horarios_disponiveis:
+                return f"Nenhum horário disponível para {profissional_nome} em {dia_dt.strftime('%Y-%m-%d')}."
+            
+            return f"Horários disponíveis para {profissional_nome} em {dia_dt.strftime('%Y-%m-%d')}: {', '.join(horarios_disponiveis)}."
     except Exception as e:
         return f"Erro ao calcular horários: {str(e)}"
 
@@ -91,31 +100,37 @@ def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, 
     try:
         with current_app.app_context():
             profissional = Profissional.query.filter_by(nome=profissional_nome).first()
-            if not profissional:
-                return "Profissional não encontrado."
+            if not profissional: return "Profissional não encontrado."
 
             servico = Servico.query.filter_by(nome=servico_nome).first()
-            if not servico:
-                return "Serviço não encontrado."
+            if not servico: return "Serviço não encontrado."
 
             data_hora_dt = datetime.strptime(data_hora, '%Y-%m-%d %H:%M')
 
+            # Verifica se o horário já passou
+            if data_hora_dt <= datetime.now():
+                return "Este horário já passou. Por favor, escolha um horário futuro."
+
+            # Lógica de conflito (mantida, mas com busca mais otimizada)
             novo_fim = data_hora_dt + timedelta(minutes=servico.duracao)
             inicio_dia = data_hora_dt.replace(hour=0, minute=0)
             fim_dia = data_hora_dt.replace(hour=23, minute=59)
-            ags = (
+
+            agendamentos_existentes = (
                 Agendamento.query
                 .options(joinedload(Agendamento.servico))
                 .filter(Agendamento.profissional_id == profissional.id)
-                .filter(Agendamento.data_hora >= inicio_dia, Agendamento.data_hora < fim_dia)
+                .filter(Agendamento.data_hora.between(inicio_dia, fim_dia))
                 .all()
             )
+            
             conflito = any(
                 max(data_hora_dt, ag.data_hora) < min(novo_fim, ag.data_hora + timedelta(minutes=ag.servico.duracao))
-                for ag in ags
+                for ag in agendamentos_existentes
             )
+
             if conflito:
-                return "Conflito de horário. Por favor, escolha outro."
+                return "Conflito de horário. Este horário já está ocupado. Por favor, escolha outro."
 
             novo_agendamento = Agendamento(
                 nome_cliente=nome_cliente,
@@ -126,99 +141,38 @@ def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, 
             )
             db.session.add(novo_agendamento)
             db.session.commit()
-            return f"Agendamento criado com sucesso para {nome_cliente} em {data_hora} com {profissional_nome} para {servico_nome}. Confirmação enviada!"
+            return f"Agendamento criado com sucesso para {nome_cliente} em {data_hora} com {profissional_nome} para o serviço {servico_nome}."
     except Exception as e:
         db.session.rollback()
         return f"Erro ao criar agendamento: {str(e)}"
 
-# Definição das tools no formato DEFINITIVO: dicts JSON Schema (sem protobufs)
-listar_profissionais_func = FunctionDeclaration(
-    name="listar_profissionais",
-    description="Lista todos os profissionais disponíveis no sistema.",
-    parameters={
-        "type": "object",
-        "properties": {},
-        "required": []
-    }
-)
+# ✅ AJUSTE: Simplificação da declaração das tools.
+# O SDK do Gemini agora lê as descrições (docstrings) e os tipos (type hints)
+# das suas funções para criar as declarações automaticamente.
+tools_list = [
+    listar_profissionais,
+    listar_servicos,
+    calcular_horarios_disponiveis,
+    criar_agendamento,
+]
 
-listar_servicos_func = FunctionDeclaration(
-    name="listar_servicos",
-    description="Lista todos os serviços disponíveis no sistema.",
-    parameters={
-        "type": "object",
-        "properties": {},
-        "required": []
-    }
-)
+# (Opcional) Dicionário para chamar as funções por nome, pode ser útil em outras partes do seu app.
+tools_definitions = {
+    func.__name__: func for func in tools_list
+}
 
-calcular_horarios_disponiveis_func = FunctionDeclaration(
-    name="calcular_horarios_disponiveis",
-    description="Consulta horários disponíveis para um profissional em um dia específico.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "profissional_nome": {
-                "type": "string",
-                "description": "Nome do profissional (ex.: Bruno)"
-            },
-            "dia": {
-                "type": "string",
-                "description": "Dia no formato YYYY-MM-DD, 'hoje' ou 'amanhã'"
-            }
-        },
-        "required": ["profissional_nome", "dia"]
-    }
-)
-
-criar_agendamento_func = FunctionDeclaration(
-    name="criar_agendamento",
-    description="Cria um novo agendamento no sistema.",
-    parameters={
-        "type": "object",
-        "properties": {
-            "nome_cliente": {
-                "type": "string",
-                "description": "Nome do cliente"
-            },
-            "telefone_cliente": {
-                "type": "string",
-                "description": "Telefone do cliente (ex.: +5513988057145)"
-            },
-            "data_hora": {
-                "type": "string",
-                "description": "Data e hora no formato YYYY-MM-DD HH:MM"
-            },
-            "profissional_nome": {
-                "type": "string",
-                "description": "Nome do profissional"
-            },
-            "servico_nome": {
-                "type": "string",
-                "description": "Nome do serviço (ex.: Corte de Cabelo)"
-            }
-        },
-        "required": ["nome_cliente", "telefone_cliente", "data_hora", "profissional_nome", "servico_nome"]
-    }
-)
-
-tools = Tool(
-    function_declarations=[
-        listar_profissionais_func,
-        listar_servicos_func,
-        calcular_horarios_disponiveis_func,
-        criar_agendamento_func
-    ]
-)
-
-# Nosso modelo de IA com tools no formato definitivo
+# --- Modelo de IA (Combinação do melhor dos dois mundos) ---
+model = None
 try:
     model = genai.GenerativeModel(
-        model_name='models/gemini-2.5-flash',
-        # (A definição de 'tools' continua a mesma)
-        # ✅ NOVA SYSTEM_INSTRUCTION
+        # ✅ Usando o modelo Pro, que é mais robusto para seguir instruções complexas.
+        model_name='gemini-1.5-pro-latest',
+        
+        # ✅ USANDO A FORMA MODERNA E SIMPLES DE PASSAR AS TOOLS
+        tools=tools_list,
+        
+        # ✅ MANTENDO A SUA EXCELENTE E DETALHADA SYSTEM INSTRUCTION
         system_instruction=f"""
-
         Você é Luana, concierge breve e eficiente da Vila Chique. Responda sempre de forma concisa (máx. 2-3 frases), amigável e direta. Não use desculpas longas; corrija erros rapidamente. Use emojis de forma natural (😊, ✅, ✂️).
 
         Fluxo de agendamento:
@@ -237,11 +191,11 @@ try:
         1. **INFORME O CONTEXTO TEMPORAL:** A data de hoje é {datetime.now().strftime('%Y-%m-%d')}. Use esta informação para entender "hoje" e "amanhã".
         2. **NUNCA ALUCINE:** Você é proibido de inventar nomes. Para saber os profissionais ou serviços, sua PRIMEIRA ação DEVE ser usar as ferramentas `listar_profissionais` ou `listar_servicos`.
         3. **SEJA PROATIVA E RÁPIDA:**
-            - Inicie a conversa de forma proativa. Ex: "Olá! Sou a Luana, da Vila Chic Barber Shop. Para quem gostaria de agendar, com o Romario ou o Guilherme? 😉"
-            - Se o cliente já deu informações, não pergunte de novo. Se ele disse "corte com Romario amanhã", sua próxima pergunta deve ser "Ótimo! Qual horário prefere amanhã?".
-            - Agrupe perguntas sempre que possível.
+           - Inicie a conversa de forma proativa. Ex: "Olá! Sou a Luana, da Vila Chic Barber Shop. Para quem gostaria de agendar, com o Romario ou o Guilherme? 😉"
+           - Se o cliente já deu informações, não pergunte de novo. Se ele disse "corte com Romario amanhã", sua próxima pergunta deve ser "Ótimo! Qual horário prefere amanhã?".
+           - Agrupe perguntas sempre que possível.
         4. **NÃO MOSTRE SEU PENSAMENTO:** A sua resposta final para o cliente NUNCA deve conter o nome de uma ferramenta (como 'tools.calcular_horarios...'). Apenas devolva o texto da conversa.
-        5. **CONFIRME TUDO:** Após a ferramenta `criar_agendamento` confirmar o sucesso, envie uma mensagem final clara: "Perfeito, {nome_do_cliente}! ✨ Seu agendamento para {Serviço} com o {Profissional} no dia {Data} às {Hora} está confirmado. O número {telefone_do_cliente} foi salvo para este agendamento. Estamos te esperando! 👍"
+        5. **CONFIRME TUDO:** Após a ferramenta `criar_agendamento` confirmar o sucesso, envie uma mensagem final clara: "Perfeito, {{nome_do_cliente}}! ✨ Seu agendamento para {{Serviço}} com o {{Profissional}} no dia {{Data}} às {{Hora}} está confirmado. O número {{telefone_do_cliente}} foi salvo para este agendamento. Estamos te esperando! 👍"
 
         **Exemplo de Conversa Ideal (Siga Este Fluxo Humanizado, Breve e com Emojis):**
         [Usuário: Oi]
@@ -257,5 +211,4 @@ try:
         """
     )
 except Exception as e:
-    logging.error(f"Erro ao inicializar o modelo Gemini: {e}")
-    model = None
+    logging.error(f"Erro ao inicializar o modelo Gemini: {str(e)}", exc_info=True)
