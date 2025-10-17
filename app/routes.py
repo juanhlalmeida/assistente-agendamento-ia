@@ -2,23 +2,27 @@
 import os
 import logging
 from datetime import datetime, date, time, timedelta
-import google.generativeai as genai  # Adicionado: Para genai.protos.Part no loop de tools
+import google.generativeai as genai
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
 from sqlalchemy.orm import joinedload
 from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
 from .whatsapp_client import WhatsAppClient, sanitize_msisdn
-from .services import ai_service  # Importamos o serviço de IA completo
-from .commands import reset_database_logic  # ✅ IMPORTAMOS A NOVA FUNÇÃO DE LÓGICA
+from .services import ai_service
+from .commands import reset_database_logic
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 bp = Blueprint('main', __name__)
+
 # --- Armazenamento em memória para o histórico das conversas ---
 conversation_history = {}
+
 # --- FUNÇÕES DO PAINEL WEB (SEU CÓDIGO ORIGINAL, 100% PRESERVADO) ---
 def _range_do_dia(dia_dt: datetime):
     inicio = datetime.combine(dia_dt.date(), time.min)
     fim = inicio + timedelta(days=1)
     return inicio, fim
+
 def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime):
     HORA_INICIO_TRABALHO = 9
     HORA_FIM_TRABALHO = 20
@@ -46,6 +50,7 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
             horarios_disponiveis.append(horario_iteracao)
         horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
     return horarios_disponiveis
+
 @bp.route('/agenda', methods=['GET', 'POST'])
 def agenda():
     if request.method == 'POST':
@@ -123,6 +128,7 @@ def agenda():
         data_selecionada=data_sel,
         profissional_selecionado=profissional_sel
     )
+
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
 def excluir_agendamento(agendamento_id):
     ag = Agendamento.query.get_or_404(agendamento_id)
@@ -132,6 +138,7 @@ def excluir_agendamento(agendamento_id):
     db.session.commit()
     flash('Agendamento excluído com sucesso!', 'warning')
     return redirect(url_for('main.agenda', data=data_redirect, profissional_id=prof_redirect))
+
 @bp.route('/agendamento/editar/<int:agendamento_id>', methods=['GET', 'POST'])
 def editar_agendamento(agendamento_id):
     ag = Agendamento.query.get_or_404(agendamento_id)
@@ -150,20 +157,23 @@ def editar_agendamento(agendamento_id):
     servicos = Servico.query.all()
     return render_template('editar_agendamento.html',
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
-# --- WEBHOOK ATUALIZADO PARA ORQUESTRAR A CONVERSA COM A IA ---
+
+# --- ✅ WEBHOOK CORRIGIDO COM INJEÇÃO DE DATA E TELEFONE ---
 @bp.route('/webhook', methods=['POST'])
 def webhook():
     data = request.values
     logging.info("PAYLOAD RECEBIDO DA TWILIO: %s", data)
+    
     try:
         msg_text = data.get('Body')
         from_number_raw = data.get('From')
-       
+        
         if not from_number_raw or not msg_text:
             logging.warning("Webhook da Twilio recebido sem 'From' ou 'Body'.")
             return 'OK', 200
+        
         from_number = sanitize_msisdn(from_number_raw)
-       
+        
         # Fallback se model não inicializado
         if ai_service.model is None:
             logging.error("Modelo da IA não inicializado. Usando fallback.")
@@ -171,35 +181,48 @@ def webhook():
             client = WhatsAppClient()
             client.send_text(from_number, reply_text)
             return 'OK', 200
-       
-        # 1. Recupera o histórico da conversa ou inicia uma nova sessão
-        chat_session = ai_service.model.start_chat(
-            history=conversation_history.get(from_number, [])
-        )
-       
+        
+        # ✅ CORREÇÃO 1: Injetar data no INÍCIO do histórico (apenas na primeira mensagem)
+        historico_atual = conversation_history.get(from_number, [])
+        
+        # Se é a primeira mensagem desta conversa, adiciona contexto de data
+        if not historico_atual:
+            current_date_str = datetime.now().strftime('%d de %B de %Y')
+            # Adiciona uma mensagem do sistema no início do histórico
+            historico_atual = [
+                {"role": "user", "parts": [f"[CONTEXTO DO SISTEMA: Hoje é {current_date_str}]"]},
+                {"role": "model", "parts": ["Entendido. Como posso ajudá-lo?"]}
+            ]
+        
+        # 1. Inicia a sessão de chat com o histórico
+        chat_session = ai_service.model.start_chat(history=historico_atual)
+        
         # 2. Envia a nova mensagem do usuário para a IA
         response = chat_session.send_message(msg_text)
-       
-        # 3. Lida com chamadas de funções (tools)
+        
+        # 3. ✅ CORREÇÃO 2: Loop de function calling com injeção segura de telefone
         while response.parts and any(part.function_call for part in response.parts):
             for part in response.parts:
                 if part.function_call:
                     func_name = part.function_call.name
-                    args = dict(part.function_call.args)  # Converte para dict
-                   
+                    # ✅ Cria uma CÓPIA dos argumentos para evitar modificar o original
+                    args = dict(part.function_call.args)
+                    
                     logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
-                   
-                    if func_name == 'listar_profissionais':
+                    
+                    # ✅ CORREÇÃO 3: Injeta o telefone do cliente automaticamente em criar_agendamento
+                    if func_name == 'criar_agendamento':
+                        args['telefone_cliente'] = from_number
+                        result = ai_service.criar_agendamento(**args)
+                    elif func_name == 'listar_profissionais':
                         result = ai_service.listar_profissionais()
                     elif func_name == 'listar_servicos':
                         result = ai_service.listar_servicos()
                     elif func_name == 'calcular_horarios_disponiveis':
                         result = ai_service.calcular_horarios_disponiveis(**args)
-                    elif func_name == 'criar_agendamento':
-                        result = ai_service.criar_agendamento(**args)
                     else:
                         result = "Ferramenta desconhecida."
-                   
+                    
                     # Envia resultado de volta para IA
                     function_response = genai.protos.Part(
                         function_response=genai.protos.FunctionResponse(
@@ -208,37 +231,41 @@ def webhook():
                         )
                     )
                     response = chat_session.send_message([function_response])
-       
+        
         # 4. Extrai o texto da resposta final da IA
         reply_text = response.text
-       
-        # 5. Envia a resposta da IA para o cliente através do nosso WhatsAppClient
+        
+        # 5. Envia a resposta da IA para o cliente através do WhatsAppClient
         client = WhatsAppClient()
         api_res = client.send_text(from_number, reply_text)
-       
+        
         if api_res.get("status") not in ('queued', 'sent', 'delivered'):
-             logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
-       
-        # 6. Atualiza o histórico da conversa com a nova troca de mensagens
+            logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
+        
+        # 6. ✅ CORREÇÃO 4: Atualiza o histórico da conversa (protegido contra erros)
         conversation_history[from_number] = chat_session.history
+        
     except Exception as e:
         logging.error("Erro no webhook da IA: %s", e, exc_info=True)
+    
     return 'OK', 200
-# --- ✅ ROTA SECRETA ATUALIZADA PARA USAR A NOVA FUNÇÃO ---
+
+# --- ROTA SECRETA PARA RESET DO BANCO DE DADOS ---
 @bp.route('/admin/reset-database/<string:secret_key>')
 def reset_database(secret_key):
     expected_key = os.getenv('RESET_DB_KEY')
-   
+    
     if not expected_key or secret_key != expected_key:
         abort(404)
+    
     try:
         logging.info("Iniciando o reset do banco de dados via rota segura...")
-        # Chamamos a função de lógica diretamente, dentro do contexto do app
         reset_database_logic()
         logging.info("Banco de dados recriado com sucesso.")
         return "<h1>Banco de dados recriado com sucesso!</h1><p>Pode voltar para a <a href='/agenda'>página da agenda</a>.</p>"
     except Exception as e:
         logging.error("Erro ao recriar o banco de dados: %s", e, exc_info=True)
         return f"<h1>Ocorreu um erro ao recriar o banco de dados:</h1><p>{str(e)}</p>"
+
 def init_app(app):
     app.register_blueprint(bp)
