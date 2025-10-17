@@ -3,37 +3,29 @@ import os
 import logging
 from datetime import datetime, date, time, timedelta
 import google.generativeai as genai  # Adicionado: Para genai.protos.Part no loop de tools
-
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
 from sqlalchemy.orm import joinedload
-
 from .models.tables import Agendamento, Profissional, Servico
 from .extensions import db
 from .whatsapp_client import WhatsAppClient, sanitize_msisdn
 from .services import ai_service  # Importamos o serviço de IA completo
-
+from .commands import seed_db_command  # Importamos o nosso comando de criação do banco
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 bp = Blueprint('main', __name__)
-
 # --- Armazenamento em memória para o histórico das conversas ---
 conversation_history = {}
-
 # --- FUNÇÕES DO PAINEL WEB (SEU CÓDIGO ORIGINAL, 100% PRESERVADO) ---
-
 def _range_do_dia(dia_dt: datetime):
     inicio = datetime.combine(dia_dt.date(), time.min)
     fim = inicio + timedelta(days=1)
     return inicio, fim
-
 def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime):
     HORA_INICIO_TRABALHO = 9
     HORA_FIM_TRABALHO = 20
     INTERVALO_MINUTOS = 30
-
     horarios_disponiveis = []
     horario_iteracao = dia_selecionado.replace(hour=HORA_INICIO_TRABALHO, minute=0, second=0, microsecond=0)
     fim_do_dia = dia_selecionado.replace(hour=HORA_FIM_TRABALHO, minute=0, second=0, microsecond=0)
-
     inicio, fim = _range_do_dia(dia_selecionado)
     agendamentos_do_dia = (
         Agendamento.query
@@ -42,22 +34,18 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
         .filter(Agendamento.data_hora >= inicio, Agendamento.data_hora < fim)
         .all()
     )
-
     intervalos_ocupados = []
     for ag in agendamentos_do_dia:
         i = ag.data_hora
         f = i + timedelta(minutes=ag.servico.duracao)
         intervalos_ocupados.append((i, f))
-
     agora = datetime.now()
     while horario_iteracao < fim_do_dia:
         esta_ocupado = any(i <= horario_iteracao < f for i, f in intervalos_ocupados)
         if not esta_ocupado and horario_iteracao > agora:
             horarios_disponiveis.append(horario_iteracao)
         horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
-
     return horarios_disponiveis
-
 @bp.route('/agenda', methods=['GET', 'POST'])
 def agenda():
     if request.method == 'POST':
@@ -66,18 +54,15 @@ def agenda():
         data_hora_str = request.form.get('data_hora')
         profissional_id = request.form.get('profissional_id')
         servico_id = request.form.get('servico_id')
-
         if not all([nome_cliente, telefone_cliente, data_hora_str, profissional_id, servico_id]):
             flash('Erro: Todos os campos são obrigatórios.', 'danger')
             return redirect(url_for('main.agenda'))
-
         try:
             novo_inicio = datetime.strptime(data_hora_str, '%Y-%m-%dT%H:%M')
             servico = Servico.query.get(servico_id)
             if not servico:
                 raise ValueError("Serviço inválido.")
             novo_fim = novo_inicio + timedelta(minutes=servico.duracao)
-
             inicio_dia, fim_dia = _range_do_dia(novo_inicio)
             ags = (
                 Agendamento.query
@@ -86,12 +71,10 @@ def agenda():
                 .filter(Agendamento.data_hora >= inicio_dia, Agendamento.data_hora < fim_dia)
                 .all()
             )
-
             conflito = any(
                 max(novo_inicio, ag.data_hora) < min(novo_fim, ag.data_hora + timedelta(minutes=ag.servico.duracao))
                 for ag in ags
             )
-
             if conflito:
                 flash('Erro: O profissional já está ocupado neste horário.', 'danger')
             else:
@@ -105,31 +88,24 @@ def agenda():
                 db.session.add(novo_agendamento)
                 db.session.commit()
                 flash('Agendamento criado com sucesso!', 'success')
-
         except Exception as e:
             flash(f'Ocorreu um erro ao processar o agendamento: {str(e)}', 'danger')
-
         redirect_date = (novo_inicio if 'novo_inicio' in locals() else datetime.now()).strftime('%Y-%m-%d')
         return redirect(url_for('main.agenda', data=redirect_date, profissional_id=profissional_id))
-
     data_sel_str = request.args.get('data', date.today().strftime('%Y-%m-%d'))
     profissional_sel_id = request.args.get('profissional_id')
     data_sel = datetime.strptime(data_sel_str, '%Y-%m-%d')
-
     profissionais = Profissional.query.all()
     servicos = Servico.query.all()
     horarios_disponiveis = []
     profissional_sel = None
-
     if profissional_sel_id:
         profissional_sel = Profissional.query.get(profissional_sel_id)
     elif profissionais:
         profissional_sel = profissionais[0]
         profissional_sel_id = profissional_sel.id
-
     if profissional_sel:
         horarios_disponiveis = calcular_horarios_disponiveis(profissional_sel, data_sel)
-
     inicio, fim = _range_do_dia(data_sel)
     ags_dia = (
         Agendamento.query
@@ -138,7 +114,6 @@ def agenda():
         .order_by(Agendamento.data_hora.asc())
         .all()
     )
-
     return render_template(
         'agenda.html',
         agendamentos=ags_dia,
@@ -148,7 +123,6 @@ def agenda():
         data_selecionada=data_sel,
         profissional_selecionado=profissional_sel
     )
-
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
 def excluir_agendamento(agendamento_id):
     ag = Agendamento.query.get_or_404(agendamento_id)
@@ -158,11 +132,9 @@ def excluir_agendamento(agendamento_id):
     db.session.commit()
     flash('Agendamento excluído com sucesso!', 'warning')
     return redirect(url_for('main.agenda', data=data_redirect, profissional_id=prof_redirect))
-
 @bp.route('/agendamento/editar/<int:agendamento_id>', methods=['GET', 'POST'])
 def editar_agendamento(agendamento_id):
     ag = Agendamento.query.get_or_404(agendamento_id)
-
     if request.method == 'POST':
         ag.nome_cliente = request.form.get('nome_cliente')
         ag.telefone_cliente = request.form.get('telefone_cliente')
@@ -174,28 +146,24 @@ def editar_agendamento(agendamento_id):
         return redirect(url_for('main.agenda',
                                 data=ag.data_hora.strftime('%Y-%m-%d'),
                                 profissional_id=ag.profissional_id))
-
     profissionais = Profissional.query.all()
     servicos = Servico.query.all()
     return render_template('editar_agendamento.html',
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
-
 # --- WEBHOOK ATUALIZADO PARA ORQUESTRAR A CONVERSA COM A IA ---
 @bp.route('/webhook', methods=['POST'])
 def webhook():
     data = request.values
     logging.info("PAYLOAD RECEBIDO DA TWILIO: %s", data)
-
     try:
         msg_text = data.get('Body')
         from_number_raw = data.get('From')
-        
+       
         if not from_number_raw or not msg_text:
             logging.warning("Webhook da Twilio recebido sem 'From' ou 'Body'.")
             return 'OK', 200
-
         from_number = sanitize_msisdn(from_number_raw)
-        
+       
         # Fallback se model não inicializado
         if ai_service.model is None:
             logging.error("Modelo da IA não inicializado. Usando fallback.")
@@ -203,24 +171,24 @@ def webhook():
             client = WhatsAppClient()
             client.send_text(from_number, reply_text)
             return 'OK', 200
-        
+       
         # 1. Recupera o histórico da conversa ou inicia uma nova sessão
         chat_session = ai_service.model.start_chat(
             history=conversation_history.get(from_number, [])
         )
-        
+       
         # 2. Envia a nova mensagem do usuário para a IA
         response = chat_session.send_message(msg_text)
-        
+       
         # 3. Lida com chamadas de funções (tools)
         while response.parts and any(part.function_call for part in response.parts):
             for part in response.parts:
                 if part.function_call:
                     func_name = part.function_call.name
                     args = dict(part.function_call.args)  # Converte para dict
-                    
+                   
                     logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
-                    
+                   
                     if func_name == 'listar_profissionais':
                         result = ai_service.listar_profissionais()
                     elif func_name == 'listar_servicos':
@@ -231,7 +199,7 @@ def webhook():
                         result = ai_service.criar_agendamento(**args)
                     else:
                         result = "Ferramenta desconhecida."
-                    
+                   
                     # Envia resultado de volta para IA
                     function_response = genai.protos.Part(
                         function_response=genai.protos.FunctionResponse(
@@ -240,24 +208,37 @@ def webhook():
                         )
                     )
                     response = chat_session.send_message([function_response])
-        
+       
         # 4. Extrai o texto da resposta final da IA
         reply_text = response.text
-        
+       
         # 5. Envia a resposta da IA para o cliente através do nosso WhatsAppClient
         client = WhatsAppClient()
         api_res = client.send_text(from_number, reply_text)
-        
+       
         if api_res.get("status") not in ('queued', 'sent', 'delivered'):
              logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
-        
+       
         # 6. Atualiza o histórico da conversa com a nova troca de mensagens
         conversation_history[from_number] = chat_session.history
-
     except Exception as e:
         logging.error("Erro no webhook da IA: %s", e, exc_info=True)
-
     return 'OK', 200
-
+# --- ✅ NOVA ROTA SECRETA PARA RECRIAR O BANCO DE DADOS ---
+@bp.route('/admin/reset-database/<string:secret_key>')
+def reset_database(secret_key):
+    # Lemos a chave secreta do ambiente da Render
+    expected_key = os.getenv('RESET_DB_KEY')
+    
+    # Verificação de segurança: só executa se a chave na URL for a correta
+    if not expected_key or secret_key != expected_key:
+        abort(404) # Se a chave for errada, finge que a página não existe
+    try:
+        # Executa a lógica do nosso comando seed_db
+        with current_app.app_context():
+            seed_db_command.callback()
+        return "<h1>Banco de dados recriado com sucesso!</h1><p>Pode voltar para a <a href='/agenda'>página da agenda</a>.</p>"
+    except Exception as e:
+        return f"<h1>Ocorreu um erro ao recriar o banco de dados:</h1><p>{str(e)}</p>"
 def init_app(app):
     app.register_blueprint(bp)
