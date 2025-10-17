@@ -1,8 +1,9 @@
 # app/routes.py
 import os
 import logging
-from datetime import datetime, date, time, timedelta
+import pytz
 import google.generativeai as genai
+from datetime import datetime, date, time, timedelta
 from .services.ai_service import model as ai_model, SYSTEM_INSTRUCTION_TEMPLATE
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
 from sqlalchemy.orm import joinedload
@@ -25,13 +26,23 @@ def _range_do_dia(dia_dt: datetime):
     return inicio, fim
 
 def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime):
+    """
+    Calcula os horários disponíveis para um profissional em um dia específico,
+    considerando o fuso horário de São Paulo.
+    """
+    # ✅ CORREÇÃO: Definimos o nosso fuso horário
+    sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
+    
     HORA_INICIO_TRABALHO = 9
     HORA_FIM_TRABALHO = 20
     INTERVALO_MINUTOS = 30
+
     horarios_disponiveis = []
-    horario_iteracao = dia_selecionado.replace(hour=HORA_INICIO_TRABALHO, minute=0, second=0, microsecond=0)
-    fim_do_dia = dia_selecionado.replace(hour=HORA_FIM_TRABALHO, minute=0, second=0, microsecond=0)
-    inicio, fim = _range_do_dia(dia_selecionado)
+    # Usamos a data selecionada, mas com o nosso fuso horário
+    horario_iteracao = sao_paulo_tz.localize(dia_selecionado.replace(hour=HORA_INICIO_TRABALHO, minute=0, second=0, microsecond=0))
+    fim_do_dia = sao_paulo_tz.localize(dia_selecionado.replace(hour=HORA_FIM_TRABALHO, minute=0, second=0, microsecond=0))
+
+    inicio, fim = _range_do_dia(dia_selecionado) # _range_do_dia pode ser movido para um utils
     agendamentos_do_dia = (
         Agendamento.query
         .options(joinedload(Agendamento.servico))
@@ -39,17 +50,24 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
         .filter(Agendamento.data_hora >= inicio, Agendamento.data_hora < fim)
         .all()
     )
+    
     intervalos_ocupados = []
     for ag in agendamentos_do_dia:
-        i = ag.data_hora
-        f = i + timedelta(minutes=ag.servico.duracao)
-        intervalos_ocupados.append((i, f))
-    agora = datetime.now()
+        # Tornamos os horários do banco "cientes" do fuso horário para a comparação
+        inicio_ocupado = sao_paulo_tz.localize(ag.data_hora)
+        fim_ocupado = inicio_ocupado + timedelta(minutes=ag.servico.duracao)
+        intervalos_ocupados.append((inicio_ocupado, fim_ocupado))
+
+    # ✅ CORREÇÃO: Pegamos a hora atual JÁ com o fuso horário correto
+    agora = datetime.now(sao_paulo_tz)
+    
     while horario_iteracao < fim_do_dia:
         esta_ocupado = any(i <= horario_iteracao < f for i, f in intervalos_ocupados)
         if not esta_ocupado and horario_iteracao > agora:
             horarios_disponiveis.append(horario_iteracao)
+            
         horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
+
     return horarios_disponiveis
 
 @bp.route('/agenda', methods=['GET', 'POST'])
