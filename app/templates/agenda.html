@@ -22,12 +22,7 @@
   {% endif %}
 {% endwith %}
 
-{# 
-  🚀 SOLUÇÃO DE RESPONSIVIDADE CORRETA:
-  - 'grid-cols-1': (Padrão/Mobile) Empilha as colunas.
-  - 'lg:grid-cols-[1fr_400px]': Em telas grandes (lg:), volta ao layout de 2 colunas com os 400px originais.
-  - 'gap-8': Voltamos ao espaçamento original que você gostou.
-#}
+{# Layout responsivo: 1 coluna no mobile, 2 colunas (com 400px na lateral) no desktop #}
 <div class="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8">
 
   {# Coluna Principal (Agenda) #}
@@ -43,18 +38,11 @@
       </button>
     </div>
 
-    {# 
-      🚀 SOLUÇÃO DE RESPONSIVIDADE (TABELA):
-      - 'overflow-hidden' foi trocado por 'overflow-x-auto'.
-      - Isto faz com que APENAS a tabela possa rolar para os lados no telemóvel,
-      - sem quebrar o layout da página.
-    #}
+    {# Tabela com scroll horizontal no mobile #}
     <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
-      {# 'min-w-[600px]' garante que a tabela tenha espaço no mobile sem esmagar #}
       <table class="w-full min-w-[600px] lg:min-w-full text-left align-middle">
         <thead class="bg-background-dark">
           <tr>
-            {# Voltamos ao padding 'p-4' original #}
             <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Cliente</th>
             <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Hora</th>
             <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Serviço</th>
@@ -97,7 +85,6 @@
   </main>
 
   {# Coluna Lateral (Disponibilidade) #}
-  {# Voltamos ao padding 'p-6' e 'gap-8' originais #}
   <aside class="bg-surface-dark rounded-xl p-6 flex flex-col gap-8 shadow-lg">
     <div>
       <h3 class="text-text-primary-dark text-xl font-bold mb-4 flex items-center gap-2">
@@ -150,7 +137,7 @@
 
 </div>
 
-{# Modal (Pop-up) de Novo Agendamento (Sem alterações) #}
+{# Modal (Pop-up) de Novo Agendamento #}
 <div id="novoAgendamentoModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden">
   <div class="bg-surface-dark rounded-xl shadow-lg w-full max-w-lg">
     
@@ -188,7 +175,9 @@
             <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
               <option value="" disabled selected>Selecione...</option>
               {% for servico in servicos %}
-                <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(agendamento.servico.preco) }}</option>
+                {# 🚀🚀🚀 A CORREÇÃO ESTÁ AQUI 🚀🚀🚀 #}
+                {# Trocado 'agendamento.servico.preco' por 'servico.preco' #}
+                <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
               {% endfor %}
             </select>
           </div>
