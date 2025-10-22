@@ -1,24 +1,60 @@
 <!DOCTYPE html>
+{# 
+  Este é o arquivo 'base.html' COMPLETO e CORRIGIDO.
+  Ele contém a configuração do Tailwind que estava em falta.
+#}
 <html class="dark" lang="pt-br">
 <head>
   <meta charset="utf-8"/>
-  <meta content="width=device-width, initial-scale-1.0" name="viewport"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  
   <title>{% block title %}Meu Salão{% endblock %}</title>
+
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
   <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+
   <script>
     tailwind.config = {
-      // ... (sua config tailwind) ...
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#00A6FB",
+            "background-light": "#f6f7f8",
+            "background-dark": "#121212",
+            "surface-dark": "#1E1E1E",
+            "text-primary-dark": "#FFFFFF",
+            "text-secondary-dark": "#A0A0A0",
+          },
+          fontFamily: {
+            "display": ["Inter", "sans-serif"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.5rem",
+            "lg": "0.75rem",
+            "xl": "1rem",
+            "full": "9999px"
+          },
+        },
+      },
     }
   </script>
+  
   <style>
     .material-symbols-outlined {
-      /* ... (seu style) ... */
+      font-variation-settings:
+      'FILL' 0,
+      'wght' 400,
+      'GRAD' 0,
+      'opsz' 24
     }
   </style>
+  
 </head>
 <body class="bg-background-dark font-display text-text-primary-dark">
   
@@ -39,7 +75,8 @@
             <span class="material-symbols-outlined">calendar_today</span>
             <p class="text-base">Agendamentos</p>
           </a>
-          <a classa="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium" 
+          
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium" 
              href="#"> <span class="material-symbols-outlined">group</span>
             <p class="text-base">Clientes</p>
           </a>
@@ -56,11 +93,11 @@
                 <span class="material-symbols-outlined text-white">shield_person</span>
               </div>
               <div>
-                <p class="text-text-primary-dark font-semibold">Admin</p>
+                <p class="text-text-primary-dark font-semibold">Admin</g>
                 <p class="text-text-secondary-dark text-sm">Painel</p>
               </div>
             </div>
-            </div>
+          </div>
         </div>
       </aside>
       
