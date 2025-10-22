@@ -3,57 +3,90 @@
 {% block title %}Editar Agendamento{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="card shadow-sm">
-              <div class="card-header">
-                <h3 class="mb-0">Editando Agendamento de: <strong>{{ agendamento.nome_cliente }}</strong></h3>
-              </div>
-              <div class="card-body">
-                <form method="post" action="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}">
-                  <div class="row g-3">
-                    <div class="col-md-6">
-                      <label for="nome_cliente" class="form-label">Nome do Cliente</label>
-                      <input type="text" id="nome_cliente" name="nome_cliente" class="form-control" value="{{ agendamento.nome_cliente }}" required>
-                    </div>
-                    <div class="col-md-6">
-                      <label for="telefone_cliente" class="form-label">Telefone</label>
-                      <input type="text" id="telefone_cliente" name="telefone_cliente" class="form-control" value="{{ agendamento.telefone_cliente }}" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="profissional_id" class="form-label">Profissional</label>
-                        <select id="profissional_id" name="profissional_id" class="form-select" required>
-                            {% for profissional in profissionais %}
-                                <option value="{{ profissional.id }}" {% if profissional.id == agendamento.profissional_id %}selected{% endif %}>
-                                    {{ profissional.nome }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="servico_id" class="form-label">Serviço</label>
-                        <select id="servico_id" name="servico_id" class="form-select" required>
-                            {% for servico in servicos %}
-                                <option value="{{ servico.id }}" {% if servico.id == agendamento.servico_id %}selected{% endif %}>
-                                    {{ servico.nome }} ({{ servico.duracao }} min)
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-12">
-                      <label for="data_hora" class="form-label">Data e Hora</label>
-                      <input type="datetime-local" id="data_hora" name="data_hora" class="form-control" value="{{ agendamento.data_hora.strftime('%Y-%m-%dT%H:%M') }}" required>
-                    </div>
-                  </div>
-                  <div class="mt-4">
-                    <a href="{{ url_for('main.agenda', data=agendamento.data_hora.strftime('%Y-%m-%d'), profissional_id=agendamento.profissional_id) }}" class="btn btn-secondary">Voltar para a Agenda</a>
-                    <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-                  </div>
-                </form>
-              </div>
+{# 
+  Em vez de 'row' e 'col', usamos 'flex' para centralizar o contêiner.
+  'max-w-4xl' define uma largura máxima para o formulário.
+#}
+<div class="flex justify-center">
+  <div class="w-full max-w-4xl">
+    
+    {# 
+      O 'card' do Bootstrap vira um 'bg-surface-dark rounded-xl'.
+      'overflow-hidden' é importante para os cantos arredondados funcionarem no header.
+    #}
+    <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden">
+      
+      {# O 'card-header' vira um 'div' com padding e borda #}
+      <div class="p-6 border-b border-gray-700">
+        <h2 class="text-xl font-bold text-text-primary-dark">Editar Agendamento</h2>
+      </div>
+      
+      {# O 'card-body' vira um 'div' com padding #}
+      <div class="p-6">
+        <form method="post">
+          {# 
+            Usamos 'grid' para alinhar os campos do formulário, 
+            exatamente como fizemos no modal.
+          #}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {# Campo: Nome do Cliente #}
+            <div>
+              <label for="nome_cliente" class="block text-sm font-medium text-text-secondary-dark mb-1">Nome do Cliente</label>
+              <input type="text" id="nome_cliente" name="nome_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" value="{{ agendamento.nome_cliente }}" required>
             </div>
-        </div>
+            
+            {# Campo: Telefone #}
+            <div>
+              <label for="telefone_cliente" class="block text-sm font-medium text-text-secondary-dark mb-1">Telefone</label>
+              <input type="text" id="telefone_cliente" name="telefone_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" value="{{ agendamento.telefone_cliente }}" required>
+            </div>
+
+            {# Campo: Profissional #}
+            <div>
+              <label for="profissional_id" class="block text-sm font-medium text-text-secondary-dark mb-1">Profissional</label>
+              <select id="profissional_id" name="profissional_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+                {% for profissional in profissionais %}
+                  <option value="{{ profissional.id }}" {% if profissional.id == agendamento.profissional_id %}selected{% endif %}>{{ profissional.nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            
+            {# Campo: Serviço #}
+            <div>
+              <label for="servico_id" class="block text-sm font-medium text-text-secondary-dark mb-1">Serviço</label>
+              <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+                {% for servico in servicos %}
+                  <option value="{{ servico.id }}" {% if servico.id == agendamento.servico_id %}selected{% endif %}>{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            {# Campo: Data e Hora (ocupa as 2 colunas em telas médias) #}
+            <div class="md:col-span-2">
+              <label for="data_hora" class="block text-sm font-medium text-text-secondary-dark mb-1">Data e Hora</label>
+              <input type="datetime-local" id="data_hora" name="data_hora" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" value="{{ agendamento.data_hora.strftime('%Y-%m-%dT%H:%M') }}" required>
+            </div>
+          </div>
+          
+          {# O 'hr' vira uma borda. 'my-6' dá mais espaço (margin-top e bottom) #}
+          <div class="border-t border-gray-700 my-6"></div>
+          
+          {# Botões de ação alinhados à direita #}
+          <div class="flex justify-end gap-3">
+            {# Botão Cancelar #}
+            <a href="{{ url_for('main.agenda') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">
+              Cancelar
+            </a>
+            {# Botão Salvar #}
+            <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+              Salvar Alterações
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
+    
+  </div>
 </div>
 {% endblock %}

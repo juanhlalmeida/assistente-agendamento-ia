@@ -3,170 +3,272 @@
 {% block title %}Painel de Controle - Agenda{% endblock %}
 
 {% block content %}
+{# Bloco de mensagens flash (alertas) estilizado com Tailwind #}
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
     {% for category, message in messages %}
-      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-        {{ message }}
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      {# Ajusta a cor com base na categoria (ex: 'success', 'danger', 'warning') #}
+      {% set color_class = 'bg-blue-500' %}
+      {% if category == 'success' %}{% set color_class = 'bg-green-500' %}{% endif %}
+      {% if category == 'danger' %}{% set color_class = 'bg-red-500' %}{% endif %}
+      {% if category == 'warning' %}{% set color_class = 'bg-yellow-500' %}{% endif %}
+      
+      <div class="{{ color_class }} text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
+        <span>{{ message }}</span>
+        <button type
+="button" onclick="this.parentElement.remove()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
       </div>
     {% endfor %}
   {% endif %}
 {% endwith %}
 
-<div class="row g-4">
+{# 
+  Esta é a nossa nova estrutura principal. 
+  Usamos um grid que se divide em duas colunas:
+  - A primeira (main) ocupa o espaço que sobrar ('1fr')
+  - A segunda (aside) tem uma largura fixa de 400px
+#}
+<div class="grid grid-cols-[1fr_400px] gap-8">
 
-  <div class="col-lg-4">
-    <div class="card shadow-sm">
-      <div class="card-header bg-dark text-white">
-        <h5 class="mb-0"><i class="fas fa-search"></i> Consultar Disponibilidade</h5>
-      </div>
-      <div class="card-body">
-        <form method="get" action="{{ url_for('main.agenda') }}">
-          <div class="mb-3">
-            <label for="profissional_id_filtro" class="form-label">Profissional</label>
-            <select name="profissional_id" id="profissional_id_filtro" class="form-select" onchange="this.form.submit()">
-              {% for p in profissionais %}
-                <option value="{{ p.id }}" {% if profissional_selecionado and p.id == profissional_selecionado.id %}selected{% endif %}>{{ p.nome }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="mb-3">
-            <label for="data_filtro" class="form-label">Data</label>
-            <input type="date" name="data" id="data_filtro" class="form-control" value="{{ data_selecionada.strftime('%Y-%m-%d') }}" onchange="this.form.submit()">
-          </div>
-        </form>
-        <hr>
-        <h6>Horários Livres para {{ data_selecionada.strftime('%d/%m/%Y') }}</h6>
-        <div class="d-flex flex-wrap gap-2">
-          {% for horario in horarios_disponiveis %}
-            <button class="btn btn-outline-success btn-sm horario-btn" data-horario="{{ horario.strftime('%Y-%m-%dT%H:%M') }}">
-              {{ horario.strftime('%H:%M') }}
-            </button>
-          {% else %}
-            <p class="text-muted small mt-2">Nenhum horário disponível ou o dia já passou.</p>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-8">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h3 class="mb-0">📅 Agendamentos do Dia</h3>
-      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#novoAgendamentoModal">
-        <i class="fas fa-plus"></i> Novo Agendamento
+  {# Coluna Principal (Antigo col-lg-8) #}
+  <main class="flex flex-col gap-6">
+    <div class="flex justify-between items-center">
+      <h2 class="text-text-primary-dark text-3xl font-bold">📅 Agendamentos do Dia</h2>
+      <button 
+        type="button" 
+        id="btnAbrirModal" 
+        class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
+        <span class="material-symbols-outlined">add</span>
+        <span class="truncate">Novo Agendamento</span>
       </button>
     </div>
-    <div class="card shadow-sm">
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Cliente</th>
-                <th>Hora</th>
-                <th>Serviço</th>
-                <th>Profissional</th>
-                <th class="text-center">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for agendamento in agendamentos %}
-              <tr>
-                <td>
-                    <div class="fw-bold">{{ agendamento.nome_cliente }}</div>
-                    <div class="small text-muted">{{ agendamento.telefone_cliente }}</div>
-                </td>
-                <td>{{ agendamento.data_hora.strftime('%H:%M') }}</td>
-                <td>{{ agendamento.servico.nome }} (R$ {{ "%.2f"|format(agendamento.servico.preco) }})</td>
-                <td>{{ agendamento.profissional.nome }}</td>
-                <td class="text-center">
-                    <a href="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
-                        <i class="fas fa-pencil-alt"></i>
-                    </a>
-                    <form action="{{ url_for('main.excluir_agendamento', agendamento_id=agendamento.id) }}" method="post" class="d-inline">
-                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir este agendamento?');">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </form>
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="5" class="text-center text-muted py-4">Nenhum agendamento para o dia selecionado.</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<div class="modal fade" id="novoAgendamentoModal" tabindex="-1" aria-labelledby="novoAgendamentoModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="novoAgendamentoModalLabel">Novo Agendamento Manual</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form method="post" action="{{ url_for('main.agenda') }}">
-        <div class="modal-body">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label for="nome_cliente" class="form-label">Nome do Cliente</label>
-              <input type="text" id="nome_cliente" name="nome_cliente" class="form-control" required>
-            </div>
-            <div class="col-md-6">
-              <label for="telefone_cliente" class="form-label">Telefone</label>
-              <input type="text" id="telefone_cliente" name="telefone_cliente" class="form-control" required>
-            </div>
-            <div class="col-md-6">
-                <label for="profissional_id" class="form-label">Profissional</label>
-                <select id="profissional_id" name="profissional_id" class="form-select" required>
-                    <option value="" disabled selected>Selecione...</option>
-                    {% for profissional in profissionais %}
-                        <option value="{{ profissional.id }}">{{ profissional.nome }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-6">
-                <label for="servico_id" class="form-label">Serviço</label>
-                <select id="servico_id" name="servico_id" class="form-select" required>
-                    <option value="" disabled selected>Selecione...</option>
-                    {% for servico in servicos %}
-                        <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-12">
-              <label for="data_hora" class="form-label">Data e Hora</label>
-              <input type="datetime-local" id="data_hora" name="data_hora" class="form-control" required>
-            </div>
-          </div>
+    {# O 'card' do Bootstrap vira um 'bg-surface-dark' #}
+    <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden">
+      {# A tabela não precisa mais de 'table-responsive' pois o overflow está no contêiner #}
+      <table class="w-full text-left align-middle">
+        <thead class="bg-background-dark">
+          <tr>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Cliente</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Hora</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Serviço</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Profissional</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for agendamento in agendamentos %}
+            {# Cada linha agora tem uma borda inferior #}
+            <tr class="border-b border-gray-800 hover:bg-white/5">
+              <td class="p-4">
+                <div class="font-semibold text-text-primary-dark">{{ agendamento.nome_cliente }}</div>
+                <div class="text-sm text-text-secondary-dark">{{ agendamento.telefone_cliente }}</div>
+              </td>
+              <td class="p-4 text-text-primary-dark font-medium">{{ agendamento.data_hora.strftime('%H:%M') }}</td>
+              <td class="p-4 text-text-primary-dark">
+                {{ agendamento.servico.nome }}
+                <span class="text-text-secondary-dark text-sm">(R$ {{ "%.2f"|format(agendamento.servico.preco) }})</span>
+              </td>
+              <td class="p-4 text-text-primary-dark">{{ agendamento.profissional.nome }}</td>
+              <td class="p-4 text-center">
+                {# Estilizando os botões de ação #}
+                <a href="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}" class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
+                  <span class="material-symbols-outlined">edit</span>
+                </a>
+                <form action="{{ url_for('main.excluir_agendamento', agendamento_id=agendamento.id) }}" method="post" class="inline">
+                  <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir este agendamento?');">
+                    <span class="material-symbols-outlined">delete</span>
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5" class="p-8 text-center text-text-secondary-dark">Nenhum agendamento para o dia selecionado.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  {# Coluna Lateral (Antigo col-lg-4) #}
+  <aside class="bg-surface-dark rounded-xl p-6 flex flex-col gap-8 shadow-lg">
+    <div>
+      <h3 class="text-text-primary-dark text-xl font-bold mb-4 flex items-center gap-2">
+        <span class="material-symbols-outlined">search</span>
+        Consultar Disponibilidade
+      </h3>
+      <form method="get" action="{{ url_for('main.agenda') }}">
+        <div class="mb-4">
+          <label for="profissional_id_filtro" class="block text-sm font-medium text-text-secondary-dark mb-1">Profissional</label>
+          {# Este é o 'form-select' do Bootstrap, agora em Tailwind #}
+          <select 
+            name="profissional_id" 
+            id="profissional_id_filtro" 
+            class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+            onchange="this.form.submit()">
+            {% for p in profissionais %}
+              <option value="{{ p.id }}" {% if profissional_selecionado and p.id == profissional_selecionado.id %}selected{% endif %}>{{ p.nome }}</option>
+            {% endfor %}
+          </select>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-          <button type="submit" class="btn btn-primary">Agendar</button>
+        <div class="mb-4">
+          <label for="data_filtro" class="block text-sm font-medium text-text-secondary-dark mb-1">Data</label>
+          {# Este é o 'form-control' (date) do Bootstrap, agora em Tailwind #}
+          <input 
+            type="date" 
+            name="data" 
+            id="data_filtro" 
+            class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+            value="{{ data_selecionada.strftime('%Y-%m-%d') }}" 
+            onchange="this.form.submit()">
         </div>
       </form>
     </div>
+    
+    {# Seção de Horários Livres (exatamente como no código de inspiração) #}
+    <div>
+      <h3 class="text-text-primary-dark text-xl font-bold mb-4">
+        Horários Livres ({{ data_selecionada.strftime('%d/%m') }})
+      </h3>
+      <div class="grid grid-cols-3 gap-3">
+        {% for horario in horarios_disponiveis %}
+          {# Botões de horário com o novo estilo #}
+          <button 
+            class="horario-btn py-2 px-4 rounded-lg bg-background-dark text-text-primary-dark font-medium hover:bg-primary hover:text-white transition-colors" 
+            data-horario="{{ horario.strftime('%Y-%m-%dT%H:%M') }}">
+            {{ horario.strftime('%H:%M') }}
+          </button>
+        {% else %}
+          <p class="text-text-secondary-dark text-sm col-span-3">Nenhum horário disponível ou o dia já passou.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+{# 
+  Este é o Modal do código de inspiração.
+  - Ele começa com a classe 'hidden' (escondido).
+  - O JavaScript vai remover essa classe para mostrá-lo.
+  - O 'id' foi mantido para o JavaScript encontrar.
+#}
+<div id="novoAgendamentoModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden">
+  <div class="bg-surface-dark rounded-xl shadow-lg w-full max-w-lg">
+    
+    <div class="p-6 border-b border-gray-700 flex justify-between items-center">
+      <h3 class="text-xl font-bold text-text-primary-dark">Novo Agendamento Manual</h3>
+      <button id="btnFecharModal" class="text-text-secondary-dark hover:text-white">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    
+    <form method="post" action="{{ url_for('main.agenda') }}">
+      <div class="p-6 flex flex-col gap-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="nome_cliente" class="text-sm font-medium text-text-secondary-dark mb-1 block">Nome do Cliente</label>
+            <input type="text" id="nome_cliente" name="nome_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+          </div>
+          <div>
+            <label for="telefone_cliente" class="text-sm font-medium text-text-secondary-dark mb-1 block">Telefone</label>
+            <input type="text" id="telefone_cliente" name="telefone_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label for="profissional_id" class="text-sm font-medium text-text-secondary-dark mb-1 block">Profissional</label>
+            <select id="profissional_id" name="profissional_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+              <option value="" disabled selected>Selecione...</option>
+              {% for profissional in profissionais %}
+                <option value="{{ profissional.id }}">{{ profissional.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="servico_id" class="text-sm font-medium text-text-secondary-dark mb-1 block">Serviço</label>
+            <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+              <option value="" disabled selected>Selecione...</option>
+              {% for servico in servicos %}
+                <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        
+        <div>
+          <label for="data_hora" class="text-sm font-medium text-text-secondary-dark mb-1 block">Data e Hora</label>
+          <input type="datetime-local" id="data_hora" name="data_hora" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+        </div>
+      </div>
+      
+      <div class="p-6 border-t border-gray-700 flex justify-end gap-3">
+        <button id="btnCancelarModal" type="button" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">Cancelar</button>
+        <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">Agendar</button>
+      </div>
+    </form>
+    
   </div>
 </div>
 
+{# 
+  SCRIPT ATUALIZADO
+  Removemos a dependência do Bootstrap e agora controlamos a classe 'hidden' do modal
+#}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-  const modal = new bootstrap.Modal(document.getElementById('novoAgendamentoModal'));
+  
+  // Referências aos elementos do Modal
+  const modal = document.getElementById('novoAgendamentoModal');
+  const btnAbrirModal = document.getElementById('btnAbrirModal');
+  const btnFecharModal = document.getElementById('btnFecharModal');
+  const btnCancelarModal = document.getElementById('btnCancelarModal');
+
+  // Referências aos campos do formulário do Modal
   const profissionalSelect = document.getElementById('profissional_id');
   const dataHoraInput = document.getElementById('data_hora');
-  
+
+  // Função para mostrar o modal
+  function abrirModal() {
+    if (modal) {
+      modal.classList.remove('hidden');
+    }
+  }
+
+  // Função para fechar o modal
+  function fecharModal() {
+    if (modal) {
+      modal.classList.add('hidden');
+    }
+  }
+
+  // Abrir o modal ao clicar no botão "Novo Agendamento"
+  if (btnAbrirModal) {
+    btnAbrirModal.addEventListener('click', abrirModal);
+  }
+
+  // Fechar o modal
+  if (btnFecharModal) {
+    btnFecharModal.addEventListener('click', fecharModal);
+  }
+  if (btnCancelarModal) {
+    btnCancelarModal.addEventListener('click', fecharModal);
+  }
+
+  // Lógica principal: Clicar em um horário disponível
   document.querySelectorAll('.horario-btn').forEach(button => {
     button.addEventListener('click', function () {
+      
+      // Pega os dados do botão e do filtro
       const horarioSelecionado = this.dataset.horario;
       const profissionalSelecionadoId = document.getElementById('profissional_id_filtro').value;
       
+      // Preenche o formulário do modal
       if (profissionalSelect) {
         profissionalSelect.value = profissionalSelecionadoId;
       }
@@ -174,9 +276,11 @@ document.addEventListener('DOMContentLoaded', function () {
         dataHoraInput.value = horarioSelecionado;
       }
       
-      modal.show();
+      // Abre o modal
+      abrirModal();
     });
   });
+
 });
 </script>
 {% endblock %}
