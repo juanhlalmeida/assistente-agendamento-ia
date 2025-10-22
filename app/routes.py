@@ -2,6 +2,9 @@
 import os
 import logging
 import pytz
+import os # Para ler as variáveis de ambiente
+from app.models.tables import User # Precisamos do modelo User
+from app.extensions import db # Precisamos do banco
 import google.generativeai as genai
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
@@ -324,3 +327,42 @@ def reset_database(secret_key):
 # Esta função não é necessária se o blueprint é registado em create_app
 # def init_app(app):
 #     app.register_blueprint(bp)
+
+@bp.route('/admin/criar-primeiro-usuario/<secret_key>')
+def criar_primeiro_usuario(secret_key):
+    """
+    Esta é uma rota secreta para criar o primeiro usuário admin
+    sem precisar de acesso ao Shell (Concha).
+    """
+    # 1. Defina uma variável de ambiente na Render chamada ADMIN_KEY
+    #    com um valor secreto (ex: 'meu-segredo-123')
+    expected_key = os.getenv('ADMIN_KEY')
+    
+    if not expected_key or secret_key != expected_key:
+        current_app.logger.error("Tentativa de acesso à rota de criação de usuário com chave errada.")
+        abort(404) # Damos 'Not Found' para não revelar que a rota existe
+
+    # 2. Verifica se o usuário já existe
+    email_admin = "admin@email.com" # <-- Pode mudar este email
+    user = User.query.filter_by(email=email_admin).first()
+    
+    if user:
+        return f"O usuário '{email_admin}' já existe. Não foi preciso criar."
+
+    # 3. Cria o novo usuário
+    try:
+        senha_admin = "admin123" # <-- MUDE ESTA SENHA!
+        
+        u = User(email=email_admin, nome='Administrador')
+        u.set_password(senha_admin)
+        db.session.add(u)
+        db.session.commit()
+        
+        msg = f"Usuário '{email_admin}' (Senha: '{senha_admin}') foi criado com sucesso!"
+        current_app.logger.info(msg)
+        return msg
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Erro ao criar usuário admin: {e}")
+        return f"Ocorreu um erro: {e}", 500
