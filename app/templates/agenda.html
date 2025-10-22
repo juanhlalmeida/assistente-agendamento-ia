@@ -23,15 +23,14 @@
 {% endwith %}
 
 {# 
-  🚀 MELHORIA DE RESPONSIVIDADE:
-  - 'grid-cols-1': Em mobile, fica 1 coluna (empilhado)
-  - 'lg:grid-cols-[1fr_350px]': Em telas grandes (lg), volta a 2 colunas.
-  - Reduzi a barra lateral de 400px para 350px para compactar.
-  - Reduzi o 'gap-8' para 'gap-6'.
+  🚀 SOLUÇÃO DE RESPONSIVIDADE CORRETA:
+  - 'grid-cols-1': (Padrão/Mobile) Empilha as colunas.
+  - 'lg:grid-cols-[1fr_400px]': Em telas grandes (lg:), volta ao layout de 2 colunas com os 400px originais.
+  - 'gap-8': Voltamos ao espaçamento original que você gostou.
 #}
-<div class="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6">
+<div class="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8">
 
-  {# Coluna Principal (Antigo col-lg-8) #}
+  {# Coluna Principal (Agenda) #}
   <main class="flex flex-col gap-6">
     <div class="flex justify-between items-center">
       <h2 class="text-text-primary-dark text-3xl font-bold">Agendamentos do Dia</h2>
@@ -44,33 +43,39 @@
       </button>
     </div>
 
-    <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden">
-      <table class="w-full text-left align-middle">
+    {# 
+      🚀 SOLUÇÃO DE RESPONSIVIDADE (TABELA):
+      - 'overflow-hidden' foi trocado por 'overflow-x-auto'.
+      - Isto faz com que APENAS a tabela possa rolar para os lados no telemóvel,
+      - sem quebrar o layout da página.
+    #}
+    <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
+      {# 'min-w-[600px]' garante que a tabela tenha espaço no mobile sem esmagar #}
+      <table class="w-full min-w-[600px] lg:min-w-full text-left align-middle">
         <thead class="bg-background-dark">
           <tr>
-            {# 🚀 MELHORIA COMPACTA: Reduzido padding vertical de 'p-4' para 'py-3' #}
-            <th class="px-4 py-3 text-sm font-semibold text-text-secondary-dark uppercase">Cliente</th>
-            <th class="px-4 py-3 text-sm font-semibold text-text-secondary-dark uppercase">Hora</th>
-            <th class="px-4 py-3 text-sm font-semibold text-text-secondary-dark uppercase">Serviço</th>
-            <th class="px-4 py-3 text-sm font-semibold text-text-secondary-dark uppercase">Profissional</th>
-            <th class="px-4 py-3 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th>
+            {# Voltamos ao padding 'p-4' original #}
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Cliente</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Hora</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Serviço</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Profissional</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th>
           </tr>
         </thead>
         <tbody>
           {% for agendamento in agendamentos %}
             <tr class="border-b border-gray-800 hover:bg-white/5">
-              {# 🚀 MELHORIA COMPACTA: Reduzido padding vertical de 'p-4' para 'py-3' #}
-              <td class="px-4 py-3">
+              <td class="p-4">
                 <div class="font-semibold text-text-primary-dark">{{ agendamento.nome_cliente }}</div>
                 <div class="text-sm text-text-secondary-dark">{{ agendamento.telefone_cliente }}</div>
               </td>
-              <td class="px-4 py-3 text-text-primary-dark font-medium">{{ agendamento.data_hora.strftime('%H:%M') }}</td>
-              <td class="px-4 py-3 text-text-primary-dark">
+              <td class="p-4 text-text-primary-dark font-medium">{{ agendamento.data_hora.strftime('%H:%M') }}</td>
+              <td class="p-4 text-text-primary-dark">
                 {{ agendamento.servico.nome }}
                 <span class="text-text-secondary-dark text-sm">(R$ {{ "%.2f"|format(agendamento.servico.preco) }})</span>
               </td>
-              <td class="px-4 py-3 text-text-primary-dark">{{ agendamento.profissional.nome }}</td>
-              <td class="px-4 py-3 text-center">
+              <td class="p-4 text-text-primary-dark">{{ agendamento.profissional.nome }}</td>
+              <td class="p-4 text-center">
                 <a href="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}" class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
                   <span class="material-symbols-outlined">edit</span>
                 </a>
@@ -92,8 +97,8 @@
   </main>
 
   {# Coluna Lateral (Disponibilidade) #}
-  {# 🚀 MELHORIA COMPACTA: Reduzido padding de 'p-6' para 'p-4' e 'gap-8' para 'gap-6' #}
-  <aside class="bg-surface-dark rounded-xl p-4 flex flex-col gap-6 shadow-lg">
+  {# Voltamos ao padding 'p-6' e 'gap-8' originais #}
+  <aside class="bg-surface-dark rounded-xl p-6 flex flex-col gap-8 shadow-lg">
     <div>
       <h3 class="text-text-primary-dark text-xl font-bold mb-4 flex items-center gap-2">
         <span class="material-symbols-outlined">search</span>
@@ -183,7 +188,7 @@
             <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
               <option value="" disabled selected>Selecione...</option>
               {% for servico in servicos %}
-                <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
+                <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(agendamento.servico.preco) }}</option>
               {% endfor %}
             </select>
           </div>
