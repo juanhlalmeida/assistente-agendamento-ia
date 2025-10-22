@@ -2,19 +2,19 @@
 import os
 import logging
 import pytz
-import os # Para ler as variáveis de ambiente
-from app.models.tables import User # Precisamos do modelo User
-from app.extensions import db # Precisamos do banco
 import google.generativeai as genai
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
 from sqlalchemy.orm import joinedload
-from app.models.tables import Agendamento, Profissional, Servico, User # Adicionado User para as rotas de auth
+# 🚀 CORREÇÃO: Importa 'User' mas não o usaremos para login no momento
+from app.models.tables import Agendamento, Profissional, Servico, User 
 from app.extensions import db
 from app.whatsapp_client import WhatsAppClient, sanitize_msisdn    
-from app.services import ai_service # Importamos o serviço de IA
+from app.services import ai_service 
 from app.commands import reset_database_logic
-from flask_login import login_user, logout_user, login_required, current_user # Importações do Login
+
+# 🚀 CORREÇÃO: Removidas todas as importações do flask_login
+# from flask_login import login_user, logout_user, login_required, current_user 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 bp = Blueprint('main', __name__)
@@ -22,53 +22,18 @@ bp = Blueprint('main', __name__)
 # --- Armazenamento em memória para o histórico das conversas ---
 conversation_history = {}
 
-# --- FUNÇÕES DE AUTENTICAÇÃO ---
-# (Assumindo que estas rotas estão aqui, como 'main.login')
-
-# Em app/routes.py
+# --- FUNÇÕES DE AUTENTICAÇÃO (DESABILITADAS) ---
 
 @bp.route('/', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('main.agenda'))
-    
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        # Procura o usuário no banco
-        user = User.query.filter_by(email=email).first()
-        
-        # Verifica a senha
-        if user and user.check_password(password):
-            login_user(user, remember=request.form.get('remember-me') is not None)
-            
-            # Pega a página 'next' para onde o usuário ia
-            next_page = request.args.get('next')
-            if not next_page or not next_page.startswith('/'):
-                next_page = url_for('main.agenda')
-            
-            return redirect(next_page)
-        else:
-            flash('Email ou senha inválidos.', 'danger')
-            
-    # 🚀 CORREÇÃO: Mostra o template de login que acabámos de criar
-    return render_template('login.html')
-            
-    # Se você não tem um template 'login.html', precisa criar um
-    # Por agora, vou redirecionar para a agenda (mas isso vai falhar se não estiver logado)
-    # return render_template('login.html')
-    
-    # Vamos assumir que você tem um login.html, senão o site não funciona
-    # Se não tiver, me avise para criarmos um
-    return "Página de Login. (Crie um login.html)"
+    # 🚀 CORREÇÃO: Redireciona direto para a agenda, como era antes.
+    return redirect(url_for('main.agenda'))
 
 
 @bp.route('/logout')
-@login_required
 def logout():
-    logout_user()
-    return redirect(url_for('main.login'))
+    # 🚀 CORREÇÃO: Rota de logout apenas redireciona para a agenda
+    return redirect(url_for('main.agenda'))
 
 # --- FUNÇÕES DO PAINEL WEB (CORRIGIDAS) ---
 def _range_do_dia(dia_dt: datetime):
@@ -76,15 +41,8 @@ def _range_do_dia(dia_dt: datetime):
     fim = inicio + timedelta(days=1)
     return inicio, fim
 
-# 🚀 CORREÇÃO: Removida a função duplicada 'calcular_horarios_disponiveis'.
-# Agora vamos usar a função centralizada do 'ai_service.py' para consistência.
-# A função em 'ai_service' precisa ser levemente ajustada para aceitar um objeto 'Profissional'
-# ou podemos manter a sua original.
-#
-# VAMOS MANTER A SUA ORIGINAL POR AGORA para evitar quebrar o ai_service.
-# Apenas adicionamos o @login_required
-
 def calcular_horarios_disponiveis_web(profissional: Profissional, dia_selecionado: datetime):
+    # (Esta função está OK, sem mudanças)
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
     HORA_INICIO_TRABALHO = 9
     HORA_FIM_TRABALHO = 20
@@ -115,7 +73,7 @@ def calcular_horarios_disponiveis_web(profissional: Profissional, dia_selecionad
 
 
 @bp.route('/agenda', methods=['GET', 'POST'])
-@login_required # 🚀 CORREÇÃO: Rota protegida
+# 🚀 CORREÇÃO: O decorador @login_required foi REMOVIDO daqui
 def agenda():
     if request.method == 'POST':
         nome_cliente = request.form.get('nome_cliente')
@@ -176,7 +134,6 @@ def agenda():
         profissional_sel = profissionais[0]
         profissional_sel_id = profissional_sel.id
     if profissional_sel:
-        # 🚀 CORREÇÃO: Usando a função interna 'calcular_horarios_disponiveis_web'
         horarios_disponiveis = calcular_horarios_disponiveis_web(profissional_sel, data_sel) 
     inicio, fim = _range_do_dia(data_sel)
     ags_dia = (
@@ -197,7 +154,7 @@ def agenda():
     )
 
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
-@login_required # 🚀 CORREÇÃO: Rota protegida
+# 🚀 CORREÇÃO: O decorador @login_required foi REMOVIDO daqui
 def excluir_agendamento(agendamento_id):
     ag = Agendamento.query.get_or_404(agendamento_id)
     data_redirect = ag.data_hora.strftime('%Y-%m-%d')
@@ -205,14 +162,13 @@ def excluir_agendamento(agendamento_id):
     db.session.delete(ag)
     db.session.commit()
     flash('Agendamento excluído com sucesso!', 'warning')
-    return redirect(url_for('main.agenda', data=data_redirect, profissional_id=prof_redirect))
+    return redirect(url_for('main.agenda', data=redirect_date, profissional_id=prof_redirect))
 
 @bp.route('/agendamento/editar/<int:agendamento_id>', methods=['GET', 'POST'])
-@login_required # 🚀 CORREÇÃO: Rota protegida
+# 🚀 CORREÇÃO: O decorador @login_required foi REMOVIDO daqui
 def editar_agendamento(agendamento_id):
     ag = Agendamento.query.get_or_404(agendamento_id)
     if request.method == 'POST':
-        # ... (lógica POST) ...
         ag.nome_cliente = request.form.get('nome_cliente')
         ag.telefone_cliente = request.form.get('telefone_cliente')
         ag.data_hora = datetime.strptime(request.form.get('data_hora'), '%Y-%m-%dT%H:%M')
@@ -324,45 +280,12 @@ def reset_database(secret_key):
         logging.error("Erro ao recriar o banco de dados: %s", e, exc_info=True)
         return f"<h1>Ocorreu um erro ao recriar o banco de dados:</h1><p>{str(e)}</p>"
 
-# Esta função não é necessária se o blueprint é registado em create_app
-# def init_app(app):
-#     app.register_blueprint(bp)
 
 @bp.route('/admin/criar-primeiro-usuario/<secret_key>')
 def criar_primeiro_usuario(secret_key):
     """
-    Esta é uma rota secreta para criar o primeiro usuário admin
-    sem precisar de acesso ao Shell (Concha).
+    Esta rota secreta tentará criar um usuário, mas está desabilitada
+    porque o login foi desabilitado.
     """
-    # 1. Defina uma variável de ambiente na Render chamada ADMIN_KEY
-    #    com um valor secreto (ex: 'meu-segredo-123')
-    expected_key = os.getenv('ADMIN_KEY')
-    
-    if not expected_key or secret_key != expected_key:
-        current_app.logger.error("Tentativa de acesso à rota de criação de usuário com chave errada.")
-        abort(404) # Damos 'Not Found' para não revelar que a rota existe
-
-    # 2. Verifica se o usuário já existe
-    email_admin = "admin@email.com" # <-- Pode mudar este email
-    user = User.query.filter_by(email=email_admin).first()
-    
-    if user:
-        return f"O usuário '{email_admin}' já existe. Não foi preciso criar."
-
-    # 3. Cria o novo usuário
-    try:
-        senha_admin = "admin123" # <-- MUDE ESTA SENHA!
-        
-        u = User(email=email_admin, nome='Administrador')
-        u.set_password(senha_admin)
-        db.session.add(u)
-        db.session.commit()
-        
-        msg = f"Usuário '{email_admin}' (Senha: '{senha_admin}') foi criado com sucesso!"
-        current_app.logger.info(msg)
-        return msg
-        
-    except Exception as e:
-        db.session.rollback()
-        current_app.logger.error(f"Erro ao criar usuário admin: {e}")
-        return f"Ocorreu um erro: {e}", 500
+    # 🚀 CORREÇÃO: Rota desabilitada pois o login está desabilitado.
+    return "O sistema de login está temporariamente desabilitado. Esta rota não fará nada.", 200

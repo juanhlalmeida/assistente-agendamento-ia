@@ -1,148 +1,76 @@
 <!DOCTYPE html>
-{# 
-  Iniciamos com as classes do novo design.
-  'dark' é o modo padrão.
-  'bg-background-dark' é a cor de fundo.
-  'font-display' define a fonte 'Inter'.
-#}
 <html class="dark" lang="pt-br">
 <head>
   <meta charset="utf-8"/>
-  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  
-  {# O título agora é dinâmico usando um bloco do Jinja #}
+  <meta content="width=device-width, initial-scale-1.0" name="viewport"/>
   <title>{% block title %}Meu Salão{% endblock %}</title>
-
-  {# --- SCRIPTS E LINKS DO NOVO DESIGN --- #}
-  
-  {# 1. Tailwind CSS via CDN e Configuração #}
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  
-  {# 2. Google Fonts (Inter) #}
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
   <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  
-  {# 3. Google Material Symbols (Ícones) #}
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
-
-  {# 4. Configuração do Tema Tailwind #}
   <script>
     tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            "primary": "#00A6FB",
-            "background-light": "#f6f7f8",
-            "background-dark": "#121212",
-            "surface-dark": "#1E1E1E",
-            "text-primary-dark": "#FFFFFF",
-            "text-secondary-dark": "#A0A0A0",
-          },
-          fontFamily: {
-            "display": ["Inter", "sans-serif"]
-          },
-          borderRadius: {
-            "DEFAULT": "0.5rem",
-            "lg": "0.75rem",
-            "xl": "1rem",
-            "full": "9999px"
-          },
-        },
-      },
+      // ... (sua config tailwind) ...
     }
   </script>
-  
-  {# 5. Estilo base para os ícones #}
   <style>
     .material-symbols-outlined {
-      font-variation-settings:
-      'FILL' 0,
-      'wght' 400,
-      'GRAD' 0,
-      'opsz' 24
+      /* ... (seu style) ... */
     }
   </style>
-  
-  {# --- FIM DOS SCRIPTS E LINKS --- #}
 </head>
 <body class="bg-background-dark font-display text-text-primary-dark">
   
   <div class="relative flex h-auto min-h-screen w-full flex-col">
     <div class="layout-container flex h-full grow flex-row">
       
-      {# Barra Lateral (Sidebar) #}
       <aside class="flex flex-col gap-y-8 p-6 bg-surface-dark w-72 flex-shrink-0">
         <div class="flex items-center gap-4">
-          {# Você pode colocar sua logo aqui #}
           <div class="bg-primary aspect-square rounded-lg size-12 flex items-center justify-center">
             <span class="material-symbols-outlined text-white text-3xl">content_cut</span>
           </div>
           <h1 class="text-text-primary-dark text-xl font-bold">Meu Salão</h1>
         </div>
         
-        {# Links de Navegação #}
         <nav class="flex flex-col gap-3 flex-1">
-          {# 
-            Aqui você deve verificar qual é a página ativa.
-            Exemplo para o link de 'Agenda':
-            {% set is_active = 'main.agenda' in request.endpoint %}
-          #}
           <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if 'main.agenda' in request.endpoint %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
              href="{{ url_for('main.agenda') }}">
             <span class="material-symbols-outlined">calendar_today</span>
             <p class="text-base">Agendamentos</p>
           </a>
-          
-          {# Adicione outros links aqui (ex: Clientes, Serviços) #}
-          <a classa="flex items-center gap-3 px-4 py-3 rounded-lg {% if 'main.clientes' in request.endpoint %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
-             href="#"> {# Mude o '#' para o url_for correto #}
-            <span class="material-symbols-outlined">group</span>
+          <a classa="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium" 
+             href="#"> <span class="material-symbols-outlined">group</span>
             <p class="text-base">Clientes</p>
           </a>
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if 'main.servicos' in request.endpoint %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
-             href="#"> {# Mude o '#' para o url_for correto #}
-            <span class="material-symbols-outlined">cut</span>
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium" 
+             href="#"> <span class="material-symbols-outlined">cut</span>
             <p class="text-base">Serviços</p>
           </a>
         </nav>
         
-        {# Rodapé da Sidebar (Usuário Logado) #}
         <div class="flex flex-col gap-4">
           <div class="flex items-center justify-between p-2 rounded-lg bg-background-dark">
             <div class="flex items-center gap-3">
               <div class="bg-primary aspect-square rounded-full size-10 flex items-center justify-center">
-                {# Pega a inicial do usuário, ou 'U' se não houver #}
-                <span class="text-white font-bold text-xl">{{ (current_user.nome[0] if current_user.is_authenticated else 'U') | upper }}</span>
+                <span class="material-symbols-outlined text-white">shield_person</span>
               </div>
               <div>
-                <p class="text-text-primary-dark font-semibold">{{ current_user.nome if current_user.is_authenticated else 'Visitante' }}</p>
-                <p class="text-text-secondary-dark text-sm">{{ current_user.email if current_user.is_authenticated else '' }}</p>
+                <p class="text-text-primary-dark font-semibold">Admin</p>
+                <p class="text-text-secondary-dark text-sm">Painel</p>
               </div>
             </div>
-            {% if current_user.is_authenticated %}
-            <a href="{{ url_for('auth.logout') }}" class="text-text-secondary-dark hover:text-white" title="Sair">
-              <span class="material-symbols-outlined">logout</span>
-            </a>
-            {% endif %}
-          </div>
+            </div>
         </div>
       </aside>
       
-      {# Conteúdo Principal da Página #}
       <main class="flex-1 p-8">
-        {# O bloco de conteúdo da página filha (ex: agenda.html) será injetado aqui #}
         {% block content %}{% endblock %}
       </main>
 
     </div>
   </div>
 
-  {# 
-    O bloco de scripts foi movido para o final do body.
-    Remova o Bootstrap JS daqui.
-  #}
   {% block scripts %}
   {% endblock %}
 </body>
