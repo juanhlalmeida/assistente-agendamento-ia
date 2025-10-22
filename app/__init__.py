@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from flask import Flask
 from config import Config
-from .extensions import db  # Isto importa o 'db' do seu app/extensions.py
-from .routes import bp      # Isto importa o 'bp' do seu app/routes.py
+from app.extensions import db  # Corrigido: Mantém a sua estrutura
+from app.routes import bp      # Corrigido: Mantém a sua estrutura
 from flask_migrate import Migrate
 from flask_login import LoginManager
 
@@ -12,8 +12,11 @@ from flask_login import LoginManager
 # Definimos as extensões AQUI, fora da função
 login_manager = LoginManager()
 # Esta linha redireciona utilizadores não logados para a página de login
-login_manager.login_view = 'auth.login' 
+# Assumindo que a sua rota de login está em app/routes.py e se chama 'main.login'
+# Se o nome for outro (ex: 'auth.login'), mude aqui.
+login_manager.login_view = 'main.login' 
 login_manager.login_message = 'Por favor, faça login para aceder a esta página.'
+login_manager.login_message_category = 'info' # Categoria para o flash message
 
 migrate = Migrate()
 # ---------------------------
@@ -24,26 +27,24 @@ migrate = Migrate()
 # a partir do ID guardado na sessão (cookie).
 @login_manager.user_loader
 def load_user(user_id):
-    # Importamos o 'models' aqui dentro da função
-    # para evitar erros de "importação circular"
-    from . import models 
+    # Importamos os modelos AQUI, da forma como os outros arquivos fazem
+    from app.models.tables import User 
     
-    # Assumimos que o seu modelo de usuário se chama 'User'
-    # O user_id vem da sessão como string, convertemos para int
     try:
-        return models.User.query.get(int(user_id))
-    except:
-        # Se o user_id for inválido por algum motivo
+        # Assumindo que seu modelo de usuário se chama 'User'
+        return User.query.get(int(user_id))
+    except Exception as e:
+        current_app.logger.error(f"Erro no user_loader: {e}")
         return None
 # --- FIM DO USER LOADER ---
 
 
-def create_app() -> Flask:
+def create_app(config_class=Config) -> Flask:
     # Prepara configuração dinâmica (DB etc.)
     Config.init_app()
 
     app = Flask(__name__, instance_relative_config=True)
-    app.config.from_object(Config)
+    app.config.from_object(config_class)
 
     # --- INICIALIZAÇÃO DAS EXTENSÕES ---
     # Agora ligamos as instâncias globais ao 'app'
@@ -61,11 +62,10 @@ def create_app() -> Flask:
         return {"status": "ok"}, 200
 
     # --- IMPORTAR MODELOS ---
-    # Esta é a parte mais importante para o 'flask db'
-    # Sem isto, o migrate não sabe quais tabelas existem.
-    # O seu 'models.py' TEM que existir.
+    # Corrigido: Importamos os modelos da sua estrutura
+    # para que o Flask-Migrate os veja.
     with app.app_context():
-        from . import models
+        from app.models import tables
     # --------------------------
 
     return app

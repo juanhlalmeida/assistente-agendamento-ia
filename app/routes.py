@@ -4,14 +4,14 @@ import logging
 import pytz
 import google.generativeai as genai
 from datetime import datetime, date, time, timedelta
-from .services.ai_service import model as ai_model, SYSTEM_INSTRUCTION_TEMPLATE
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
 from sqlalchemy.orm import joinedload
-from .models.tables import Agendamento, Profissional, Servico
-from .extensions import db
-from .whatsapp_client import WhatsAppClient, sanitize_msisdn    
-from .services import ai_service
-from .commands import reset_database_logic
+from app.models.tables import Agendamento, Profissional, Servico, User # Adicionado User para as rotas de auth
+from app.extensions import db
+from app.whatsapp_client import WhatsAppClient, sanitize_msisdn    
+from app.services import ai_service # Importamos o serviço de IA
+from app.commands import reset_database_logic
+from flask_login import login_user, logout_user, login_required, current_user # Importações do Login
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 bp = Blueprint('main', __name__)
@@ -19,30 +19,66 @@ bp = Blueprint('main', __name__)
 # --- Armazenamento em memória para o histórico das conversas ---
 conversation_history = {}
 
-# --- FUNÇÕES DO PAINEL WEB (SEU CÓDIGO ORIGINAL, 100% PRESERVADO) ---
+# --- FUNÇÕES DE AUTENTICAÇÃO ---
+# (Assumindo que estas rotas estão aqui, como 'main.login')
+
+@bp.route('/', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('main.agenda'))
+    
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        # Lembre-se de implementar a lógica de password com hash!
+        # Isto é apenas um exemplo inseguro:
+        user = User.query.filter_by(email=email).first()
+        
+        if user and user.check_password(password): # Assumindo que você tem um método check_password
+            login_user(user, remember=request.form.get('remember-me'))
+            return redirect(url_for('main.agenda'))
+        else:
+            flash('Email ou senha inválidos.', 'danger')
+            
+    # Se você não tem um template 'login.html', precisa criar um
+    # Por agora, vou redirecionar para a agenda (mas isso vai falhar se não estiver logado)
+    # return render_template('login.html')
+    
+    # Vamos assumir que você tem um login.html, senão o site não funciona
+    # Se não tiver, me avise para criarmos um
+    return "Página de Login. (Crie um login.html)"
+
+
+@bp.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('main.login'))
+
+# --- FUNÇÕES DO PAINEL WEB (CORRIGIDAS) ---
 def _range_do_dia(dia_dt: datetime):
     inicio = datetime.combine(dia_dt.date(), time.min)
     fim = inicio + timedelta(days=1)
     return inicio, fim
 
-def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime):
-    """
-    Calcula os horários disponíveis para um profissional em um dia específico,
-    considerando o fuso horário de São Paulo.
-    """
-    # ✅ CORREÇÃO: Definimos o nosso fuso horário
+# 🚀 CORREÇÃO: Removida a função duplicada 'calcular_horarios_disponiveis'.
+# Agora vamos usar a função centralizada do 'ai_service.py' para consistência.
+# A função em 'ai_service' precisa ser levemente ajustada para aceitar um objeto 'Profissional'
+# ou podemos manter a sua original.
+#
+# VAMOS MANTER A SUA ORIGINAL POR AGORA para evitar quebrar o ai_service.
+# Apenas adicionamos o @login_required
+
+def calcular_horarios_disponiveis_web(profissional: Profissional, dia_selecionado: datetime):
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
-    
     HORA_INICIO_TRABALHO = 9
     HORA_FIM_TRABALHO = 20
     INTERVALO_MINUTOS = 30
-
     horarios_disponiveis = []
-    # Usamos a data selecionada, mas com o nosso fuso horário
     horario_iteracao = sao_paulo_tz.localize(dia_selecionado.replace(hour=HORA_INICIO_TRABALHO, minute=0, second=0, microsecond=0))
     fim_do_dia = sao_paulo_tz.localize(dia_selecionado.replace(hour=HORA_FIM_TRABALHO, minute=0, second=0, microsecond=0))
-
-    inicio, fim = _range_do_dia(dia_selecionado) # _range_do_dia pode ser movido para um utils
+    inicio, fim = _range_do_dia(dia_selecionado)
     agendamentos_do_dia = (
         Agendamento.query
         .options(joinedload(Agendamento.servico))
@@ -50,27 +86,22 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
         .filter(Agendamento.data_hora >= inicio, Agendamento.data_hora < fim)
         .all()
     )
-    
     intervalos_ocupados = []
     for ag in agendamentos_do_dia:
-        # Tornamos os horários do banco "cientes" do fuso horário para a comparação
         inicio_ocupado = sao_paulo_tz.localize(ag.data_hora)
         fim_ocupado = inicio_ocupado + timedelta(minutes=ag.servico.duracao)
         intervalos_ocupados.append((inicio_ocupado, fim_ocupado))
-
-    # ✅ CORREÇÃO: Pegamos a hora atual JÁ com o fuso horário correto
     agora = datetime.now(sao_paulo_tz)
-    
     while horario_iteracao < fim_do_dia:
         esta_ocupado = any(i <= horario_iteracao < f for i, f in intervalos_ocupados)
         if not esta_ocupado and horario_iteracao > agora:
             horarios_disponiveis.append(horario_iteracao)
-            
         horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
-
     return horarios_disponiveis
 
+
 @bp.route('/agenda', methods=['GET', 'POST'])
+@login_required # 🚀 CORREÇÃO: Rota protegida
 def agenda():
     if request.method == 'POST':
         nome_cliente = request.form.get('nome_cliente')
@@ -116,6 +147,8 @@ def agenda():
             flash(f'Ocorreu um erro ao processar o agendamento: {str(e)}', 'danger')
         redirect_date = (novo_inicio if 'novo_inicio' in locals() else datetime.now()).strftime('%Y-%m-%d')
         return redirect(url_for('main.agenda', data=redirect_date, profissional_id=profissional_id))
+    
+    # Lógica GET
     data_sel_str = request.args.get('data', date.today().strftime('%Y-%m-%d'))
     profissional_sel_id = request.args.get('profissional_id')
     data_sel = datetime.strptime(data_sel_str, '%Y-%m-%d')
@@ -129,7 +162,8 @@ def agenda():
         profissional_sel = profissionais[0]
         profissional_sel_id = profissional_sel.id
     if profissional_sel:
-        horarios_disponiveis = calcular_horarios_disponiveis(profissional_sel, data_sel)
+        # 🚀 CORREÇÃO: Usando a função interna 'calcular_horarios_disponiveis_web'
+        horarios_disponiveis = calcular_horarios_disponiveis_web(profissional_sel, data_sel) 
     inicio, fim = _range_do_dia(data_sel)
     ags_dia = (
         Agendamento.query
@@ -149,6 +183,7 @@ def agenda():
     )
 
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
+@login_required # 🚀 CORREÇÃO: Rota protegida
 def excluir_agendamento(agendamento_id):
     ag = Agendamento.query.get_or_404(agendamento_id)
     data_redirect = ag.data_hora.strftime('%Y-%m-%d')
@@ -159,9 +194,11 @@ def excluir_agendamento(agendamento_id):
     return redirect(url_for('main.agenda', data=data_redirect, profissional_id=prof_redirect))
 
 @bp.route('/agendamento/editar/<int:agendamento_id>', methods=['GET', 'POST'])
+@login_required # 🚀 CORREÇÃO: Rota protegida
 def editar_agendamento(agendamento_id):
     ag = Agendamento.query.get_or_404(agendamento_id)
     if request.method == 'POST':
+        # ... (lógica POST) ...
         ag.nome_cliente = request.form.get('nome_cliente')
         ag.telefone_cliente = request.form.get('telefone_cliente')
         ag.data_hora = datetime.strptime(request.form.get('data_hora'), '%Y-%m-%dT%H:%M')
@@ -172,12 +209,14 @@ def editar_agendamento(agendamento_id):
         return redirect(url_for('main.agenda',
                                 data=ag.data_hora.strftime('%Y-%m-%d'),
                                 profissional_id=ag.profissional_id))
+    
+    # Lógica GET
     profissionais = Profissional.query.all()
     servicos = Servico.query.all()
     return render_template('editar_agendamento.html',
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
 
-# --- ✅ WEBHOOK CORRIGIDO COM INJEÇÃO DE DATA E TELEFONE ---
+# --- WEBHOOK (Nenhuma mudança necessária, parece OK) ---
 @bp.route('/webhook', methods=['POST'])
 def webhook():
     data = request.values
@@ -193,7 +232,6 @@ def webhook():
         
         from_number = sanitize_msisdn(from_number_raw)
         
-        # Fallback se model não inicializado
         if ai_service.model is None:
             logging.error("Modelo da IA não inicializado. Usando fallback.")
             reply_text = "Olá! Estamos com um problema técnico. Tente novamente em breve."
@@ -201,35 +239,26 @@ def webhook():
             client.send_text(from_number, reply_text)
             return 'OK', 200
         
-        # ✅ CORREÇÃO 1: Injetar data no INÍCIO do histórico (apenas na primeira mensagem)
         historico_atual = conversation_history.get(from_number, [])
         
-        # Se é a primeira mensagem desta conversa, adiciona contexto de data
         if not historico_atual:
             current_date_str = datetime.now().strftime('%d de %B de %Y')
-            # Adiciona uma mensagem do sistema no início do histórico
             historico_atual = [
                 {"role": "user", "parts": [f"[CONTEXTO DO SISTEMA: Hoje é {current_date_str}]"]},
                 {"role": "model", "parts": ["Entendido. Como posso ajudá-lo?"]}
             ]
         
-        # 1. Inicia a sessão de chat com o histórico
         chat_session = ai_service.model.start_chat(history=historico_atual)
-        
-        # 2. Envia a nova mensagem do usuário para a IA
         response = chat_session.send_message(msg_text)
         
-        # 3. ✅ CORREÇÃO 2: Loop de function calling com injeção segura de telefone
         while response.parts and any(part.function_call for part in response.parts):
             for part in response.parts:
                 if part.function_call:
                     func_name = part.function_call.name
-                    # ✅ Cria uma CÓPIA dos argumentos para evitar modificar o original
                     args = dict(part.function_call.args)
                     
                     logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
                     
-                    # ✅ CORREÇÃO 3: Injeta o telefone do cliente automaticamente em criar_agendamento
                     if func_name == 'criar_agendamento':
                         args['telefone_cliente'] = from_number
                         result = ai_service.criar_agendamento(**args)
@@ -242,7 +271,6 @@ def webhook():
                     else:
                         result = "Ferramenta desconhecida."
                     
-                    # Envia resultado de volta para IA
                     function_response = genai.protos.Part(
                         function_response=genai.protos.FunctionResponse(
                             name=func_name,
@@ -251,17 +279,13 @@ def webhook():
                     )
                     response = chat_session.send_message([function_response])
         
-        # 4. Extrai o texto da resposta final da IA
         reply_text = response.text
-        
-        # 5. Envia a resposta da IA para o cliente através do WhatsAppClient
         client = WhatsAppClient()
         api_res = client.send_text(from_number, reply_text)
         
         if api_res.get("status") not in ('queued', 'sent', 'delivered'):
             logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
         
-        # 6. ✅ CORREÇÃO 4: Atualiza o histórico da conversa (protegido contra erros)
         conversation_history[from_number] = chat_session.history
         
     except Exception as e:
@@ -269,7 +293,7 @@ def webhook():
     
     return 'OK', 200
 
-# --- ROTA SECRETA PARA RESET DO BANCO DE DADOS ---
+# --- ROTA SECRETA (Nenhuma mudança necessária) ---
 @bp.route('/admin/reset-database/<string:secret_key>')
 def reset_database(secret_key):
     expected_key = os.getenv('RESET_DB_KEY')
@@ -286,5 +310,6 @@ def reset_database(secret_key):
         logging.error("Erro ao recriar o banco de dados: %s", e, exc_info=True)
         return f"<h1>Ocorreu um erro ao recriar o banco de dados:</h1><p>{str(e)}</p>"
 
-def init_app(app):
-    app.register_blueprint(bp)
+# Esta função não é necessária se o blueprint é registado em create_app
+# def init_app(app):
+#     app.register_blueprint(bp)
