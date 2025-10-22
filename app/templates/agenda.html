@@ -22,11 +22,20 @@
   {% endif %}
 {% endwith %}
 
-{# Layout responsivo: 1 coluna no mobile, 2 colunas (com 400px na lateral) no desktop #}
+{# 
+  Layout responsivo: 
+  - 'grid-cols-1': (Padrão/Mobile) 1 coluna
+  - 'lg:grid-cols-[1fr_400px]': (Desktop) 2 colunas
+#}
 <div class="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8">
 
-  {# Coluna Principal (Agenda) #}
-  <main class="flex flex-col gap-6">
+  {# 
+    Coluna Principal (Agenda)
+    🚀 CORREÇÃO DE ORDEM:
+    - 'order-2': No mobile, aparece EM BAIXO
+    - 'lg:order-1': No desktop, aparece À ESQUERDA
+  #}
+  <main class="flex flex-col gap-6 lg:order-1 order-2">
     <div class="flex justify-between items-center">
       <h2 class="text-text-primary-dark text-3xl font-bold">Agendamentos do Dia</h2>
       <button 
@@ -84,8 +93,13 @@
     </div>
   </main>
 
-  {# Coluna Lateral (Disponibilidade) #}
-  <aside class="bg-surface-dark rounded-xl p-6 flex flex-col gap-8 shadow-lg">
+  {# 
+    Coluna Lateral (Disponibilidade)
+    🚀 CORREÇÃO DE ORDEM:
+    - 'order-1': No mobile, aparece EM CIMA
+    - 'lg:order-2': No desktop, aparece À DIREITA
+  #}
+  <aside class="bg-surface-dark rounded-xl p-6 flex flex-col gap-8 shadow-lg lg:order-2 order-1">
     <div>
       <h3 class="text-text-primary-dark text-xl font-bold mb-4 flex items-center gap-2">
         <span class="material-symbols-outlined">search</span>
@@ -137,7 +151,7 @@
 
 </div>
 
-{# Modal (Pop-up) de Novo Agendamento #}
+{# Modal (Pop-up) de Novo Agendamento (Com a correção do 'servico.preco') #}
 <div id="novoAgendamentoModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden">
   <div class="bg-surface-dark rounded-xl shadow-lg w-full max-w-lg">
     
@@ -175,8 +189,7 @@
             <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
               <option value="" disabled selected>Selecione...</option>
               {% for servico in servicos %}
-                {# 🚀🚀🚀 A CORREÇÃO ESTÁ AQUI 🚀🚀🚀 #}
-                {# Trocado 'agendamento.servico.preco' por 'servico.preco' #}
+                {# Correção de 'agendamento.servico.preco' para 'servico.preco' #}
                 <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
               {% endfor %}
             </select>
