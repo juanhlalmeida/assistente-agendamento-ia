@@ -8,6 +8,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from sqlalchemy.orm import joinedload
 # 🚀 CORREÇÃO: Importa 'User' mas não o usaremos para login no momento
 from app.models.tables import Agendamento, Profissional, Servico, User 
+# 🚀 ADICIONADO: Import de Barbearia
+from app.models.tables import Barbearia
 from app.extensions import db
 from app.whatsapp_client import WhatsAppClient, sanitize_msisdn    
 from app.services import ai_service 
@@ -186,7 +188,7 @@ def editar_agendamento(agendamento_id):
     return render_template('editar_agendamento.html',
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
 
-# --- WEBHOOK (Nenhuma mudança necessária, parece OK) ---
+# --- WEBHOOK (ATUALIZADO PARA MULTI-TENANCY) ---
 @bp.route('/webhook', methods=['POST'])
 def webhook():
     data = request.values
@@ -196,11 +198,35 @@ def webhook():
         msg_text = data.get('Body')
         from_number_raw = data.get('From')
         
-        if not from_number_raw or not msg_text:
-            logging.warning("Webhook da Twilio recebido sem 'From' ou 'Body'.")
+        # 🚀 ALTERAÇÃO: Precisamos do número 'To' (Destinatário)
+        # É este número que identifica a barbearia!
+        to_number_raw = data.get('To') 
+        
+        if not from_number_raw or not msg_text or not to_number_raw:
+            logging.warning("Webhook da Twilio recebido sem 'From', 'Body' ou 'To'.")
             return 'OK', 200
         
         from_number = sanitize_msisdn(from_number_raw)
+        
+        # 🚀 ALTERAÇÃO: Sanitiza o número da barbearia
+        barbearia_phone = sanitize_msisdn(to_number_raw)
+
+        # --- LÓGICA MULTI-TENANCY ---
+        # 1. Encontrar a barbearia pelo número de telefone
+        barbearia = Barbearia.query.filter_by(telefone_whatsapp=barbearia_phone).first()
+
+        if not barbearia:
+            logging.error(f"CRÍTICO: Nenhuma barbearia encontrada para o número {barbearia_phone}. Ignorando mensagem.")
+            return 'OK', 200 # Respondemos OK para a Twilio não tentar de novo
+        
+        if barbearia.status_assinatura != 'ativa':
+             logging.warning(f"Mensagem recebida para barbearia '{barbearia.nome_fantasia}' com assinatura '{barbearia.status_assinatura}'. Ignorando.")
+             # (Opcional: enviar msg de "serviço suspenso" para o cliente)
+             return 'OK', 200
+             
+        barbearia_id = barbearia.id
+        logging.info(f"Mensagem roteada para Barbearia ID: {barbearia_id} ({barbearia.nome_fantasia})")
+        # --- FIM DA LÓGICA ---
         
         if ai_service.model is None:
             logging.error("Modelo da IA não inicializado. Usando fallback.")
@@ -209,7 +235,9 @@ def webhook():
             client.send_text(from_number, reply_text)
             return 'OK', 200
         
-        historico_atual = conversation_history.get(from_number, [])
+        # O histórico agora é por barbearia E por cliente
+        history_key = f"{barbearia_id}:{from_number}"
+        historico_atual = conversation_history.get(history_key, [])
         
         if not historico_atual:
             current_date_str = datetime.now().strftime('%d de %B de %Y')
@@ -229,15 +257,17 @@ def webhook():
                     
                     logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
                     
+                    # 🚀 ALTERAÇÃO: Passamos o 'barbearia_id' para TODAS as funções
+                    
                     if func_name == 'criar_agendamento':
                         args['telefone_cliente'] = from_number
-                        result = ai_service.criar_agendamento(**args)
+                        result = ai_service.criar_agendamento(barbearia_id=barbearia_id, **args)
                     elif func_name == 'listar_profissionais':
-                        result = ai_service.listar_profissionais()
+                        result = ai_service.listar_profissionais(barbearia_id=barbearia_id)
                     elif func_name == 'listar_servicos':
-                        result = ai_service.listar_servicos()
+                        result = ai_service.listar_servicos(barbearia_id=barbearia_id)
                     elif func_name == 'calcular_horarios_disponiveis':
-                        result = ai_service.calcular_horarios_disponiveis(**args)
+                        result = ai_service.calcular_horarios_disponiveis(barbearia_id=barbearia_id, **args)
                     else:
                         result = "Ferramenta desconhecida."
                     
@@ -256,7 +286,7 @@ def webhook():
         if api_res.get("status") not in ('queued', 'sent', 'delivered'):
             logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
         
-        conversation_history[from_number] = chat_session.history
+        conversation_history[history_key] = chat_session.history
         
     except Exception as e:
         logging.error("Erro no webhook da IA: %s", e, exc_info=True)

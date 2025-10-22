@@ -6,12 +6,14 @@ from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
 from google.generativeai.types import FunctionDeclaration, Tool
-from app.models.tables import Agendamento, Profissional, Servico
+# 🚀 ALTERAÇÃO: Importamos 'Barbearia'
+from app.models.tables import Agendamento, Profissional, Servico, Barbearia
 from app.extensions import db
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Mantendo a system instruction original idêntica, mas como string normal (sem f-string)
+# (Usando o conteúdo completo do seu arquivo original)
 SYSTEM_INSTRUCTION_TEMPLATE = """
 Você é a Luana, a assistente de IA da Vila Chic Barber Shop. Sua personalidade é carismática, simpática e muito eficiente. Use emojis de forma natural (✂️, ✨, 😉, 👍).
 A data de hoje é {current_date}. Use esta informação para entender "hoje" e "amanhã".
@@ -60,35 +62,52 @@ if not GEMINI_API_KEY:
 else:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# Funções tools para a IA chamar
-def listar_profissionais() -> str:
+# ---------------------------------------------------------------------
+# FASE DE EXPANSÃO: FUNÇÕES TOOLS ATUALIZADAS (Multi-Tenancy)
+# ---------------------------------------------------------------------
+# 🚀 ALTERAÇÃO: Todas as funções agora recebem 'barbearia_id'
+
+def listar_profissionais(barbearia_id: int) -> str:
     try:
         with current_app.app_context():
-            profissionais = Profissional.query.all()
-            if not profissionais:
-                return "Nenhum profissional cadastrado no momento."
-            nomes = [p.nome for p in profissionais]
+            # 🚀 ALTERAÇÃO: Filtra apenas pela barbearia correta
+            profissionais = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
+            if notissionais:
+                return "Nenhum profissional cadastrado para esta barbearia."
+            nomes = [p.nome for p inissionais]
             return f"Profissionais disponíveis: {', '.join(nomes)}."
     except Exception as e:
         return f"Erro ao listar profissionais: {str(e)}"
 
-def listar_servicos() -> str:
+def listar_servicos(barbearia_id: int) -> str:
     try:
         with current_app.app_context():
-            servicos = Servico.query.all()
+            # 🚀 ALTERAÇÃO: Filtra apenas pela barbearia correta
+            servicos = Servico.query.filter_by(barbearia_id=barbearia_id).all()
             if not servicos:
-                return "Nenhum serviço cadastrado no momento."
-            nomes = [s.nome for s in servicos]
-            return f"Serviços disponíveis: {', '.join(nomes)}."
+                return "Nenhum serviço cadastrado para esta barbearia."
+            # 🚀 ALTERAÇÃO: Mostra nome, duração e preço para a IA
+            lista_formatada = [
+                f"{s.nome} ({s.duracao} min, R$ {s.preco:.2f})"
+                for s in servicos
+            ]
+            return f"Serviços disponíveis: {'; '.join(lista_formatada)}."
     except Exception as e:
         return f"Erro ao listar serviços: {str(e)}"
 
-def calcular_horarios_disponiveis(profissional_nome: str, dia: str) -> str:
+def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
     try:
         with current_app.app_context():
-            profissional = Profissional.query.filter_by(nome=profissional_nome).first()
+            # 🚀 ALTERAÇÃO: Filtra o profissional pela barbearia E nome
+            profissional = Profissional.query.filter_by(
+                barbearia_id=barbearia_id,
+                nome=profissional_nome
+            ).first()
+            
             if not profissional:
                 return "Profissional não encontrado. Por favor, verifique o nome."
+            
+            # O resto da lógica de cálculo de horário continua igual...
             agora = datetime.now()
             if dia.lower() == 'hoje':
                 dia_dt = agora
@@ -96,6 +115,7 @@ def calcular_horarios_disponiveis(profissional_nome: str, dia: str) -> str:
                 dia_dt = agora + timedelta(days=1)
             else:
                 dia_dt = datetime.strptime(dia, '%Y-%m-%d')
+            
             HORA_INICIO_TRABALHO = 9
             HORA_FIM_TRABALHO = 20
             INTERVALO_MINUTOS = 30
@@ -103,41 +123,58 @@ def calcular_horarios_disponiveis(profissional_nome: str, dia: str) -> str:
             horario_iteracao = dia_dt.replace(hour=HORA_INICIO_TRABALHO, minute=0, second=0, microsecond=0)
             fim_do_dia = dia_dt.replace(hour=HORA_FIM_TRABALHO, minute=0, second=0, microsecond=0)
             inicio, fim = (dia_dt.replace(hour=0, minute=0), dia_dt.replace(hour=23, minute=59))
+            
+            # 🚀 ALTERAÇÃO: A query de agendamentos agora também filtra pela barbearia_id
             agendamentos_do_dia = (
                 Agendamento.query
                 .options(joinedload(Agendamento.servico))
-                .filter(Agendamento.profissional_id == profissional.id)
-                .filter(Agendamento.data_hora >= inicio, Agendamento.data_hora < fim)
+                .filter(
+                    Agendamento.barbearia_id == barbearia_id, # Garante a barbearia
+                    Agendamento.profissional_id == profissional.id,
+                    Agendamento.data_hora >= inicio,
+                    Agendamento.data_hora < fim
+                )
                 .all()
             )
             intervalos_ocupados = [(ag.data_hora, ag.data_hora + timedelta(minutes=ag.servico.duracao)) for ag in agendamentos_do_dia]
+            
             while horario_iteracao < fim_do_dia:
                 esta_ocupado = any(i <= horario_iteracao < f for i, f in intervalos_ocupados)
                 if not esta_ocupado and horario_iteracao > agora:
                     horarios_disponiveis.append(horario_iteracao.strftime('%H:%M'))
                 horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
+                
             return f"Horários disponíveis para {profissional_nome} em {dia_dt.strftime('%Y-%m-%d')}: {', '.join(horarios_disponiveis) or 'Nenhum disponível.'}"
     except Exception as e:
         return f"Erro ao calcular horários: {str(e)}"
 
-def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
+def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
     try:
         with current_app.app_context():
-            profissional = Profissional.query.filter_by(nome=profissional_nome).first()
+            # 🚀 ALTERAÇÃO: Filtra profissional e serviço pela barbearia_id
+            profissional = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=profissional_nome).first()
             if not profissional:
                 return "Profissional não encontrado."
-            servico = Servico.query.filter_by(nome=servico_nome).first()
+                
+            servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome=servico_nome).first()
             if not servico:
                 return "Serviço não encontrado."
+
             data_hora_dt = datetime.strptime(data_hora, '%Y-%m-%d %H:%M')
             novo_fim = data_hora_dt + timedelta(minutes=servico.duracao)
             inicio_dia = data_hora_dt.replace(hour=0, minute=0)
             fim_dia = data_hora_dt.replace(hour=23, minute=59)
+
+            # 🚀 ALTERAÇÃO: Filtra agendamentos de conflito pela barbearia_id
             ags = (
                 Agendamento.query
                 .options(joinedload(Agendamento.servico))
-                .filter(Agendamento.profissional_id == profissional.id)
-                .filter(Agendamento.data_hora >= inicio_dia, Agendamento.data_hora < fim_dia)
+                .filter(
+                    Agendamento.barbearia_id == barbearia_id,
+                    Agendamento.profissional_id == profissional.id,
+                    Agendamento.data_hora >= inicio_dia,
+                    Agendamento.data_hora < fim_dia
+                )
                 .all()
             )
             conflito = any(
@@ -146,12 +183,14 @@ def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, 
             )
             if conflito:
                 return "Conflito de horário. Por favor, escolha outro."
+
             novo_agendamento = Agendamento(
                 nome_cliente=nome_cliente,
                 telefone_cliente=telefone_cliente,
                 data_hora=data_hora_dt,
                 profissional_id=profissional.id,
                 servico_id=servico.id,
+                barbearia_id=barbearia_id  # 🚀 ALTERAÇÃO: A "etiqueta" é adicionada!
             )
             db.session.add(novo_agendamento)
             db.session.commit()
@@ -160,7 +199,12 @@ def criar_agendamento(nome_cliente: str, telefone_cliente: str, data_hora: str, 
         db.session.rollback()
         return f"Erro ao criar agendamento: {str(e)}"
 
-# Definição das tools no formato JSON Schema
+# ---------------------------------------------------------------------
+# FASE DE EXPANSÃO: DEFINIÇÃO DAS TOOLS
+# ---------------------------------------------------------------------
+# NENHUMA MUDANÇA AQUI, como solicitado.
+# Estas são as definições originais (sem barbearia_id) que a IA vai usar.
+
 listar_profissionais_func = FunctionDeclaration(
     name="listar_profissionais",
     description="Lista todos os profissionais disponíveis no sistema.",
@@ -236,7 +280,7 @@ tools = Tool(
     ]
 )
 
-# Inicializa o modelo Gemini com o template
+# Inicializa o modelo Gemini (continua igual)
 try:
     model = genai.GenerativeModel(
         model_name='models/gemini-2.5-flash',
