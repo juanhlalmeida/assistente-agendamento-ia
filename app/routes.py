@@ -22,6 +22,8 @@ conversation_history = {}
 # --- FUNÇÕES DE AUTENTICAÇÃO ---
 # (Assumindo que estas rotas estão aqui, como 'main.login')
 
+# Em app/routes.py
+
 @bp.route('/', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -31,15 +33,24 @@ def login():
         email = request.form.get('email')
         password = request.form.get('password')
         
-        # Lembre-se de implementar a lógica de password com hash!
-        # Isto é apenas um exemplo inseguro:
+        # Procura o usuário no banco
         user = User.query.filter_by(email=email).first()
         
-        if user and user.check_password(password): # Assumindo que você tem um método check_password
-            login_user(user, remember=request.form.get('remember-me'))
-            return redirect(url_for('main.agenda'))
+        # Verifica a senha
+        if user and user.check_password(password):
+            login_user(user, remember=request.form.get('remember-me') is not None)
+            
+            # Pega a página 'next' para onde o usuário ia
+            next_page = request.args.get('next')
+            if not next_page or not next_page.startswith('/'):
+                next_page = url_for('main.agenda')
+            
+            return redirect(next_page)
         else:
             flash('Email ou senha inválidos.', 'danger')
+            
+    # 🚀 CORREÇÃO: Mostra o template de login que acabámos de criar
+    return render_template('login.html')
             
     # Se você não tem um template 'login.html', precisa criar um
     # Por agora, vou redirecionar para a agenda (mas isso vai falhar se não estiver logado)
