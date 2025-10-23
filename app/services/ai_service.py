@@ -74,7 +74,7 @@ def listar_profissionais(barbearia_id: int) -> str:
             profissionais = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
             if notissionais:
                 return "Nenhum profissional cadastrado para esta barbearia."
-            nomes = [p.nome for p inissionais]
+            nomes = [p.nome for p in profissionais]
             return f"Profissionais disponíveis: {', '.join(nomes)}."
     except Exception as e:
         return f"Erro ao listar profissionais: {str(e)}"
