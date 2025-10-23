@@ -1,4 +1,4 @@
-
+```python
 # app/routes.py
 import os
 import logging
@@ -11,6 +11,7 @@ from sqlalchemy.orm import joinedload
 # 🚀 CORREÇÃO: Importações de modelos corretas
 from app.models.tables import Agendamento, Profissional, Servico, User, Barbearia 
 from app.extensions import db
+from app.models.tables import Barbearia 
 from app.whatsapp_client import WhatsAppClient, sanitize_msisdn    
 from app.services import ai_service 
 from app.commands import reset_database_logic
@@ -346,8 +347,125 @@ def editar_agendamento(agendamento_id):
 # --- WEBHOOK (Já estava OK com Multi-Tenancy) ---
 @bp.route('/webhook', methods=['POST'])
 def webhook():
-    # ... (código do webhook como estava na versão anterior) ...
-    pass
+    data = request.values
+    logging.info("PAYLOAD RECEBIDO DA TWILIO: %s", data)
+    
+    try:
+        msg_text = data.get('Body')
+        from_number_raw = data.get('From')
+        to_number_raw = data.get('To') 
+        
+        if not from_number_raw or not msg_text or not to_number_raw:
+            logging.warning("Webhook da Twilio recebido sem 'From', 'Body' ou 'To'.")
+            # Retorna OK mesmo se faltar dados para evitar retentativas da Twilio
+            return 'OK', 200 
+        
+        from_number = sanitize_msisdn(from_number_raw)
+        barbearia_phone = sanitize_msisdn(to_number_raw)
+
+        barbearia = Barbearia.query.filter_by(telefone_whatsapp=barbearia_phone).first()
+
+        if not barbearia:
+            logging.error(f"CRÍTICO: Nenhuma barbearia encontrada para o número {barbearia_phone}. Ignorando mensagem.")
+            return 'OK', 200 
+        
+        if barbearia.status_assinatura != 'ativa':
+             logging.warning(f"Mensagem recebida para barbearia '{barbearia.nome_fantasia}' com assinatura '{barbearia.status_assinatura}'. Ignorando.")
+             # (Opcional: enviar msg de "serviço suspenso" )
+             # client = WhatsAppClient()
+             # client.send_text(from_number, "Desculpe, nosso serviço de agendamento está temporariamente suspenso.")
+             return 'OK', 200
+             
+        barbearia_id = barbearia.id
+        logging.info(f"Mensagem roteada para Barbearia ID: {barbearia_id} ({barbearia.nome_fantasia})")
+        
+        if ai_service.model is None:
+            logging.error("Modelo da IA não inicializado. Usando fallback.")
+            reply_text = "Olá! Estamos com um problema técnico em nossa IA. Tente novamente em breve, por favor."
+            client = WhatsAppClient()
+            client.send_text(from_number, reply_text)
+            return 'OK', 200
+        
+        history_key = f"{barbearia_id}:{from_number}"
+        historico_atual = conversation_history.get(history_key, [])
+        
+        if not historico_atual:
+            # TODO: O template da IA precisa ser ajustado para receber as datas dinamicamente
+            # current_date_str = datetime.now().strftime('%d de %B de %Y')
+            # next_date_str = (datetime.now() + timedelta(days=1)).strftime('%d de %B de %Y')
+            # system_instruction_filled = ai_service.SYSTEM_INSTRUCTION_TEMPLATE.format(current_date=current_date_str, next_date=next_date_str)
+            # A inicialização do chat deveria usar isso, mas precisa refatorar o ai_service
+            
+            # Por agora, mantemos o fluxo simples
+             current_date_str = datetime.now().strftime('%d de %B de %Y')
+             historico_atual = [
+                 {"role": "user", "parts": [f"[CONTEXTO DO SISTEMA: Hoje é {current_date_str}]"]},
+                 {"role": "model", "parts": ["Entendido. Como posso ajudá-lo?"]}
+             ]
+
+        # TODO: Refatorar ai_service para inicializar o model DENTRO da requisição ou usar um cache melhor
+        # A forma atual pode ter problemas com concorrência ou contexto errado.
+        # Por agora, vamos assumir que o model global funciona.
+        
+        chat_session = ai_service.model.start_chat(history=historico_atual)
+        response = chat_session.send_message(msg_text)
+        
+        while response.parts and any(part.function_call for part in response.parts):
+            for part in response.parts:
+                if part.function_call:
+                    func_name = part.function_call.name
+                    args = dict(part.function_call.args)
+                    
+                    logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
+                    
+                    result = "Erro interno ao chamar ferramenta." # Valor padrão
+                    try:
+                        if func_name == 'criar_agendamento':
+                            # Garante que o telefone_cliente está no formato correto (+55...)
+                            # A função sanitize_msisdn remove o 'whatsapp:', então precisamos adicionar '+'
+                            args['telefone_cliente'] = f"+{from_number}" 
+                            result = ai_service.criar_agendamento(barbearia_id=barbearia_id, **args)
+                        elif func_name == 'listar_profissionais':
+                            result = ai_service.listar_profissionais(barbearia_id=barbearia_id)
+                        elif func_name == 'listar_servicos':
+                            result = ai_service.listar_servicos(barbearia_id=barbearia_id)
+                        elif func_name == 'calcular_horarios_disponiveis':
+                            result = ai_service.calcular_horarios_disponiveis(barbearia_id=barbearia_id, **args)
+                        else:
+                            result = "Ferramenta desconhecida."
+                    except Exception as tool_exc:
+                         logging.error(f"Erro ao executar a ferramenta '{func_name}': {tool_exc}", exc_info=True)
+                         result = f"Desculpe, ocorreu um erro ao tentar {func_name.replace('_', ' ')}."
+
+                    function_response = genai.protos.Part(
+                        function_response=genai.protos.FunctionResponse(
+                            name=func_name,
+                            response={"result": result}
+                        )
+                    )
+                    response = chat_session.send_message([function_response])
+        
+        reply_text = response.text
+        client = WhatsAppClient()
+        # Garante que estamos a enviar para o número correto (+55...)
+        api_res = client.send_text(f"+{from_number}", reply_text) 
+        
+        if api_res.get("status") not in ('queued', 'sent', 'delivered', 'accepted'): # Adicionado 'accepted'
+            logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
+        
+        conversation_history[history_key] = chat_session.history
+        
+    except Exception as e:
+        # Loga o erro
+        logging.error("Erro CRÍTICO no processamento do webhook: %s", e, exc_info=True)
+        # --- CORREÇÃO: Adiciona o return DENTRO do except ---
+        # Responde OK para a Twilio mesmo se houver erro, 
+        # para evitar que ela tente reenviar a mesma mensagem.
+        return 'OK', 200 
+        # --------------------------------------------------
+    
+    # Este return é para o caso de sucesso (nenhuma exceção ocorreu)
+    return 'OK', 200
 
 # --- ROTAS SECRETAS ---
 @bp.route('/admin/reset-database/<string:secret_key>')
@@ -412,3 +530,4 @@ def criar_primeiro_usuario(secret_key):
         db.session.rollback()
         current_app.logger.error(f"Erro ao criar usuário admin via rota: {e}")
         return f"Ocorreu um erro: {e}", 500
+```
