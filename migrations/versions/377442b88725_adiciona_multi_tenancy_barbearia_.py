@@ -1,8 +1,8 @@
-"""Versão inicial completa do banco de dados v2
+"""Adiciona multi-tenancy (Barbearia, barbearia_id) e User
 
-Revision ID: b6e6b0db622d
-Revises: 
-Create Date: 2025-10-22 21:19:54.675536
+Revision ID: 377442b88725
+Revises: a6835b61892d
+Create Date: 2025-10-22 22:06:25.936539
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'b6e6b0db622d'
-down_revision = None
+revision = '377442b88725'
+down_revision = 'a6835b61892d'
 branch_labels = None
 depends_on = None
 

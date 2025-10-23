@@ -7,7 +7,7 @@ from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
 from sqlalchemy.orm import joinedload
 # 🚀 CORREÇÃO: Importa 'User' mas não o usaremos para login no momento
-from app.models.tables import Agendamento, Profissional, Servico, User 
+from app.models.tables import Agendamento, Profissional, Servico, User
 # 🚀 ADICIONADO: Import de Barbearia
 from app.models.tables import Barbearia
 from app.extensions import db
