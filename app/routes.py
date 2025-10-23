@@ -1,3 +1,4 @@
+```python
 # app/routes.py
 import os
 import logging
@@ -335,8 +336,28 @@ def webhook():
 # --- ROTAS SECRETAS ---
 @bp.route('/admin/reset-database/<string:secret_key>')
 def reset_database(secret_key):
-    # ... (código do reset como estava) ...
-    pass
+    expected_key = os.getenv('RESET_DB_KEY')
+    
+    if not expected_key or secret_key != expected_key:
+        abort(404) 
+    
+    try:
+        logging.info("Iniciando o reset do banco de dados via rota segura...")
+        # Chama a lógica no commands.py (que já está corrigida no seu Git)
+        reset_database_logic() 
+        logging.info("Banco de dados recriado com sucesso.")
+        
+        # --- CORREÇÃO DEFINITIVA: Adiciona o return para o caso de sucesso ---
+        return "<h1>Banco de dados recriado com sucesso!</h1><p>Pode tentar fazer login agora.</p>", 200 
+        # --------------------------------------------------------------------
+        
+    except Exception as e:
+        # Garante rollback se o reset_database_logic falhar
+        # (Embora a própria função já tenha um rollback interno)
+        # db.session.rollback() # Pode ser redundante, mas seguro
+        logging.error("Erro ao recriar o banco de dados: %s", e, exc_info=True)
+        # Mantém o return para o caso de erro
+        return f"<h1>Ocorreu um erro ao recriar o banco de dados:</h1><p>{str(e)}</p>", 500 
 
 @bp.route('/admin/criar-primeiro-usuario/<secret_key>')
 def criar_primeiro_usuario(secret_key):
@@ -375,3 +396,4 @@ def criar_primeiro_usuario(secret_key):
         db.session.rollback()
         current_app.logger.error(f"Erro ao criar usuário admin via rota: {e}")
         return f"Ocorreu um erro: {e}", 500
+```
