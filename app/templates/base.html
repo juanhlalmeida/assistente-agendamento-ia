@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 {# 
-  Este é o arquivo 'base.html' COMPLETO e CORRIGIDO.
-  Ele contém a configuração do Tailwind que estava em falta.
+  Este é o arquivo 'base.html' com o rodapé do usuário restaurado.
 #}
 <html class="dark" lang="pt-br">
 <head>
@@ -70,34 +69,42 @@
         </div>
         
         <nav class="flex flex-col gap-3 flex-1">
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if 'main.agenda' in request.endpoint %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint == 'main.agenda' %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
              href="{{ url_for('main.agenda') }}">
             <span class="material-symbols-outlined">calendar_today</span>
             <p class="text-base">Agendamentos</p>
           </a>
           
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium" 
-             href="#"> <span class="material-symbols-outlined">group</span>
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium {% if request.endpoint == 'main.clientes' %}bg-primary text-white font-semibold{% endif %}" 
+             href="{{ url_for('main.clientes') if 'main.clientes' in current_app.view_functions else '#' }}"> 
+            <span class="material-symbols-outlined">group</span>
             <p class="text-base">Clientes</p>
           </a>
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium" 
-             href="#"> <span class="material-symbols-outlined">cut</span>
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium {% if request.endpoint == 'main.servicos' %}bg-primary text-white font-semibold{% endif %}" 
+             href="{{ url_for('main.servicos') if 'main.servicos' in current_app.view_functions else '#' }}"> 
+            <span class="material-symbols-outlined">cut</span>
             <p class="text-base">Serviços</p>
           </a>
         </nav>
         
+        {# 🚀 CORREÇÃO: Rodapé restaurado com current_user e logout #}
         <div class="flex flex-col gap-4">
+          {% if current_user.is_authenticated %}
           <div class="flex items-center justify-between p-2 rounded-lg bg-background-dark">
             <div class="flex items-center gap-3">
               <div class="bg-primary aspect-square rounded-full size-10 flex items-center justify-center">
-                <span class="material-symbols-outlined text-white">shield_person</span>
+                <span class="text-white font-bold text-xl">{{ (current_user.nome[0] if current_user.nome else 'U') | upper }}</span>
               </div>
               <div>
-                <p class="text-text-primary-dark font-semibold">Admin</g>
-                <p class="text-text-secondary-dark text-sm">Painel</p>
+                <p class="text-text-primary-dark font-semibold">{{ current_user.nome or 'Usuário' }}</p>
+                <p class="text-text-secondary-dark text-sm">{{ current_user.email }}</p>
               </div>
             </div>
+            <a href="{{ url_for('main.logout') }}" class="text-text-secondary-dark hover:text-white" title="Sair">
+              <span class="material-symbols-outlined">logout</span>
+            </a>
           </div>
+          {% endif %}
         </div>
       </aside>
       

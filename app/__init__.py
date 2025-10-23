@@ -17,7 +17,7 @@ migrate = Migrate()
 # --- USER LOADER (DESABILITADO) ---
 # Vamos comentar esta função inteira para que ela não seja executada
 # e não cause o erro 'user_loader ausente' ou 'tabela user não existe'.
-"""
+
 @login_manager.user_loader
 def load_user(user_id):
     from . import models 
@@ -25,7 +25,7 @@ def load_user(user_id):
         return models.User.query.get(int(user_id))
     except:
         return None
-"""
+
 # --- FIM DO USER LOADER ---
 
 
@@ -39,7 +39,7 @@ def create_app(config_class=Config) -> Flask:
     db.init_app(app)
     
     # 🚀 CORREÇÃO: Linha desabilitada para parar o sistema de login
-    # login_manager.init_app(app) 
+    login_manager.init_app(app) 
     
     migrate.init_app(app, db)
     # ---------------------------------
