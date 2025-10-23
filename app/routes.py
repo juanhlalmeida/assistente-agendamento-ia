@@ -1,4 +1,4 @@
-```python
+
 # app/routes.py
 import os
 import logging
@@ -530,4 +530,3 @@ def criar_primeiro_usuario(secret_key):
         db.session.rollback()
         current_app.logger.error(f"Erro ao criar usuário admin via rota: {e}")
         return f"Ocorreu um erro: {e}", 500
-```
