@@ -27,32 +27,48 @@ conversation_history = {}
 
 @bp.route('/', methods=['GET', 'POST'])
 def login():
-    # Se já estiver logado, vai para a agenda
     if current_user.is_authenticated:
+        # Log se já estiver autenticado
+        current_app.logger.info(f"Usuário já autenticado ({current_user.email}), redirecionando para agenda.")
         return redirect(url_for('main.agenda'))
     
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
+        current_app.logger.info(f"Tentativa de login para o email: {email}")
         
-        # Procura o usuário no banco
         user = User.query.filter_by(email=email).first()
         
-        # Verifica a senha (usando o método check_password do modelo User)
-        if user and user.check_password(password):
-            # Faz o login do usuário
-            login_user(user, remember=request.form.get('remember-me') is not None)
+        if user:
+            current_app.logger.info(f"Usuário encontrado no banco: {user.email} (ID: {user.id})")
+            # Log ANTES de verificar a senha
+            current_app.logger.info("Verificando senha...")
             
-            # Redireciona para a página 'next' (se houver) ou para a agenda
-            next_page = request.args.get('next')
-            if not next_page or not next_page.startswith('/'):
-                next_page = url_for('main.agenda')
-            flash('Login realizado com sucesso!', 'success')
-            return redirect(next_page)
+            # Verifica a senha
+            if user.check_password(password):
+                current_app.logger.info(f"Senha CORRETA para {user.email}. Realizando login.")
+                
+                # Faz o login do usuário
+                login_user(user, remember=request.form.get('remember-me') is not None)
+                
+                # Log APÓS o login_user
+                current_app.logger.info(f"Função login_user executada. Usuário {user.email} deve estar na sessão.")
+                
+                next_page = request.args.get('next')
+                if not next_page or not next_page.startswith('/'):
+                    next_page = url_for('main.agenda')
+                flash('Login realizado com sucesso!', 'success')
+                return redirect(next_page)
+            else:
+                # Log se a senha estiver incorreta
+                current_app.logger.warning(f"Senha INCORRETA para o email: {email}")
+                flash('Email ou senha inválidos.', 'danger')
         else:
+            # Log se o usuário não for encontrado
+            current_app.logger.warning(f"Usuário NÃO encontrado no banco para o email: {email}")
             flash('Email ou senha inválidos.', 'danger')
             
-    # Se for GET, mostra a página de login
+    # Se for GET ou se o login falhar no POST, mostra a página de login
     return render_template('login.html')
 
 

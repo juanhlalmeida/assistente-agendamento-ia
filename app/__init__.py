@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from flask import Flask
+from flask import current_app
 from config import Config
 from app.extensions import db  
 from app.routes import bp      
@@ -20,10 +21,27 @@ migrate = Migrate()
 
 @login_manager.user_loader
 def load_user(user_id):
-    from . import models 
+    # Adicionamos logging para depuração
+    current_app.logger.info(f"Tentando carregar usuário com ID da sessão: {user_id}")
     try:
-        return models.User.query.get(int(user_id))
-    except:
+        user_id_int = int(user_id) # Converte para inteiro
+    except ValueError:
+        current_app.logger.error(f"ID do usuário na sessão não é um inteiro válido: {user_id}")
+        return None
+        
+    try:
+        from .models import tables # Importa dentro da função
+        user = tables.User.query.get(user_id_int)
+        
+        if user:
+            current_app.logger.info(f"Usuário ID {user_id_int} encontrado: {user.email}")
+            return user
+        else:
+            current_app.logger.warning(f"Usuário ID {user_id_int} NÃO encontrado no banco de dados.")
+            return None
+            
+    except Exception as e:
+        current_app.logger.error(f"Erro EXCEPCIONAL ao tentar carregar usuário ID {user_id_int}: {e}", exc_info=True)
         return None
 
 # --- FIM DO USER LOADER ---
