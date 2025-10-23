@@ -1,11 +1,9 @@
 # app/__init__.py
 from __future__ import annotations
 
-from flask import Flask
-from flask import current_app
+from flask import Flask, current_app
 from config import Config
 from app.extensions import db  
-from app.routes import bp      
 from flask_migrate import Migrate
 from flask_login import LoginManager
 
@@ -14,10 +12,9 @@ login_manager = LoginManager()
 migrate = Migrate()
 # ---------------------------
 
-
 # --- USER LOADER (DESABILITADO) ---
 # Vamos comentar esta função inteira para que ela não seja executada
-# e não cause o erro 'user_loader ausente' ou 'tabela user não existe'.
+# e cause o erro 'user_loader ausente' ou 'tabela user não existe'.
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -46,7 +43,6 @@ def load_user(user_id):
 
 # --- FIM DO USER LOADER ---
 
-
 def create_app(config_class=Config) -> Flask:
     Config.init_app()
 
@@ -62,8 +58,22 @@ def create_app(config_class=Config) -> Flask:
     migrate.init_app(app, db)
     # ---------------------------------
 
-    # Blueprints
-    app.register_blueprint(bp)
+    # --- REGISTO DOS BLUEPRINTS ---
+    from app.blueprints.main.routes import bp as main_bp
+    from app.blueprints.auth.routes import bp as auth_bp
+    from app.blueprints.webhook.routes import bp as webhook_bp
+    from app.blueprints.admin.routes import bp as admin_bp
+    # --- NOVO BLUEPRINT ---
+    from app.blueprints.servicos.routes import bp as servicos_bp 
+    # -----------------------
+    
+    app.register_blueprint(main_bp) 
+    app.register_blueprint(auth_bp) 
+    app.register_blueprint(webhook_bp) 
+    app.register_blueprint(admin_bp, url_prefix='/admin') 
+    # --- REGISTAR NOVO BLUEPRINT ---
+    app.register_blueprint(servicos_bp) # Já tem url_prefix='/servicos' definido nele
+    # -------------------------------
 
     # Healthcheck
     @app.get("/health")

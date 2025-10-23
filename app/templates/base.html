@@ -1,4 +1,4 @@
-<!DOCTYPE html
+<!DOCTYPE html>
 {# 
   Este é o arquivo 'base.html' com o rodapé do usuário restaurado 
   E a correção para o erro 'current_app is undefined'.
@@ -70,25 +70,27 @@
         </div>
         
         <nav class="flex flex-col gap-3 flex-1">
-          {# Link Agendamentos (Correto) #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint == 'main.agenda' %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          {# Link Agendamentos #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint.startswith('main.') %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
              href="{{ url_for('main.agenda') }}">
             <span class="material-symbols-outlined">calendar_today</span>
             <p class="text-base">Agendamentos</p>
           </a>
           
-          {# --- CORREÇÃO: Links Clientes e Serviços simplificados --- #}
+          {# Link Clientes (ainda inativo) #}
           <a class="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium" 
              href="#"> 
             <span class="material-symbols-outlined">group</span>
             <p class="text-base">Clientes</p>
           </a>
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium" 
-             href="#"> 
+
+          {# --- CORREÇÃO: Link Serviços agora aponta para o blueprint --- #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint.startswith('servicos.') %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+             href="{{ url_for('servicos.index') }}"> 
             <span class="material-symbols-outlined">cut</span>
             <p class="text-base">Serviços</p>
           </a>
-          {# -------------------------------------------------------- #}
+          {# ----------------------------------------------------------- #}
         </nav>
         
         {# Rodapé restaurado com current_user e logout #}
