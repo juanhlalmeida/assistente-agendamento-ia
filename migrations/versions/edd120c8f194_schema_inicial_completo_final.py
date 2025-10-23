@@ -1,8 +1,8 @@
-"""Adiciona multi-tenancy (Barbearia, barbearia_id) e User
+"""Schema inicial completo final
 
-Revision ID: 377442b88725
-Revises: a6835b61892d
-Create Date: 2025-10-22 22:06:25.936539
+Revision ID: edd120c8f194
+Revises: 
+Create Date: 2025-10-23 08:52:52.800326
 
 """
 from alembic import op
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '377442b88725'
-down_revision = 'a6835b61892d'
+revision = 'edd120c8f194'
+down_revision = None
 branch_labels = None
 depends_on = None
 
