@@ -448,7 +448,7 @@ def webhook():
         reply_text = response.text
         client = WhatsAppClient()
         # Garante que estamos a enviar para o número correto (+55...)
-        api_res = client.send_text(f"+{from_number}", reply_text) 
+        api_res = client.send_text(from_number, reply_text) 
         
         if api_res.get("status") not in ('queued', 'sent', 'delivered', 'accepted'): # Adicionado 'accepted'
             logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
