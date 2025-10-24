@@ -28,7 +28,7 @@
       {# O formulário envia os dados via POST para a mesma rota (/servicos/novo) #}
       <form method="POST">
         {# Inclui o template do formulário, passando os dados preenchidos (se houver) #}
-        {% include '_form_servico.html' with form_data=form_data, submit_button_text='Adicionar Serviço' %}
+        {% include '_form_servico.html' form_data=form_data, submit_button_text='Adicionar Serviço' %}
       </form>
     </div>
   </div>
