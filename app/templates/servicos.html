@@ -1,9 +1,9 @@
-{% extends 'base.html' %} {# Usa o nosso layout base com a barra lateral #}
+{% extends 'base.html' %} 
 
 {% block title %}Gerir Serviços{% endblock %}
 
 {% block content %}
-  {# Mensagens Flash (ex: "Serviço adicionado com sucesso!") #}
+  {# Mensagens Flash #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
@@ -25,8 +25,10 @@
   {# Cabeçalho da Página #}
   <div class="flex justify-between items-center mb-6">
     <h2 class="text-text-primary-dark text-3xl font-bold">Serviços Oferecidos</h2>
-    {# Botão para adicionar novo (funcionalidade futura) #}
-    <a href="#" class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
+    {# Botão para adicionar novo (link futuro) #}
+    {# Aponta para a futura rota 'novo_servico' dentro do blueprint 'servicos' #}
+    <a href="{{ url_for('servicos.novo_servico') if 'servicos.novo_servico' in current_app.view_functions else '#' }}" 
+       class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
       <span class="material-symbols-outlined">add</span>
       <span class="truncate">Novo Serviço</span>
     </a>
@@ -44,25 +46,27 @@
         </tr>
       </thead>
       <tbody>
-        {# Loop para exibir cada serviço da lista #}
         {% for servico in servicos %}
           <tr class="border-b border-gray-800 hover:bg-white/5">
             <td class="p-4 font-semibold text-text-primary-dark">{{ servico.nome }}</td>
             <td class="p-4 text-text-primary-dark">{{ servico.duracao }} min</td>
             <td class="p-4 text-text-primary-dark">R$ {{ "%.2f"|format(servico.preco) }}</td>
             <td class="p-4 text-center">
-              {# Botões de Editar e Apagar (funcionalidade futura) #}
-              <a href="#" class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
+              {# Botões de Editar e Apagar (links futuros) #}
+              <a href="{{ url_for('servicos.editar_servico', servico_id=servico.id) if 'servicos.editar_servico' in current_app.view_functions else '#' }}" 
+                 class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
                 <span class="material-symbols-outlined">edit</span>
               </a>
-              <form action="#" method="post" class="inline">
-                <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar" onclick="return confirm('Tem certeza que deseja apagar este serviço?');">
+              {# O botão apagar precisará de um formulário POST #}
+              <form action="{{ url_for('servicos.apagar_servico', servico_id=servico.id) if 'servicos.apagar_servico' in current_app.view_functions else '#' }}" 
+                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar este serviço?');">
+                <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar">
                   <span class="material-symbols-outlined">delete</span>
                 </button>
               </form>
             </td>
           </tr>
-        {% else %} {# Caso não haja serviços cadastrados #}
+        {% else %} 
           <tr>
             <td colspan="4" class="p-8 text-center text-text-secondary-dark">Nenhum serviço cadastrado ainda.</td>
           </tr>

@@ -59,20 +59,18 @@ def create_app(config_class=Config) -> Flask:
     # ---------------------------------
 
     # --- REGISTO DOS BLUEPRINTS ---
-    from app.blueprints.main.routes import bp as main_bp
-    from app.blueprints.auth.routes import bp as auth_bp
-    from app.blueprints.webhook.routes import bp as webhook_bp
-    from app.blueprints.admin.routes import bp as admin_bp
+    from app.routes import bp
+    from app.routes import bp as main_bp
+ 
     # --- NOVO BLUEPRINT ---
     from app.blueprints.servicos.routes import bp as servicos_bp 
     # -----------------------
     
-    app.register_blueprint(main_bp) 
-    app.register_blueprint(auth_bp) 
-    app.register_blueprint(webhook_bp) 
-    app.register_blueprint(admin_bp, url_prefix='/admin') 
+
     # --- REGISTAR NOVO BLUEPRINT ---
-    app.register_blueprint(servicos_bp) # Já tem url_prefix='/servicos' definido nele
+    app.register_blueprint(servicos_bp)
+    app.register_blueprint(bp) # Já tem url_prefix='/servicos' definido nele
+    app.register_blueprint(main_bp)
     # -------------------------------
 
     # Healthcheck
