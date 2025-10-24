@@ -68,22 +68,7 @@
               </form>
             </td>
           </tr>
-        {% else %} 
-          {# ... #}
-              <a href="#" 
-                 class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
-                <span class="material-symbols-outlined">edit</span>
-              </a>
-              <form action="#" 
-                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar este serviço?');">
-                <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar">
-                  <span class="material-symbols-outlined">delete</span>
-                </button>
-              </form>
-              {# ----------------------------------- #}
-            </td>
-          </tr>
-        {% else %} 
+        {% else %}
           <tr>
             <td colspan="4" class="p-8 text-center text-text-secondary-dark">Nenhum serviço cadastrado ainda.</td>
           </tr>
