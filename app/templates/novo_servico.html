@@ -1,13 +1,13 @@
-{% extends 'base.html' %} {# Usa o layout base #}
+{% extends 'base.html' %} 
 
 {% block title %}Adicionar Novo Serviço{% endblock %}
 
 {% block content %}
-  {# Mensagens Flash de Erro (se a validação falhar) #}
+  {# Mensagens Flash de Erro #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
       {% for category, message in messages %}
-        {% if category == 'danger' %} {# Mostra apenas erros de validação aqui #}
+        {% if category == 'danger' %} 
           <div class="bg-red-500 text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
             <span>{{ message }}</span>
             <button type="button" onclick="this.parentElement.remove()">
@@ -25,12 +25,17 @@
       <h2 class="text-xl font-bold text-text-primary-dark">Adicionar Novo Serviço</h2>
     </div>
     <div class="p-6">
-      {# O formulário envia os dados via POST para a mesma rota (/servicos/novo) #}
       <form method="POST">
-        {# Inclui o template do formulário, passando os dados preenchidos (se houver) #}
-        {% include '_form_servico.html' form_data=form_data, submit_button_text='Adicionar Serviço' %}
+        {# --- CORREÇÃO DEFINITIVA: Sintaxe correta para passar variáveis --- #}
+        {% include '_form_servico.html' with context %}
+        {# ------------------------------------------------------------- #}
       </form>
     </div>
   </div>
 
 {% endblock %}
+
+{# --- CORREÇÃO DEFINITIVA: Definir as variáveis para o formulário no contexto #}
+{% set form_data = form_data | default({}) %}
+{% set submit_button_text = 'Adicionar Serviço' %}
+{# ------------------------------------------------------------- #}
