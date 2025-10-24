@@ -52,7 +52,24 @@
             <td class="p-4 text-text-primary-dark">{{ servico.duracao }} min</td>
             <td class="p-4 text-text-primary-dark">R$ {{ "%.2f"|format(servico.preco) }}</td>
             <td class="p-4 text-center">
-              {# --- CORREÇÃO: Links simplificados --- #}
+              {# --- CORREÇÃO: Link Editar agora aponta para a rota correta --- #}
+              <a href="{{ url_for('servicos.editar_servico', servico_id=servico.id) }}" 
+                 class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
+                <span class="material-symbols-outlined">edit</span>
+              </a>
+              {# ----------------------------------------------------------- #}
+              
+              {# Formulário Apagar (ainda inativo) #}
+              <form action="#" 
+                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar este serviço?');">
+                <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% else %} 
+          {# ... #}
               <a href="#" 
                  class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
                 <span class="material-symbols-outlined">edit</span>

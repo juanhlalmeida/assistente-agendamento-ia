@@ -103,3 +103,88 @@ def novo_servico():
     return render_template('novo_servico.html', form_data={}) # Passa form_data vazio
 
 # ... (Rotas Editar/Apagar futuras) ...
+from app.models.tables import Servico
+from app.extensions import db
+from flask_login import login_required, current_user
+# Importa 'abort' se ainda não estiver importado
+from flask import abort 
+
+# ... (blueprint 'bp', rota 'index', rota 'novo_servico') ...
+
+# --- ROTA PARA EDITAR UM SERVIÇO EXISTENTE ---
+@bp.route('/editar/<int:servico_id>', methods=['GET', 'POST'])
+@login_required
+def editar_servico(servico_id):
+    """Exibe o formulário para editar um serviço (GET) 
+       e processa a atualização do serviço (POST)."""
+
+    # Validação do usuário e barbearia
+    if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
+        flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
+        return redirect(url_for('auth.login')) # Ajuste se necessário
+
+    barbearia_id_logada = current_user.barbearia_id
+
+    # Busca o serviço específico E garante que pertence à barbearia logada
+    servico = Servico.query.filter_by(id=servico_id, barbearia_id=barbearia_id_logada).first()
+
+    # Se o serviço não for encontrado ou não pertencer à barbearia, retorna 404
+    if not servico:
+        abort(404, description="Serviço não encontrado ou não pertence à sua barbearia.")
+
+    if request.method == 'POST':
+        # Obter dados do formulário
+        nome = request.form.get('nome')
+        duracao_str = request.form.get('duracao')
+        preco_str = request.form.get('preco')
+
+        # Validação (igual à da rota 'novo_servico')
+        erros = []
+        if not nome:
+            erros.append("O nome do serviço é obrigatório.")
+        if not duracao_str or not duracao_str.isdigit() or int(duracao_str) <= 0:
+            erros.append("A duração deve ser um número inteiro positivo (em minutos).")
+        if not preco_str:
+            erros.append("O preço é obrigatório.")
+        else:
+            try:
+                preco = float(preco_str.replace(',', '.'))
+                if preco < 0:
+                     erros.append("O preço não pode ser negativo.")
+            except ValueError:
+                erros.append("O preço deve ser um número válido (ex: 40.00 ou 40,00).")
+
+        if erros:
+            for erro in erros:
+                flash(erro, 'danger')
+            # Re-renderiza o formulário de EDIÇÃO com os dados (errados) inseridos
+            # Passamos o 'servico' original também para manter o ID na URL
+            return render_template('editar_servico.html', servico=servico, form_data=request.form)
+        else:
+            # Se não houver erros, ATUALIZA o serviço existente
+            try:
+                servico.nome = nome
+                servico.duracao = int(duracao_str)
+                servico.preco = preco
+                # O barbearia_id não muda
+                
+                db.session.commit() # Salva as alterações no banco
+                flash(f'Serviço "{nome}" atualizado com sucesso!', 'success')
+                return redirect(url_for('servicos.index')) 
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Erro ao atualizar serviço: {str(e)}', 'danger')
+                current_app.logger.error(f"Erro ao atualizar serviço ID {servico_id}: {e}", exc_info=True)
+                # Re-renderiza o formulário de EDIÇÃO em caso de erro no banco
+                return render_template('editar_servico.html', servico=servico, form_data=request.form)
+
+    # Se for método GET, exibe o formulário preenchido com os dados do serviço
+    # Passamos os dados do 'servico' para a variável 'form_data' do template
+    form_data_preenchido = {
+        'nome': servico.nome,
+        'duracao': servico.duracao,
+        'preco': f"{servico.preco:.2f}".replace('.', ',') # Formata com vírgula para o input
+    }
+    return render_template('editar_servico.html', servico=servico, form_data=form_data_preenchido)
+
+# ... (Rota Apagar futura) ...
