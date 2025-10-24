@@ -1,0 +1,36 @@
+{% extends 'base.html' %} {# Usa o layout base #}
+
+{% block title %}Adicionar Novo Serviço{% endblock %}
+
+{% block content %}
+  {# Mensagens Flash de Erro (se a validação falhar) #}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        {% if category == 'danger' %} {# Mostra apenas erros de validação aqui #}
+          <div class="bg-red-500 text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
+            <span>{{ message }}</span>
+            <button type="button" onclick="this.parentElement.remove()">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {# Card principal com o formulário #}
+  <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden">
+    <div class="p-6 border-b border-gray-700">
+      <h2 class="text-xl font-bold text-text-primary-dark">Adicionar Novo Serviço</h2>
+    </div>
+    <div class="p-6">
+      {# O formulário envia os dados via POST para a mesma rota (/servicos/novo) #}
+      <form method="POST">
+        {# Inclui o template do formulário, passando os dados preenchidos (se houver) #}
+        {% include '_form_servico.html' with form_data=form_data, submit_button_text='Adicionar Serviço' %}
+      </form>
+    </div>
+  </div>
+
+{% endblock %}

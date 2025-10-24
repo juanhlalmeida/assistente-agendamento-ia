@@ -35,15 +35,71 @@ def index():
     # Passa a lista de serviços para o template
     return render_template('servicos.html', servicos=lista_servicos)
 
-# --- ROTAS FUTURAS ---
-# @bp.route('/novo', methods=['GET', 'POST'])
-# @login_required
-# def novo_servico(): pass
+@bp.route('/novo', methods=['GET', 'POST'])
+@login_required
+def novo_servico():
+    """Exibe o formulário para adicionar um novo serviço (GET) 
+       e processa a criação do serviço (POST)."""
+       
+    # Validação do usuário e barbearia
+    if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
+        flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
+        # Ajuste 'auth.login' se seu blueprint de login tiver outro nome
+        return redirect(url_for('auth.login')) 
+        
+    barbearia_id_logada = current_user.barbearia_id
 
-# @bp.route('/editar/<int:servico_id>', methods=['GET', 'POST'])
-# @login_required
-# def editar_servico(servico_id): pass
+    if request.method == 'POST':
+        # Obter dados do formulário
+        nome = request.form.get('nome')
+        duracao_str = request.form.get('duracao')
+        preco_str = request.form.get('preco')
 
-# @bp.route('/apagar/<int:servico_id>', methods=['POST'])
-# @login_required
-# def apagar_servico(servico_id): pass
+        # Validação simples (pode ser melhorada com WTForms no futuro)
+        erros = []
+        if not nome:
+            erros.append("O nome do serviço é obrigatório.")
+        if not duracao_str or not duracao_str.isdigit() or int(duracao_str) <= 0:
+            erros.append("A duração deve ser um número inteiro positivo (em minutos).")
+        if not preco_str:
+            erros.append("O preço é obrigatório.")
+        else:
+            try:
+                # Tenta converter o preço para float, tratando vírgula como ponto decimal
+                preco = float(preco_str.replace(',', '.'))
+                if preco < 0:
+                     erros.append("O preço não pode ser negativo.")
+            except ValueError:
+                erros.append("O preço deve ser um número válido (ex: 40.00 ou 40,00).")
+
+        if erros:
+            # Se houver erros, exibe-os e re-renderiza o formulário com os dados inseridos
+            for erro in erros:
+                flash(erro, 'danger')
+            # Passa os dados de volta para preencher o formulário novamente
+            return render_template('novo_servico.html', form_data=request.form)
+        else:
+            # Se não houver erros, cria o novo serviço
+            try:
+                novo = Servico(
+                    nome=nome,
+                    duracao=int(duracao_str),
+                    preco=preco,
+                    barbearia_id=barbearia_id_logada # Associa à barbearia correta
+                )
+                db.session.add(novo)
+                db.session.commit()
+                flash(f'Serviço "{nome}" adicionado com sucesso!', 'success')
+                # Redireciona de volta para a lista de serviços
+                return redirect(url_for('servicos.index')) 
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Erro ao adicionar serviço: {str(e)}', 'danger')
+                current_app.logger.error(f"Erro ao adicionar serviço: {e}", exc_info=True)
+                # Re-renderiza o formulário em caso de erro no banco
+                return render_template('novo_servico.html', form_data=request.form)
+
+    # Se for método GET, apenas exibe o formulário vazio
+    return render_template('novo_servico.html', form_data={}) # Passa form_data vazio
+
+# ... (Rotas Editar/Apagar futuras) ...

@@ -25,13 +25,13 @@
   {# Cabeçalho da Página #}
   <div class="flex justify-between items-center mb-6">
     <h2 class="text-text-primary-dark text-3xl font-bold">Serviços Oferecidos</h2>
-    {# --- CORREÇÃO: Link simplificado --- #}
-    <a href="#" 
+    {# --- CORREÇÃO: Link agora aponta para a rota correta --- #}
+    <a href="{{ url_for('servicos.novo_servico') }}" 
        class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
       <span class="material-symbols-outlined">add</span>
       <span class="truncate">Novo Serviço</span>
     </a>
-    {# ----------------------------------- #}
+    {# -------------------------------------------------------- #}
   </div>
 
   {# Tabela de Serviços #}

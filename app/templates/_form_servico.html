@@ -1,0 +1,56 @@
+{# app/templates/_form_servico.html - Template reutilizável para o formulário #}
+{# Recebe 'form_data' para preencher os campos em caso de erro ou edição #}
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+  {# Campo Nome #}
+  <div class="md:col-span-3">
+    <label for="nome" class="block text-sm font-medium text-text-secondary-dark mb-1">Nome do Serviço</label>
+    <input 
+      type="text" 
+      id="nome" 
+      name="nome" 
+      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+      value="{{ form_data.get('nome', '') }}" {# Preenche se houver erro #}
+      required>
+  </div>
+
+  {# Campo Duração #}
+  <div>
+    <label for="duracao" class="block text-sm font-medium text-text-secondary-dark mb-1">Duração (minutos)</label>
+    <input 
+      type="number" 
+      id="duracao" 
+      name="duracao" 
+      min="1" 
+      step="1"
+      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+      value="{{ form_data.get('duracao', '') }}" {# Preenche se houver erro #}
+      required>
+      <p class="text-xs text-text-secondary-dark mt-1">Tempo que o serviço leva (ex: 30).</p>
+  </div>
+
+  {# Campo Preço #}
+  <div>
+    <label for="preco" class="block text-sm font-medium text-text-secondary-dark mb-1">Preço (R$)</label>
+    <input 
+      type="text" {# Usar text permite vírgula, mas validamos no backend #}
+      inputmode="decimal" {# Ajuda teclados mobile #}
+      id="preco" 
+      name="preco" 
+      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+      value="{{ form_data.get('preco', '') }}" {# Preenche se houver erro #}
+      placeholder="Ex: 40.00 ou 40,00"
+      required>
+     <p class="text-xs text-text-secondary-dark mt-1">Use ponto ou vírgula como separador decimal.</p>
+  </div>
+</div>
+
+{# Botões de Ação - O texto do botão primário pode ser passado como variável #}
+<div class="border-t border-gray-700 pt-6 flex justify-end gap-3">
+  <a href="{{ url_for('servicos.index') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">
+    Cancelar
+  </a>
+  <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+    {{ submit_button_text | default('Salvar Serviço') }} {# Texto padrão ou customizado #}
+  </button>
+</div>
