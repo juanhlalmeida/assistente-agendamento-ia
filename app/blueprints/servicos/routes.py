@@ -188,3 +188,36 @@ def editar_servico(servico_id):
     return render_template('editar_servico.html', servico=servico, form_data=form_data_preenchido)
 
 # ... (Rota Apagar futura) ...
+
+@bp.route('/apagar/<int:servico_id>', methods=['POST']) # Aceita apenas POST
+@login_required
+def apagar_servico(servico_id):
+    """Apaga um serviço existente."""
+
+    # Validação do usuário e barbearia
+    if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
+        flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
+        return redirect(url_for('auth.login')) # Ajuste se necessário
+        
+    barbearia_id_logada = current_user.barbearia_id
+
+    # Busca o serviço específico E garante que pertence à barbearia logada
+    servico = Servico.query.filter_by(id=servico_id, barbearia_id=barbearia_id_logada).first()
+
+    if servico:
+        try:
+            nome_servico_apagado = servico.nome # Guarda o nome para a mensagem flash
+            db.session.delete(servico)
+            db.session.commit()
+            flash(f'Serviço "{nome_servico_apagado}" apagado com sucesso!', 'warning')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao apagar serviço: {str(e)}', 'danger')
+            current_app.logger.error(f"Erro ao apagar serviço ID {servico_id}: {e}", exc_info=True)
+    else:
+        # Se o serviço não existe ou não pertence à barbearia, informa o usuário
+        flash('Serviço não encontrado ou não pertence à sua barbearia.', 'danger')
+        # Pode também usar abort(404) aqui se preferir
+
+    # Redireciona sempre de volta para a lista de serviços
+    return redirect(url_for('servicos.index'))

@@ -25,13 +25,12 @@
   {# Cabeçalho da Página #}
   <div class="flex justify-between items-center mb-6">
     <h2 class="text-text-primary-dark text-3xl font-bold">Serviços Oferecidos</h2>
-    {# --- CORREÇÃO: Link agora aponta para a rota correta --- #}
+    {# Link para adicionar novo serviço #}
     <a href="{{ url_for('servicos.novo_servico') }}" 
        class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
       <span class="material-symbols-outlined">add</span>
       <span class="truncate">Novo Serviço</span>
     </a>
-    {# -------------------------------------------------------- #}
   </div>
 
   {# Tabela de Serviços #}
@@ -46,33 +45,34 @@
         </tr>
       </thead>
       <tbody>
+        {# Loop principal para exibir cada serviço #}
         {% for servico in servicos %}
           <tr class="border-b border-gray-800 hover:bg-white/5">
             <td class="p-4 font-semibold text-text-primary-dark">{{ servico.nome }}</td>
             <td class="p-4 text-text-primary-dark">{{ servico.duracao }} min</td>
             <td class="p-4 text-text-primary-dark">R$ {{ "%.2f"|format(servico.preco) }}</td>
             <td class="p-4 text-center">
-              {# --- CORREÇÃO: Link Editar agora aponta para a rota correta --- #}
+              {# Botão Editar #}
               <a href="{{ url_for('servicos.editar_servico', servico_id=servico.id) }}" 
                  class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
                 <span class="material-symbols-outlined">edit</span>
               </a>
-              {# ----------------------------------------------------------- #}
-              
-              {# Formulário Apagar (ainda inativo) #}
-              <form action="#" 
-                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar este serviço?');">
+              {# Formulário Apagar #}
+              <form action="{{ url_for('servicos.apagar_servico', servico_id=servico.id) }}" 
+                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar o serviço \'{{ servico.nome }}\'?');">
                 <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar">
                   <span class="material-symbols-outlined">delete</span>
                 </button>
               </form>
             </td>
           </tr>
-        {% else %}
+        {# Caso o loop {% for %} não encontre nenhum serviço #}
+        {% else %} 
           <tr>
             <td colspan="4" class="p-8 text-center text-text-secondary-dark">Nenhum serviço cadastrado ainda.</td>
           </tr>
-        {% endfor %}
+        {# Fim do loop {% for %} #}
+        {% endfor %} 
       </tbody>
     </table>
   </div>
