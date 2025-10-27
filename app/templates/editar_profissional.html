@@ -1,0 +1,39 @@
+{% extends 'base.html' %} 
+
+{# Recebe 'profissional' e 'form_data' da rota #}
+
+{% block title %}Editar Profissional - {{ profissional.nome }}{% endblock %}
+
+{% block content %}
+  {# Mensagens Flash de Erro #}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        {% if category == 'danger' %} 
+          <div class="bg-red-500 text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
+            <span>{{ message }}</span>
+            <button type="button" onclick="this.parentElement.remove()">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {# Card principal com o formulário #}
+  <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden">
+    <div class="p-6 border-b border-gray-700">
+      <h2 class="text-xl font-bold text-text-primary-dark">Editar Profissional: {{ profissional.nome }}</h2>
+    </div>
+    <div class="p-6">
+      <form method="POST">
+        {% include '_form_profissional.html' with context %}
+      </form>
+    </div>
+  </div>
+
+{% endblock %}
+
+{% set form_data = form_data %} {# Vem da rota #}
+{% set submit_button_text = 'Salvar Alterações' %}

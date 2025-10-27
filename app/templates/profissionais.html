@@ -1,0 +1,70 @@
+{% extends 'base.html' %} 
+
+{% block title %}Gerir Profissionais{% endblock %}
+
+{% block content %}
+  {# Mensagens Flash #}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        {% set color_class = 'bg-blue-500' %}
+        {% if category == 'success' %}{% set color_class = 'bg-green-500' %}{% endif %}
+        {% if category == 'danger' %}{% set color_class = 'bg-red-500' %}{% endif %}
+        {% if category == 'warning' %}{% set color_class = 'bg-yellow-500' %}{% endif %}
+        
+        <div class="{{ color_class }} text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
+          <span>{{ message }}</span>
+          <button type="button" onclick="this.parentElement.remove()">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {# Cabeçalho da Página #}
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-text-primary-dark text-3xl font-bold">Profissionais</h2>
+    <a href="{{ url_for('profissionais.novo_profissional') }}" 
+       class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
+      <span class="material-symbols-outlined">add</span>
+      <span class="truncate">Novo Profissional</span>
+    </a>
+  </div>
+
+  {# Tabela de Profissionais #}
+  <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
+    <table class="w-full min-w-[400px] lg:min-w-full text-left align-middle">
+      <thead class="bg-background-dark">
+        <tr>
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Nome do Profissional</th>
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for profissional in profissionais %}
+          <tr class="border-b border-gray-800 hover:bg-white/5">
+            <td class="p-4 font-semibold text-text-primary-dark">{{ profissional.nome }}</td>
+            <td class="p-4 text-center">
+              <a href="{{ url_for('profissionais.editar_profissional', profissional_id=profissional.id) }}" 
+                 class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
+                <span class="material-symbols-outlined">edit</span>
+              </a>
+              <form action="{{ url_for('profissionais.apagar_profissional', profissional_id=profissional.id) }}" 
+                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar o profissional \'{{ profissional.nome }}\'?');">
+                <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% else %} 
+          <tr>
+            <td colspan="2" class="p-8 text-center text-text-secondary-dark">Nenhum profissional cadastrado ainda.</td>
+          </tr>
+        {% endfor %} 
+      </tbody>
+    </table>
+  </div>
+
+{% endblock %}

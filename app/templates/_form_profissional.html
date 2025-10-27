@@ -1,0 +1,27 @@
+{# app/templates/_form_profissional.html - Template reutilizável para o formulário #}
+{# Recebe 'form_data' para preencher os campos #}
+
+<div class="grid grid-cols-1 gap-6 mb-6">
+  {# Campo Nome #}
+  <div>
+    <label for="nome" class="block text-sm font-medium text-text-secondary-dark mb-1">Nome do Profissional</label>
+    <input 
+      type="text" 
+      id="nome" 
+      name="nome" 
+      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+      value="{{ form_data.get('nome', '') }}" 
+      required
+      maxlength="100"> {# Limite do banco de dados #}
+  </div>
+</div>
+
+{# Botões de Ação #}
+<div class="border-t border-gray-700 pt-6 flex justify-end gap-3">
+  <a href="{{ url_for('profissionais.index') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">
+    Cancelar
+  </a>
+  <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+    {{ submit_button_text | default('Salvar') }} 
+  </button>
+</div>

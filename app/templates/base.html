@@ -78,10 +78,10 @@
           </a>
           
           {# Link Clientes (ainda inativo) #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary-dark hover:bg-white/5 font-medium" 
-             href="#"> 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint.startswith('profissionais.') %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+             href="{{ url_for('profissionais.index') }}"> 
             <span class="material-symbols-outlined">group</span>
-            <p class="text-base">Clientes</p>
+            <p class="text-base">Profissionais</p> {# Mudamos o texto para Profissionais #}
           </a>
 
           {# --- CORREÇÃO: Link Serviços agora aponta para o blueprint --- #}
