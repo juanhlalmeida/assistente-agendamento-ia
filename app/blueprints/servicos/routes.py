@@ -1,7 +1,7 @@
 # app/blueprints/servicos/routes.py
 import logging
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
-from app.models.tables import Servico # Importa o modelo Servico
+from app.models.tables import Servico, Agendamento
 from app.extensions import db
 from flask_login import login_required, current_user # Para proteger a rota e filtrar
 
@@ -107,7 +107,7 @@ from app.models.tables import Servico
 from app.extensions import db
 from flask_login import login_required, current_user
 # Importa 'abort' se ainda não estiver importado
-from flask import abort 
+from flask import abort, current_app, flash, redirect, url_for 
 
 # ... (blueprint 'bp', rota 'index', rota 'novo_servico') ...
 
@@ -189,35 +189,48 @@ def editar_servico(servico_id):
 
 # ... (Rota Apagar futura) ...
 
-@bp.route('/apagar/<int:servico_id>', methods=['POST']) # Aceita apenas POST
+@bp.route('/apagar/<int:servico_id>', methods=['POST']) 
 @login_required
 def apagar_servico(servico_id):
-    """Apaga um serviço existente."""
+    """Apaga um serviço existente, APENAS se não houver agendamentos associados."""
 
-    # Validação do usuário e barbearia
+    # Validação do usuário e barbearia (mantém)
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        return redirect(url_for('auth.login')) # Ajuste se necessário
+        return redirect(url_for('auth.login')) 
         
     barbearia_id_logada = current_user.barbearia_id
 
     # Busca o serviço específico E garante que pertence à barbearia logada
     servico = Servico.query.filter_by(id=servico_id, barbearia_id=barbearia_id_logada).first()
 
-    if servico:
-        try:
-            nome_servico_apagado = servico.nome # Guarda o nome para a mensagem flash
-            db.session.delete(servico)
-            db.session.commit()
-            flash(f'Serviço "{nome_servico_apagado}" apagado com sucesso!', 'warning')
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Erro ao apagar serviço: {str(e)}', 'danger')
-            current_app.logger.error(f"Erro ao apagar serviço ID {servico_id}: {e}", exc_info=True)
-    else:
-        # Se o serviço não existe ou não pertence à barbearia, informa o usuário
+    if not servico:
         flash('Serviço não encontrado ou não pertence à sua barbearia.', 'danger')
-        # Pode também usar abort(404) aqui se preferir
+        return redirect(url_for('servicos.index'))
+
+    # --- VERIFICAÇÃO DE DEPENDÊNCIA ---
+    # Conta quantos agendamentos (desta barbearia) usam este serviço
+    agendamentos_existentes = Agendamento.query.filter_by(
+        servico_id=servico.id, 
+        barbearia_id=barbearia_id_logada # Garante filtro por barbearia
+    ).count()
+
+    if agendamentos_existentes > 0:
+        # Se existem agendamentos, IMPEDE a exclusão
+        flash(f'Erro: Não é possível apagar o serviço "{servico.nome}", pois ele já foi utilizado em {agendamentos_existentes} agendamento(s).', 'danger')
+        return redirect(url_for('servicos.index'))
+    # --- FIM DA VERIFICAÇÃO ---
+        
+    # Se chegou aqui, é seguro apagar
+    try:
+        nome_servico_apagado = servico.nome 
+        db.session.delete(servico)
+        db.session.commit()
+        flash(f'Serviço "{nome_servico_apagado}" apagado com sucesso!', 'warning')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao apagar serviço: {str(e)}', 'danger')
+        current_app.logger.error(f"Erro ao apagar serviço ID {servico_id}: {e}", exc_info=True)
 
     # Redireciona sempre de volta para a lista de serviços
     return redirect(url_for('servicos.index'))
