@@ -79,11 +79,12 @@ def listar_profissionais(barbearia_id: int) -> str:
         with current_app.app_context():
             # 🚀 ALTERAÇÃO: Filtra apenas pela barbearia correta
             profissionais = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
-            if notissionais:
-                return "Nenhum profissional cadastrado para esta barbearia."
+            if not profissionais:
+                return "Nenhum profissional cadastrado para esta barbearia no momento."
             nomes = [p.nome for p in profissionais]
             return f"Profissionais disponíveis: {', '.join(nomes)}."
     except Exception as e:
+        current_app.logger.error(f"Erro interno na ferramenta 'listar_profissionais': {e}", exc_info=True)
         return f"Erro ao listar profissionais: {str(e)}"
 
 def listar_servicos(barbearia_id: int) -> str:
