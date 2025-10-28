@@ -283,11 +283,13 @@ try:
     #       antes de inicializar o modelo, ou passado dinamicamente ao gerar conteúdo.
     #       Por agora, a IA usará a data do prompt estático.
     model = genai.GenerativeModel(
-        model_name='gemini-1.5-flash', # Usando 1.5 Flash
+        model_name='gemini-pro'
         tools=[tools],
         system_instruction=SYSTEM_INSTRUCTION_TEMPLATE 
     )
-    logging.info("Modelo Gemini inicializado com SUCESSO com utils e tools atualizadas!")
+    logging.info("Modelo Gemini ('gemini-pro') inicializado com SUCESSO!")
 except Exception as e:
-    logging.error(f"ERRO CRÍTICO ao inicializar o modelo Gemini: {e}", exc_info=True)
-    # Mantém model como None se a inicialização falhar
+    logging.error(f"ERRO CRÍTICO ao inicializar o modelo Gemini ('gemini-pro'): {e}", exc_info=True)
+    # Tenta um fallback se o 'gemini-pro' falhar (opcional)
+    # try: 
+    #     model = genai.GenerativeModel(model_name='gemini-1.0-pro', ...)
