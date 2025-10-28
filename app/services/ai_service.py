@@ -281,12 +281,12 @@ try:
     current_date = datetime.now().strftime('%Y-%m-%d')
     system_instruction = SYSTEM_INSTRUCTION_TEMPLATE.format(current_date=current_date)
     model = genai.GenerativeModel(
-        model_name='gemini-pro',
+        model_name='gemini-1.0-pro',
         tools=[tools],
         system_instruction=system_instruction 
     )
-    logging.info("Modelo Gemini ('gemini-pro') inicializado com SUCESSO!")
+    logging.info("Modelo Gemini ('gemini-1.0-pro') inicializado com SUCESSO!")
 except google.api_core.exceptions.NotFound as nf_error:
-    logging.error(f"ERRO CRÍTICO: Modelo Gemini 'gemini-pro' não encontrado ou não acessível com a chave API: {nf_error}", exc_info=True)
+    logging.error(f"ERRO CRÍTICO: Modelo Gemini 'gemini-1.0-pro' não encontrado ou não acessível: {nf_error}", exc_info=True)
 except Exception as e:
     logging.error(f"ERRO CRÍTICO GERAL ao inicializar o modelo Gemini: {e}", exc_info=True)
