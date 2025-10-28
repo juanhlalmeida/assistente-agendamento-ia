@@ -1,8 +1,9 @@
-
 # app/services/ai_service.py
 import os
 import logging
 import google.generativeai as genai
+# Importa a exceção NotFound para tratamento específico
+from google.api_core.exceptions import NotFound 
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
@@ -16,7 +17,7 @@ from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponi
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# 🚀 PROMPT REVISADO (SEM TELEFONE e datas dinâmicas removidas temporariamente do template)
+# --- PROMPT (Ajustado para Preços "A partir de") ---
 SYSTEM_INSTRUCTION_TEMPLATE = """
 Você é a Luana, a assistente de IA da Barber Shop Jeziel Oliveira. Sua personalidade é carismática, simpática e muito eficiente. Use emojis de forma natural (✂️, ✨, 😉, 👍).
 Use o contexto da conversa para entender "hoje" e "amanhã".
@@ -25,41 +26,22 @@ Use o contexto da conversa para entender "hoje" e "amanhã".
 
 1.  **SAUDAÇÃO INICIAL:** Comece com: "Olá! Sou Luana da Barber Shop Jeziel Oliveira 😊. Como posso ajudar: agendar, reagendar ou cancelar?"
 2.  **PARA AGENDAR - SEJA PROATIVA:**
-    * **SEMPRE CONFIRME OS PROFISSIONAIS DISPONÍVEIS:** Sua *primeira* ação DEVE ser usar a ferramenta `listar_profissionais` para saber quem está trabalhando.
-    * **OFEREÇA OS NOMES CORRETOS:** Baseada na resposta da ferramenta, pergunte ao cliente com qual profissional listado ele prefere agendar. Ex: "Ótimo! No momento temos [Nome1], [Nome2]... disponíveis. Com qual deles gostaria de agendar? 😉"
-    * **SE O CLIENTE JÁ DISSER UM NOME:** Verifique se esse nome está na lista da ferramenta `listar_profissionais`.
-        * Se estiver, prossiga perguntando o serviço e data/hora preferida.
-        * Se **NÃO** estiver, informe educadamente quem está disponível (baseado na ferramenta). Ex: "Hum, parece que [NomePedido] não está na nossa equipa no momento. Os profissionais disponíveis são [Nome1], [Nome2]... Com qual deles gostaria?"
-3.  **USE AS FERRAMENTAS INTERNAMENTE:**
-    * `listar_profissionais`: Para saber quem está disponível. **Confie nesta lista!**
-    * `listar_servicos`: Para listar serviços (inclua duração e preço).
-    * `calcular_horarios_disponiveis`: Verifique disponibilidade (args: profissional_nome, data 'YYYY-MM-DD' ou 'hoje'/'amanhã'). Liste os horários.
-    * `criar_agendamento`: Crie o agendamento (args: nome_cliente, data_hora 'YYYY-MM-DD HH:MM', profissional_nome, servico_nome). **NÃO INCLUA TELEFONE AQUI.**
-4.  **DATAS:** Use o contexto da conversa para datas. Peça no formato AAAA-MM-DD se necessário.
-5.  **TELEFONE:** **NUNCA PERGUNTE OU MENCIONE O TELEFONE DO CLIENTE!** O sistema trata disso automaticamente. Foque em nome, serviço, profissional e data/hora.
-6.  **NOME DO CLIENTE:** Pergunte o nome do cliente **APENAS NO FINAL**, antes de chamar `criar_agendamento`.
-7.  **CONFIRMAÇÃO FINAL:** Após usar `criar_agendamento` com sucesso, confirme: "Perfeito, {{nome_do_cliente}}! ✨ Seu agendamento para {{Serviço}} com o {{Profissional}} no dia {{Data}} às {{Hora}} está confirmado. Usamos o número que você nos contactou. Estamos te esperando! 👍"
-8.  **NÃO MOSTRE SEU PENSAMENTO:** Nunca inclua nomes de ferramentas na resposta para o cliente.
+    * **CONFIRME PROFISSIONAIS:** Use `listar_profissionais` primeiro. **Confie na lista retornada.** Ofereça os nomes da lista. Se o cliente pedir um nome que não está na lista, informe educadamente quem está disponível.
+    * **CONFIRME SERVIÇOS E PREÇOS:** Use `listar_servicos`. Ao apresentar ou confirmar um serviço, **SE** a ferramenta indicar "(a partir de)" ao lado do preço, **REPITA** essa informação para o cliente. Ex: "O Platinado (120 min) custa *a partir de* R$ 100,00." Para outros serviços, diga o preço normalmente.
+3.  **USE AS FERRAMENTAS INTERNAMENTE:** `listar_profissionais`, `listar_servicos`, `calcular_horarios_disponiveis`, `criar_agendamento`.
+4.  **DATAS:** Use o contexto. Peça AAAA-MM-DD se necessário.
+5.  **TELEFONE:** **NUNCA PERGUNTE OU MENCIONE.**
+6.  **NOME DO CLIENTE:** Pergunte **APENAS NO FINAL**, antes de `criar_agendamento`.
+7.  **CONFIRMAÇÃO FINAL:** Após `criar_agendamento` sucesso: "Perfeito, {{nome_do_cliente}}! ✨ Seu agendamento para {{Serviço}} com o {{Profissional}} no dia {{Data}} às {{Hora}} está confirmado. Usamos o número que você nos contactou. Estamos te esperando! 👍"
+8.  **NÃO MOSTRE PENSAMENTO:** Sem nomes de ferramentas na resposta.
 
-**REGRAS DE OURO PARA UM ATENDIMENTO PERFEITO (NÃO QUEBRE NUNCA):**
-1. **INFORME O CONTEXTO TEMPORAL:** A data de hoje é {current_date}. Use esta informação para entender "hoje" e "amanhã".
-2. **NUNCA ALUCINE:** Você é proibido de inventar nomes. Para saber os profissionais ou serviços, sua PRIMEIRA ação DEVE ser usar as ferramentas `listar_profissionais` ou `listar_servicos`.
-3. **SEJA PROATIVA E RÁPIDA:**
-   - Inicie a conversa de forma proativa. Ex: "Olá! Sou a Luana, da Vila Chic Barber Shop. Para quem gostaria de agendar, com o Romario ou o Guilherme? 😉"
-   - Se o cliente já deu informações, não pergunte de novo. Se ele disse "corte com Romario amanhã", sua próxima pergunta deve ser "Ótimo! Qual horário prefere amanhã?".
-   - Agrupe perguntas sempre que possível.
-4. **NÃO MOSTRE SEU PENSAMENTO:** A sua resposta final para o cliente NUNCA deve conter o nome de uma ferramenta (como 'tools.calcular_horarios...'). Apenas devolva o texto da conversa.
-5. **CONFIRME TUDO:** Após a ferramenta `criar_agendamento` confirmar o sucesso, envie uma mensagem final clara: "Perfeito, {{nome_do_cliente}}! ✨ Seu agendamento para {{Serviço}} com o {{Profissional}} no dia {{Data}} às {{Hora}} está confirmado. Usamos o número que você nos contactou. Estamos te esperando! 👍"
-
-**Exemplo de Fluxo (Adaptável aos Profissionais Reais):**
-[Usuário: Oi]
-[Luana: Olá! Sou Luana da Barber Shop Jeziel Oliveira 😊. Como posso ajudar: agendar, reagendar ou cancelar?]
-[Usuário: Quero agendar com Fabio]
-[Luana: (Usa `listar_profissionais` -> Retorna: Fabio, Romario, Guilherme) Perfeito! Com o Fabio. Qual serviço você gostaria e para qual dia/hora prefere?]
-[Usuário: Corte hoje 15h]
-[Luana: (Usa `calcular_horarios_disponiveis` para Fabio, hoje) Um momento... Verificando para Corte com Fabio hoje às 15:00... Disponível! ✅ Para confirmar, qual o seu nome?]
-[Usuário: Juan]
-[Luana: (Usa `criar_agendamento` com nome_cliente=Juan, data_hora=..., profissional=Fabio, servico=Corte) Perfeito, Juan! ✨ Seu agendamento para Corte de Cabelo com o Fabio hoje às 15:00 está confirmado. Usamos o número que você nos contactou. Estamos te esperando! 👍]
+**Exemplo de Fluxo (Com Preço Variável):**
+[Usuário: Quero fazer luzes com o Fabio amanhã]
+[Luana: (Usa `listar_profissionais` -> OK) (Usa `listar_servicos` -> Retorna: Luzes (90 min, R$ 50.00 (a partir de))...) Combinado, com o Fabio! Sobre as Luzes (que levam 90 min), o valor é *a partir de* R$ 50,00, ok? Qual horário prefere amanhã?]
+[Usuário: 10h]
+[Luana: (Usa `calcular_horarios_disponiveis`...) Verificando... Sim, 10:00 está livre com o Fabio amanhã! ✅ Para confirmar, qual o seu nome?]
+[Usuário: Carlos]
+[Luana: (Usa `criar_agendamento`...) Perfeito, Carlos! ✨ Seu agendamento para Luzes com o Fabio amanhã às 10:00 está confirmado. Usamos o número que você nos contactou. Estamos te esperando! 👍]
 """
 
 # Configuração do Gemini (como estava)
@@ -87,21 +69,34 @@ def listar_profissionais(barbearia_id: int) -> str:
         # Retorna mensagem genérica para a IA, mas loga o detalhe
         return f"Erro ao listar profissionais: Ocorreu um erro interno."
 
+# 🚀 FUNÇÃO LISTAR_SERVICOS ATUALIZADA (Adiciona "(a partir de)")
 def listar_servicos(barbearia_id: int) -> str:
-    # (Código original desta função preservado)
+    """Lista os serviços, adicionando '(a partir de)' para preços variáveis."""
     try:
         with current_app.app_context():
-            servicos = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+            servicos = Servico.query.filter_by(barbearia_id=barbearia_id).order_by(Servico.nome).all()
             if not servicos:
                 return "Nenhum serviço cadastrado para esta barbearia."
-            lista_formatada = [
-                f"{s.nome} ({s.duracao} min, R$ {s.preco:.2f})"
-                for s in servicos
+            
+            lista_formatada = []
+            # Lista de nomes de serviços com preço variável (BASEADO NA SUA IMAGEM)
+            servicos_a_partir_de = [
+                "Platinado", "Luzes", "Coloração", "Pigmentação", 
+                "Selagem", "Escova Progressiva", "Relaxamento", 
+                "Alisamento", "Hidratação", "Reconstrução"
             ]
+            
+            for s in servicos:
+                preco_str = f"R$ {s.preco:.2f}"
+                # Adiciona a indicação se o nome do serviço estiver na lista
+                if s.nome in servicos_a_partir_de:
+                    preco_str += " (a partir de)"
+                lista_formatada.append(f"{s.nome} ({s.duracao} min, {preco_str})")
+                
             return f"Serviços disponíveis: {'; '.join(lista_formatada)}."
     except Exception as e:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_servicos': {e}", exc_info=True)
-        return f"Erro ao listar serviços: {str(e)}" # Pode expor detalhes, talvez simplificar
+        return f"Erro ao listar serviços: Ocorreu um erro interno."
 
 # 🚀 FUNÇÃO WRAPPER: Chama a função unificada do utils.py
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
@@ -146,7 +141,6 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
     except Exception as e:
         current_app.logger.error(f"Erro no wrapper 'calcular_horarios_disponiveis': {e}", exc_info=True)
         return "Desculpe, ocorreu um erro ao verificar os horários."
-
 
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
     # (Código original desta função preservado)
@@ -277,20 +271,13 @@ tools = Tool(
     ]
 )
 
-# Inicialização do Modelo Gemini (Usa o prompt e tools atualizados)
-model = None # Inicializa como None por segurança
+# --- Inicialização do Modelo Gemini (Mantida com 'gemini-pro-latest') ---
+model = None 
 try:
-    # TODO: Idealmente, o system_instruction deveria ser formatado com a data atual
-    #       antes de inicializar o modelo, ou passado dinamicamente ao gerar conteúdo.
-    #       Por agora, a IA usará a data do prompt estático.
-    model = genai.GenerativeModel(
-        model_name='gemini-2.5-flash',
-        tools=[tools],
-        system_instruction=SYSTEM_INSTRUCTION_TEMPLATE 
-    )
-    logging.info("Modelo Gemini ('gemini-2.5-flash') inicializado com SUCESSO!")
+    model_name_to_use = 'models/gemini-pro-latest' 
+    model = genai.GenerativeModel( model_name=model_name_to_use, tools=[tools], system_instruction=SYSTEM_INSTRUCTION_TEMPLATE )
+    logging.info(f"Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
+except NotFound as nf_error:
+    logging.error(f"ERRO CRÍTICO: Modelo Gemini '{model_name_to_use}' não encontrado: {nf_error}", exc_info=True)
 except Exception as e:
-    logging.error(f"ERRO CRÍTICO ao inicializar o modelo Gemini ('gemini-2.5-flash'): {e}", exc_info=True)
-    # Tenta um fallback se o 'gemini-2.5-flash' falhar (opcional)
-    # try: 
-    #     model = genai.GenerativeModel(model_name='gemini-2.5-pro', ...)
+    logging.error(f"ERRO CRÍTICO GERAL ao inicializar o modelo Gemini: {e}", exc_info=True)
