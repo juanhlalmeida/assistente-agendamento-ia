@@ -1,3 +1,4 @@
+
 # app/services/ai_service.py
 import os
 import logging
@@ -90,7 +91,7 @@ def listar_servicos(barbearia_id: int) -> str:
     # (Código original desta função preservado)
     try:
         with current_app.app_context():
-            servicos = Servico.query.filter_by(barbearia_id=barbearia_id).order_by(Servico.nome).all() # Adicionado order_by
+            servicos = Servico.query.filter_by(barbearia_id=barbearia_id).all()
             if not servicos:
                 return "Nenhum serviço cadastrado para esta barbearia."
             lista_formatada = [
@@ -100,7 +101,7 @@ def listar_servicos(barbearia_id: int) -> str:
             return f"Serviços disponíveis: {'; '.join(lista_formatada)}."
     except Exception as e:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_servicos': {e}", exc_info=True)
-        return f"Erro ao listar serviços: Ocorreu um erro interno." # Mensagem mais genérica
+        return f"Erro ao listar serviços: {str(e)}" # Pode expor detalhes, talvez simplificar
 
 # 🚀 FUNÇÃO WRAPPER: Chama a função unificada do utils.py
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
@@ -145,6 +146,7 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
     except Exception as e:
         current_app.logger.error(f"Erro no wrapper 'calcular_horarios_disponiveis': {e}", exc_info=True)
         return "Desculpe, ocorreu um erro ao verificar os horários."
+
 
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
     # (Código original desta função preservado)
@@ -200,7 +202,7 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Erro na ferramenta 'criar_agendamento': {e}", exc_info=True)
-        return f"Erro ao criar agendamento: Ocorreu um erro interno." # Mensagem mais genérica
+        return f"Erro ao criar agendamento: {str(e)}" # Pode expor detalhes, talvez simplificar
 
 # ---------------------------------------------------------------------
 # DEFINIÇÃO DAS TOOLS (Atualizada)
@@ -278,15 +280,17 @@ tools = Tool(
 # Inicialização do Modelo Gemini (Usa o prompt e tools atualizados)
 model = None # Inicializa como None por segurança
 try:
-    current_date = datetime.now().strftime('%Y-%m-%d')
-    system_instruction = SYSTEM_INSTRUCTION_TEMPLATE.format(current_date=current_date)
+    # TODO: Idealmente, o system_instruction deveria ser formatado com a data atual
+    #       antes de inicializar o modelo, ou passado dinamicamente ao gerar conteúdo.
+    #       Por agora, a IA usará a data do prompt estático.
     model = genai.GenerativeModel(
-        model_name='gemini-1.0-pro',
+        model_name='gemini-2.5-flash',
         tools=[tools],
-        system_instruction=system_instruction 
+        system_instruction=SYSTEM_INSTRUCTION_TEMPLATE 
     )
-    logging.info("Modelo Gemini ('gemini-1.0-pro') inicializado com SUCESSO!")
-except google.api_core.exceptions.NotFound as nf_error:
-    logging.error(f"ERRO CRÍTICO: Modelo Gemini 'gemini-1.0-pro' não encontrado ou não acessível: {nf_error}", exc_info=True)
+    logging.info("Modelo Gemini ('gemini-2.5-flash') inicializado com SUCESSO!")
 except Exception as e:
-    logging.error(f"ERRO CRÍTICO GERAL ao inicializar o modelo Gemini: {e}", exc_info=True)
+    logging.error(f"ERRO CRÍTICO ao inicializar o modelo Gemini ('gemini-2.5-flash'): {e}", exc_info=True)
+    # Tenta um fallback se o 'gemini-2.5-flash' falhar (opcional)
+    # try: 
+    #     model = genai.GenerativeModel(model_name='gemini-2.5-pro', ...)
