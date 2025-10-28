@@ -74,7 +74,11 @@ def create_app(config_class=Config) -> Flask:
     except Exception as e:
          app.logger.error(f"ERRO ao registar blueprint 'profissionais': {e}")
     # ------------------------------------
-         
+    try:
+        from app.blueprints.clientes.routes import bp as clientes_bp 
+        app.register_blueprint(clientes_bp) # Já tem url_prefix='/clientes'
+    except Exception as e:
+         app.logger.error(f"ERRO ao registar blueprint 'clientes': {e}")     
     # -------------------------------
 
     # Healthcheck

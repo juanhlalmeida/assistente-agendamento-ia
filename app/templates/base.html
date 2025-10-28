@@ -90,7 +90,17 @@
             <span class="material-symbols-outlined">cut</span>
             <p class="text-base">Serviços</p>
           </a>
+
           {# ----------------------------------------------------------- #}
+          {# --- NOVO LINK CLIENTES --- #}
+          
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint.startswith('clientes.') %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+             href="{{ url_for('clientes.index') }}"> 
+            <span class="material-symbols-outlined">group</span>
+            <p class="text-base">Clientes</p>
+          </a>
+
+          {# -------------------------- #}
         </nav>
         
         {# Rodapé restaurado com current_user e logout #}

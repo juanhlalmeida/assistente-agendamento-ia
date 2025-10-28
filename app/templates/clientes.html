@@ -1,0 +1,73 @@
+{% extends 'base.html' %} 
+
+{% block title %}Clientes Cadastrados{% endblock %}
+
+{% block content %}
+  {# Mensagens Flash #}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        {% set color_class = 'bg-blue-500' %}
+        {% if category == 'success' %}{% set color_class = 'bg-green-500' %}{% endif %}
+        {% if category == 'danger' %}{% set color_class = 'bg-red-500' %}{% endif %}
+        {% if category == 'warning' %}{% set color_class = 'bg-yellow-500' %}{% endif %}
+        
+        <div class="{{ color_class }} text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
+          <span>{{ message }}</span>
+          <button type="button" onclick="this.parentElement.remove()">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {# Cabeçalho da Página #}
+  <div class="flex justify-between items-center mb-6">
+    <h2 class="text-text-primary-dark text-3xl font-bold">Clientes</h2>
+    {# Poderíamos adicionar um botão "Novo Cliente" no futuro, embora eles sejam criados via agendamento #}
+    {# <a href="#" 
+       class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
+      <span class="material-symbols-outlined">add</span>
+      <span class="truncate">Novo Cliente</span>
+    </a> #}
+  </div>
+
+  {# Tabela de Clientes #}
+  <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
+    <table class="w-full min-w-[600px] lg:min-w-full text-left align-middle">
+      <thead class="bg-background-dark">
+        <tr>
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Nome do Cliente</th>
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Telefone</th>
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Último Agendamento</th>
+          {# Poderíamos adicionar ações como "Ver Histórico" #}
+          {# <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th> #}
+        </tr>
+      </thead>
+      <tbody>
+        {% for cliente in clientes %}
+          <tr class="border-b border-gray-800 hover:bg-white/5">
+            <td class="p-4 font-semibold text-text-primary-dark">{{ cliente.nome }}</td>
+            <td class="p-4 text-text-primary-dark">{{ cliente.telefone }}</td>
+            {# Formata a data do último agendamento, se existir #}
+            <td class="p-4 text-text-secondary-dark text-sm">
+                {{ cliente.ultimo_agendamento.strftime('%d/%m/%Y %H:%M') if cliente.ultimo_agendamento else 'N/A' }}
+            </td> 
+            {# <td class="p-4 text-center">
+              <a href="#" class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Ver Histórico">
+                <span class="material-symbols-outlined">history</span>
+              </a>
+            </td> #}
+          </tr>
+        {% else %} 
+          <tr>
+            <td colspan="3" class="p-8 text-center text-text-secondary-dark">Nenhum cliente encontrado. Faça o primeiro agendamento!</td>
+            {# Mudar colspan para 4 se adicionar coluna de ações #}
+          </tr>
+        {% endfor %} 
+      </tbody>
+    </table>
+  </div>
+
+{% endblock %}
