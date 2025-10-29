@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+{# Template BÁSICO para o Super Admin - Pode ser melhorado depois #}
+<html class="dark" lang="pt-br">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Super Admin - Gerir Barbearias</title>
+  {# Inclui Tailwind (pode usar um base.html específico para superadmin no futuro) #}
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+  <script>
+    tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#00A6FB", "background-dark": "#121212", "surface-dark": "#1E1E1E", "text-primary-dark": "#FFFFFF", "text-secondary-dark": "#A0A0A0" }, fontFamily: { "display": ["Inter", "sans-serif"] } } } }
+  </script>
+  <style> .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24 } </style>
+</head>
+<body class="bg-background-dark font-display text-text-primary-dark min-h-screen">
+
+  <div class="container mx-auto p-8">
+    {# Header Simples #}
+    <div class="flex justify-between items-center mb-8 pb-4 border-b border-gray-700">
+      <h1 class="text-3xl font-bold">Super Admin</h1>
+      {% if current_user.is_authenticated %}
+        <div class="text-right">
+            <p class="text-sm">Logado como: {{ current_user.email }}</p>
+            <a href="{{ url_for('main.logout') }}" class="text-sm text-primary hover:underline">Sair</a>
+        </div>
+      {% endif %}
+    </div>
+    
+    {# Mensagens Flash #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          {% set color_class = 'bg-blue-500' %}
+          {% if category == 'success' %}{% set color_class = 'bg-green-500' %}{% endif %}
+          {% if category == 'danger' %}{% set color_class = 'bg-red-500' %}{% endif %}
+          {% if category == 'warning' %}{% set color_class = 'bg-yellow-500' %}{% endif %}
+          <div class="{{ color_class }} text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
+            <span>{{ message }}</span> <button type="button" onclick="this.parentElement.remove()"><span class="material-symbols-outlined">close</span></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {# Conteúdo Principal - Lista de Barbearias #}
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-2xl font-bold">Barbearias Cadastradas</h2>
+      <a href="#" {# Link futuro para 'superadmin.nova_barbearia' #}
+         class="flex items-center justify-center gap-2 rounded-lg h-10 px-5 bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors">
+        <span class="material-symbols-outlined">add_business</span>
+        <span>Nova Barbearia</span>
+      </a>
+    </div>
+
+    <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
+      <table class="w-full text-left align-middle">
+        <thead class="bg-background-dark">
+          <tr>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Nome Fantasia</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Telefone WhatsApp</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Status Assinatura</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for barbearia in barbearias %}
+            <tr class="border-b border-gray-700 hover:bg-white/5">
+              <td class="p-4 font-semibold text-text-primary-dark">{{ barbearia.nome_fantasia }}</td>
+              <td class="p-4 text-text-primary-dark">{{ barbearia.telefone_whatsapp }}</td>
+              <td class="p-4">
+                {# Badge colorido para o status #}
+                {% set status_color = 'bg-gray-500 text-gray-100' %}
+                {% if barbearia.status_assinatura == 'ativa' %}{% set status_color = 'bg-green-500 text-white' %}{% endif %}
+                {% if barbearia.status_assinatura == 'inativa' or barbearia.status_assinatura == 'pendente' %}{% set status_color = 'bg-yellow-500 text-black' %}{% endif %}
+                 <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ status_color }}">
+                    {{ barbearia.status_assinatura | capitalize }}
+                 </span>
+              </td>
+              <td class="p-4 text-center">
+                <a href="#" {# Link futuro para 'superadmin.editar_barbearia', barbearia_id=barbearia.id #}
+                   class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
+                  <span class="material-symbols-outlined">edit</span>
+                </a>
+                {# Botão Apagar/Desativar pode ser adicionado aqui #}
+              </td>
+            </tr>
+          {% else %} 
+            <tr>
+              <td colspan="4" class="p-8 text-center text-text-secondary-dark">Nenhuma barbearia cadastrada ainda.</td>
+            </tr>
+          {% endfor %} 
+        </tbody>
+      </table>
+    </div>
+    
+  </div> {# Fim do container #}
+
+</body>
+</html>

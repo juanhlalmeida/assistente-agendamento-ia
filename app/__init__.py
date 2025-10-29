@@ -86,6 +86,13 @@ def create_app(config_class=Config) -> Flask:
     except Exception as e:
          app.logger.error(f"ERRO ao registar blueprint 'dashboard': {e}")
 
+         # --- NOVO BLUEPRINT SUPERADMIN ---
+    try:
+        from app.blueprints.superadmin.routes import bp as superadmin_bp 
+        app.register_blueprint(superadmin_bp) # Já tem url_prefix='/superadmin'
+    except Exception as e:
+         app.logger.error(f"ERRO ao registar blueprint 'superadmin': {e}")
+
     # Healthcheck
     @app.get("/health")
     def health():
