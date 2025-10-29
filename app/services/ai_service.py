@@ -1,3 +1,4 @@
+
 # app/services/ai_service.py
 import os
 import logging
@@ -56,7 +57,6 @@ else:
 # ---------------------------------------------------------------------
 
 def listar_profissionais(barbearia_id: int) -> str:
-    # (Código original desta função preservado)
     try:
         with current_app.app_context():
             profissionais = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
@@ -143,7 +143,6 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
         return "Desculpe, ocorreu um erro ao verificar os horários."
 
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
-    # (Código original desta função preservado)
     try:
         with current_app.app_context():
             profissional = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=profissional_nome).first()
