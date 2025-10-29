@@ -1,3 +1,4 @@
+
 # app/routes.py
 import os
 import logging
@@ -30,14 +31,13 @@ bp = Blueprint('main', __name__)
 # Armazena histórico (pode ser movido depois)
 conversation_history = {} 
 
-# --- FUNÇÕES DE AUTENTICAÇÃO ---
+# --- FUNÇÕES DE AUTENTICAÇÃO (AJUSTADO REDIRECT) ---
 
 @bp.route('/', methods=['GET', 'POST'])
 def login():
-    # (Código da rota login como estava antes)
     if current_user.is_authenticated:
-        current_app.logger.info(f"Usuário já autenticado ({current_user.email}), redirecionando para agenda.")
-        return redirect(url_for('main.agenda'))
+        # 🚀 ALTERADO: Redireciona para o dashboard se já logado
+        return redirect(url_for('dashboard.index')) 
     
     if request.method == 'POST':
         email = request.form.get('email')
@@ -55,9 +55,12 @@ def login():
                 login_user(user, remember=request.form.get('remember-me') is not None)
                 current_app.logger.info(f"Função login_user executada. Usuário {user.email} deve estar na sessão.")
                 
+                # 🚀 ALTERADO: Redireciona para o dashboard após login sucesso
                 next_page = request.args.get('next')
+                # Se 'next' for inválido ou não existir, VAI PARA O DASHBOARD
                 if not next_page or not next_page.startswith('/'):
-                    next_page = url_for('main.agenda')
+                    next_page = url_for('dashboard.index') 
+                
                 flash('Login realizado com sucesso!', 'success')
                 return redirect(next_page)
             else:
@@ -69,24 +72,19 @@ def login():
             
     return render_template('login.html')
 
-
 @bp.route('/logout')
 @login_required 
 def logout():
-    # (Código da rota logout como estava antes)
     logout_user() 
     flash('Você saiu do sistema.', 'info')
+    # Continua redirecionando para o login após logout
     return redirect(url_for('main.login')) 
 
-# --- FUNÇÕES DO PAINEL WEB ---
-
-# Função auxiliar mantida localmente
+# --- FUNÇÕES DO PAINEL WEB (AGENDA, EDITAR, EXCLUIR - Como estavam) ---
 def _range_do_dia(dia_dt: datetime):
     inicio = datetime.combine(dia_dt.date(), time.min)
     fim = inicio + timedelta(days=1)
     return inicio, fim
-
-# 🚀 FUNÇÃO calcular_horarios_disponiveis_web FOI REMOVIDA DAQUI
 
 @bp.route('/agenda', methods=['GET', 'POST'])
 @login_required 
@@ -234,11 +232,9 @@ def agenda():
         profissional_selecionado=profissional_sel 
     )
 
-
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
 @login_required 
 def excluir_agendamento(agendamento_id):
-    # (Código como estava antes)
     barbearia_id_logada = current_user.barbearia_id
     ag = Agendamento.query.filter_by(id=agendamento_id, barbearia_id=barbearia_id_logada).first_or_404("Agendamento não encontrado ou não pertence à sua barbearia.")
     data_redirect = ag.data_hora.strftime('%Y-%m-%d')
@@ -255,7 +251,6 @@ def excluir_agendamento(agendamento_id):
 @bp.route('/agendamento/editar/<int:agendamento_id>', methods=['GET', 'POST'])
 @login_required 
 def editar_agendamento(agendamento_id):
-    # (Código como estava antes)
     barbearia_id_logada = current_user.barbearia_id
     ag = Agendamento.query.filter_by(id=agendamento_id, barbearia_id=barbearia_id_logada).first_or_404("Agendamento não encontrado ou não pertence à sua barbearia.")
     if request.method == 'POST':
@@ -291,7 +286,6 @@ def editar_agendamento(agendamento_id):
 # --- WEBHOOK ---
 @bp.route('/webhook', methods=['POST'])
 def webhook():
-    # (Código do webhook como estava antes, JÁ CORRIGIDO para o telefone)
     data = request.values
     logging.info("PAYLOAD RECEBIDO DA TWILIO: %s", data)
     try:
@@ -368,11 +362,9 @@ def webhook():
         return 'OK', 200 
     return 'OK', 200
 
-
 # --- ROTAS SECRETAS ---
 @bp.route('/admin/reset-database/<string:secret_key>')
 def reset_database(secret_key):
-    # (Código do reset como estava antes, JÁ CORRIGIDO com o return)
     expected_key = os.getenv('RESET_DB_KEY')
     if not expected_key or secret_key != expected_key:
         abort(404) 
@@ -387,7 +379,6 @@ def reset_database(secret_key):
 
 @bp.route('/admin/criar-primeiro-usuario/<string:secret_key>')
 def criar_primeiro_usuario(secret_key):
-    # (Código do criar usuário como estava antes)
     expected_key = os.getenv('ADMIN_KEY')
     if not expected_key or secret_key != expected_key:
         abort(404) 
