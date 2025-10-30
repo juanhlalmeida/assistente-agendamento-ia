@@ -5,7 +5,7 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   <title>Super Admin - Gerir Barbearias</title>
-  {# Inclui Tailwind (pode usar um base.html específico para superadmin no futuro) #}
+  {# Inclui Tailwind #}
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
   <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -48,7 +48,6 @@
     {# Conteúdo Principal - Lista de Barbearias #}
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">Barbearias Cadastradas</h2>
-      {# 🚀 CORREÇÃO DO LINK #}
       <a href="{{ url_for('superadmin.nova_barbearia') }}" 
          class="flex items-center justify-center gap-2 rounded-lg h-10 px-5 bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors">
         <span class="material-symbols-outlined">add_business</span>
@@ -80,7 +79,7 @@
                  </span>
               </td>
               <td class="p-4 text-center">
-                <a href="#" {# Link futuro para 'superadmin.editar_barbearia' #}
+                <a href="{{ url_for('superadmin.editar_barbearia', barbearia_id=barbearia.id) }}" 
                    class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
                   <span class="material-symbols-outlined">edit</span>
                 </a>

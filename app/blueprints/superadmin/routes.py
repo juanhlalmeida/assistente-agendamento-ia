@@ -58,6 +58,26 @@ def nova_barbearia():
         admin_email = request.form.get('admin_email')
         admin_senha = request.form.get('admin_senha')
 
+
+# --- 🚀 NOVA ROTA: EDITAR BARBEARIA ---
+@bp.route('/barbearias/editar/<int:barbearia_id>', methods=['GET', 'POST'])
+@login_required
+@super_admin_required
+def editar_barbearia(barbearia_id):
+    """Exibe o formulário (GET) e processa a atualização (POST) de uma barbearia."""
+    
+    # Busca a barbearia específica no banco
+    barbearia = Barbearia.query.get_or_404(barbearia_id)
+    
+    # (Opcional) Busca o admin principal desta barbearia, se quisermos editar o email
+    # user_admin = User.query.filter_by(barbearia_id=barbearia.id, role='admin').first()
+
+    if request.method == 'POST':
+        # --- 1. Obter Dados do Formulário ---
+        nome_fantasia = request.form.get('nome_fantasia')
+        telefone_whatsapp = request.form.get('telefone_whatsapp')
+        status_assinatura = request.form.get('status_assinatura')
+
         # --- 2. Validar Dados ---
         erros = []
         if not nome_fantasia:
