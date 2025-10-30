@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+{# Template para Editar Barbearia Existente #}
+<html class="dark" lang="pt-br">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Super Admin - Editar Barbearia</title>
+  {# Inclui Tailwind #}
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+  <script>
+    tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#00A6FB", "background-dark": "#121212", "surface-dark": "#1E1E1E", "text-primary-dark": "#FFFFFF", "text-secondary-dark": "#A0A0A0" }, fontFamily: { "display": ["Inter", "sans-serif"] } } } }
+  </script>
+  <style> .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24 } </style>
+</head>
+<body class="bg-background-dark font-display text-text-primary-dark min-h-screen">
+
+  <div class="container mx-auto p-8">
+    {# Header Simples #}
+    <div class="flex justify-between items-center mb-8 pb-4 border-b border-gray-700">
+      <h1 class="text-3xl font-bold">Super Admin</h1>
+      {% if current_user.is_authenticated %}
+        <div class="text-right">
+            <p class="text-sm">Logado como: {{ current_user.email }}</p>
+            <a href="{{ url_for('main.logout') }}" class="text-sm text-primary hover:underline">Sair</a>
+        </div>
+      {% endif %}
+    </div>
+    
+    {# Mensagens Flash de Erro #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          {% if category == 'danger' %} 
+          <div class="bg-red-500 text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
+            <span>{{ message }}</span>
+            <button type="button" onclick="this.parentElement.remove()">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {# Card principal com o formulário #}
+    <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden max-w-4xl mx-auto">
+      <div class="p-6 border-b border-gray-700">
+        <h2 class="text-xl font-bold text-text-primary-dark">Editar Barbearia: {{ barbearia.nome_fantasia }}</h2>
+      </div>
+      <div class="p-6">
+        {# O formulário envia os dados via POST para a mesma rota #}
+        <form method="POST">
+          
+          <h3 class="text-lg font-semibold text-text-primary-dark mb-4">Dados da Empresa</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+              <label for="nome_fantasia" class="block text-sm font-medium text-text-secondary-dark mb-1">Nome Fantasia</label>
+              <input type="text" id="nome_fantasia" name="nome_fantasia" 
+                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+                     value="{{ form_data.get('nome_fantasia', '') }}" required>
+            </div>
+            <div>
+              <label for="telefone_whatsapp" class="block text-sm font-medium text-text-secondary-dark mb-1">Telefone WhatsApp (com +55)</label>
+              <input type="text" id="telefone_whatsapp" name="telefone_whatsapp" 
+                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+                     value="{{ form_data.get('telefone_whatsapp', '') }}" placeholder="+55119..." required>
+            </div>
+            <div>
+                <label for="status_assinatura" class="block text-sm font-medium text-text-secondary-dark mb-1">Status da Assinatura</label>
+                <select id="status_assinatura" name="status_assinatura" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+                    <option value="ativa" {% if form_data.get('status_assinatura') == 'ativa' %}selected{% endif %}>Ativa</option>
+                    <option value="inativa" {% if form_data.get('status_assinatura') == 'inativa' %}selected{% endif %}>Inativa</option>
+                    <option value="pendente" {% if form_data.get('status_assinatura') == 'pendente' %}selected{% endif %}>Pendente</option>
+                </select>
+            </div>
+          </div>
+
+          <div class="border-t border-gray-700 my-6"></div>
+
+          <h3 class="text-lg font-semibold text-text-secondary-dark mb-4">(Gerenciamento de Admin)</h3>
+          <p class="text-text-secondary-dark text-sm mb-6">
+            Para alterar o email ou senha do admin desta barbearia, use a futura seção "Gerir Usuários".
+          </p>
+
+          <div class="border-t border-gray-700 pt-6 flex justify-end gap-3">
+            <a href="{{ url_for('superadmin.listar_barbearias') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">
+              Cancelar
+            </a>
+            <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+              Salvar Alterações
+            </button>
+          </div>
+          
+        </form>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
