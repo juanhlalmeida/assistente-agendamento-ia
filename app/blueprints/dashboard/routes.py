@@ -23,11 +23,18 @@ def _range_do_dia_utc(dia_dt: date):
 @bp.route('/')
 @login_required
 def index():
-    """Exibe o dashboard com informações do dia para a barbearia logada."""
+    """Exibe o dashboard da barbearia para admins, 
+       ou redireciona Super Admins para o painel deles."""
+       
+    # --- CORREÇÃO: Lógica para Super Admin ---
+    if hasattr(current_user, 'role') and current_user.role == 'super_admin':
+        # Se for Super Admin, redireciona para a lista de barbearias
+        return redirect(url_for('superadmin.listar_barbearias')) 
+    
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
-        flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        # Ajuste 'main.login' se seu login estiver em outro blueprint
-        return redirect(url_for('main.login')) 
+        flash('Erro: Usuário admin inválido ou não associado a uma barbearia.', 'danger')
+        # logout_user() # Considere deslogar
+        return redirect(url_for('main.login')) # Redireciona para o login normal
         
     barbearia_id_logada = current_user.barbearia_id
     
