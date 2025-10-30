@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{# Template BÁSICO para o Super Admin - Pode ser melhorado depois #}
+{# Template BÁSICO para o Super Admin #}
 <html class="dark" lang="pt-br">
 <head>
   <meta charset="utf-8"/>
@@ -30,7 +30,7 @@
       {% endif %}
     </div>
     
-    {# Mensagens Flash #}
+    {# Mensagens Flash (ex: Sucesso ao criar) #}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
@@ -48,7 +48,8 @@
     {# Conteúdo Principal - Lista de Barbearias #}
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">Barbearias Cadastradas</h2>
-      <a href="#" {# Link futuro para 'superadmin.nova_barbearia' #}
+      {# 🚀 CORREÇÃO DO LINK #}
+      <a href="{{ url_for('superadmin.nova_barbearia') }}" 
          class="flex items-center justify-center gap-2 rounded-lg h-10 px-5 bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors">
         <span class="material-symbols-outlined">add_business</span>
         <span>Nova Barbearia</span>
@@ -71,7 +72,6 @@
               <td class="p-4 font-semibold text-text-primary-dark">{{ barbearia.nome_fantasia }}</td>
               <td class="p-4 text-text-primary-dark">{{ barbearia.telefone_whatsapp }}</td>
               <td class="p-4">
-                {# Badge colorido para o status #}
                 {% set status_color = 'bg-gray-500 text-gray-100' %}
                 {% if barbearia.status_assinatura == 'ativa' %}{% set status_color = 'bg-green-500 text-white' %}{% endif %}
                 {% if barbearia.status_assinatura == 'inativa' or barbearia.status_assinatura == 'pendente' %}{% set status_color = 'bg-yellow-500 text-black' %}{% endif %}
@@ -80,11 +80,10 @@
                  </span>
               </td>
               <td class="p-4 text-center">
-                <a href="#" {# Link futuro para 'superadmin.editar_barbearia', barbearia_id=barbearia.id #}
+                <a href="#" {# Link futuro para 'superadmin.editar_barbearia' #}
                    class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
                   <span class="material-symbols-outlined">edit</span>
                 </a>
-                {# Botão Apagar/Desativar pode ser adicionado aqui #}
               </td>
             </tr>
           {% else %} 
