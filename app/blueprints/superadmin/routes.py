@@ -38,7 +38,7 @@ def listar_barbearias():
 
     return render_template('superadmin/barbearias.html', barbearias=lista_barbearias)
 
-# --- ROTA: ADICIONAR BARBEARIA (CORRIGIDA) ---
+# --- ROTA: ADICIONAR BARBEARIA ---
 @bp.route('/barbearias/novo', methods=['GET', 'POST'])
 @login_required
 @super_admin_required
@@ -46,14 +46,12 @@ def nova_barbearia():
     """Exibe o formulário (GET) e processa a criação (POST)."""
     
     if request.method == 'POST':
-        # --- 1. Obter Dados do Formulário ---
         nome_fantasia = request.form.get('nome_fantasia')
         telefone_whatsapp = request.form.get('telefone_whatsapp')
         status_assinatura = request.form.get('status_assinatura')
         admin_email = request.form.get('admin_email')
         admin_senha = request.form.get('admin_senha')
 
-        # --- 2. Validar Dados ---
         erros = []
         if not nome_fantasia: erros.append("O Nome Fantasia é obrigatório.")
         if not telefone_whatsapp: erros.append("O Telefone WhatsApp é obrigatório.")
@@ -71,7 +69,6 @@ def nova_barbearia():
                 flash(erro, 'danger')
             return render_template('superadmin/novo.html', form_data=request.form)
 
-        # --- 3. Criar os Registos no Banco ---
         try:
             nova_barbearia = Barbearia(
                 nome_fantasia=nome_fantasia,
@@ -101,12 +98,9 @@ def nova_barbearia():
             flash(f'Erro ao salvar no banco de dados: {e}', 'danger')
             return render_template('superadmin/novo.html', form_data=request.form)
 
-    # --- 🚀 CORREÇÃO: Adicionado o return para o método GET ---
-    # Apenas mostra o formulário de adição vazio
     return render_template('superadmin/novo.html', form_data={})
 
 # --- ROTA: EDITAR BARBEARIA ---
-# (Código da rota editar_barbearia que já funcionava)
 @bp.route('/barbearias/editar/<int:barbearia_id>', methods=['GET', 'POST'])
 @login_required
 @super_admin_required
@@ -152,10 +146,43 @@ def editar_barbearia(barbearia_id):
             flash(f'Erro ao salvar no banco de dados: {e}', 'danger')
             return render_template('superadmin/editar.html', barbearia=barbearia, form_data=request.form)
 
-    # --- Método GET ---
     form_data_preenchido = {
         'nome_fantasia': barbearia.nome_fantasia,
         'telefone_whatsapp': barbearia.telefone_whatsapp,
         'status_assinatura': barbearia.status_assinatura
     }
     return render_template('superadmin/editar.html', barbearia=barbearia, form_data=form_data_preenchido)
+
+# --- 🚀 NOVA ROTA: APAGAR BARBEARIA ---
+@bp.route('/barbearias/apagar/<int:barbearia_id>', methods=['POST'])
+@login_required
+@super_admin_required
+def apagar_barbearia(barbearia_id):
+    """Apaga uma barbearia (e todos os dados associados em cascata)."""
+    
+    # REGRA DE NEGÓCIO: Impedir apagar a barbearia ID 1 (Principal/Sandbox)
+    if barbearia_id == 1:
+        flash('Erro: Não é permitido apagar a barbearia principal (ID 1) ligada ao Sandbox.', 'danger')
+        return redirect(url_for('superadmin.listar_barbearias'))
+
+    barbearia = Barbearia.query.get_or_404(barbearia_id)
+    nome_barbearia = barbearia.nome_fantasia
+
+    try:
+        # Graças ao cascade="all, delete-orphan" nos modelos:
+        # Apagar a barbearia irá apagar automaticamente em cascata:
+        # - Usuários (Users)
+        # - Profissionais
+        # - Serviços
+        # - Agendamentos
+        # ... todos associados a esta barbearia.
+        
+        db.session.delete(barbearia)
+        db.session.commit()
+        flash(f'Barbearia "{nome_barbearia}" e TODOS os seus dados associados foram apagados com sucesso!', 'warning')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Erro ao apagar barbearia {barbearia_id}: {e}", exc_info=True)
+        flash(f'Erro ao apagar barbearia (verifique logs): {e}', 'danger')
+
+    return redirect(url_for('superadmin.listar_barbearias'))

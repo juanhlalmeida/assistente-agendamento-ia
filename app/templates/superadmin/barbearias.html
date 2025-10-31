@@ -30,7 +30,7 @@
       {% endif %}
     </div>
     
-    {# Mensagens Flash (ex: Sucesso ao criar) #}
+    {# Mensagens Flash (ex: Sucesso ao criar/apagar) #}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
@@ -79,10 +79,29 @@
                  </span>
               </td>
               <td class="p-4 text-center">
+                {# Botão Editar #}
                 <a href="{{ url_for('superadmin.editar_barbearia', barbearia_id=barbearia.id) }}" 
                    class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
                   <span class="material-symbols-outlined">edit</span>
                 </a>
+                
+                {# --- 🚀 NOVO FORMULÁRIO: APAGAR BARBEARIA --- #}
+                {# O botão só aparece se NÃO for a Barbearia ID 1 #}
+                {% if barbearia.id != 1 %}
+                  <form action="{{ url_for('superadmin.apagar_barbearia', barbearia_id=barbearia.id) }}" 
+                        method="post" class="inline" 
+                        onsubmit="return confirm('ATENÇÃO!\nTem certeza que deseja apagar a barbearia \'{{ barbearia.nome_fantasia }}\'?\n\nIsto apagará PERMANENTEMENTE todos os usuários, profissionais, serviços e agendamentos associados a ela.');">
+                    <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar">
+                        <span class="material-symbols-outlined">delete</span>
+                    </button>
+                  </form>
+                {% else %}
+                  {# Mostra um ícone desabilitado para a Barbearia 1 #}
+                  <span class="p-2 text-gray-700 cursor-not-allowed" title="Não é possível apagar a barbearia principal">
+                     <span class="material-symbols-outlined">delete_forever</span>
+                  </span>
+                {% endif %}
+                {# ------------------------------------------- #}
               </td>
             </tr>
           {% else %} 
