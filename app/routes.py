@@ -116,32 +116,42 @@ def enviar_mensagem_whatsapp_twilio(destinatario, mensagem):
 def enviar_mensagem_whatsapp_meta(destinatario, mensagem):
     """
     Envia uma mensagem de texto para o destinatário usando a API do WhatsApp (Meta).
+    Lê as credenciais diretamente do ambiente do Render (os.getenv).
     """
+    # Carrega as credenciais do ambiente (como fizemos na Etapa 1)
     access_token = os.getenv("META_ACCESS_TOKEN")
     phone_number_id = os.getenv("META_PHONE_NUMBER_ID")
-   
+    
+    # Verifica se as variáveis de ambiente existem
+    if not access_token or not phone_number_id:
+        print("Erro: META_ACCESS_TOKEN ou META_PHONE_NUMBER_ID não estão definidos no ambiente.")
+        return False
+        
     # Garantir que o número está no formato da Meta (ex: 5511...)
     if destinatario.startswith('whatsapp:'):
         destinatario = destinatario.replace('whatsapp:', '')
-   
+    
     url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-   
+    
     payload = {
         "messaging_product": "whatsapp",
         "to": destinatario,
         "type": "text",
         "text": {"body": mensagem}
     }
+
     try:
         response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-        logging.info(f"Mensagem enviada para {destinatario} via Meta: {response.json()}")
+        response.raise_for_status() 
+        print(f"Mensagem enviada para {destinatario} via Meta: {response.json()}")
         return True
     except requests.exceptions.RequestException as e:
-        logging.error(f"Erro ao enviar mensagem via Meta: {e}")
-        logging.error(f"Response Body: {e.response.text if e.response else 'Sem resposta'}")
+        print(f"Erro ao enviar mensagem via Meta: {e}")
+        print(f"Response Body: {e.response.text if e.response else 'Sem resposta'}")
         return False
+
+# ... (mantém o resto do teu ficheiro, incluindo a rota webhook_twilio e webhook_meta) ...
 
 # --- FUNÇÕES DE AUTENTICAÇÃO (AJUSTADO REDIRECT) ---
 
