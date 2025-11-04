@@ -1,11 +1,10 @@
-
 # app/routes.py
 import os
 import logging
 # import pytz # Removido, pois a lógica de timezone está em utils.py
 import google.generativeai as genai
 from datetime import datetime, date, time, timedelta
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
 from sqlalchemy.orm import joinedload
 
 # Importações de modelos
@@ -24,12 +23,125 @@ from app.commands import reset_database_logic
 # Importações do flask_login
 from flask_login import login_required, current_user, login_user, logout_user 
 
+import requests # <-- Adicionámos 'requests'
+import json # <-- Adicionámos 'json'
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 # Define o blueprint principal
 bp = Blueprint('main', __name__) 
 
 # Armazena histórico (pode ser movido depois)
 conversation_history = {} 
+
+# --- ADIÇÃO: Carregar Token de Verificação da Meta ---
+# O teu config.py já correu o load_dotenv(), por isso podemos usar o os.getenv()
+META_VERIFY_TOKEN = os.getenv('META_VERIFY_TOKEN')
+
+# --- Processamento de IA (Esta é a tua função original - SEM MUDANÇAS) ---
+def processar_mensagem_whatsapp(mensagem, remetente, barbearia_id):
+    """
+    Processa a mensagem do WhatsApp usando o modelo da IA (adaptado da lógica original com genai).
+    """
+    try:
+        from_number = sanitize_msisdn(remetente) 
+        if ai_service.model is None:
+            logging.error("Modelo da IA não inicializado. Usando fallback.")
+            return "Olá! Estamos com um problema técnico em nossa IA. Tente novamente em breve, por favor."
+        
+        history_key = f"{barbearia_id}:{from_number}"
+        historico_atual = conversation_history.get(history_key, [])
+        if not historico_atual:
+             current_date_str = datetime.now().strftime('%d de %B de %Y')
+             historico_atual = [
+                 {"role": "user", "parts": [f"[CONTEXTO DO SISTEMA: Hoje é {current_date_str}]"]},
+                 {"role": "model", "parts": ["Entendido. Como posso ajudá-lo?"]}
+             ]
+        chat_session = ai_service.model.start_chat(history=historico_atual)
+        response = chat_session.send_message(mensagem)
+        while response.parts and any(part.function_call for part in response.parts):
+            for part in response.parts:
+                if part.function_call:
+                    func_name = part.function_call.name
+                    args = dict(part.function_call.args or {}) 
+                    logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
+                    result = "Erro interno ao chamar ferramenta." 
+                    try:
+                        if func_name == 'criar_agendamento':
+                            args['telefone_cliente'] = from_number 
+                            result = ai_service.criar_agendamento(barbearia_id=barbearia_id, **args)
+                        elif func_name == 'listar_profissionais':
+                            result = ai_service.listar_profissionais(barbearia_id=barbearia_id)
+                        elif func_name == 'listar_servicos':
+                            result = ai_service.listar_servicos(barbearia_id=barbearia_id)
+                        elif func_name == 'calcular_horarios_disponiveis':
+                            result = ai_service.calcular_horarios_disponiveis(barbearia_id=barbearia_id, **args)
+                        else:
+                            result = "Ferramenta desconhecida."
+                    except Exception as tool_exc:
+                         logging.error(f"Erro ao executar a ferramenta '{func_name}': {tool_exc}", exc_info=True)
+                         result = f"Desculpe, ocorreu um erro ao tentar {func_name.replace('_', ' ')}."
+                    function_response = genai.protos.Part(
+                        function_response=genai.protos.FunctionResponse(
+                            name=func_name,
+                            response={"result": result}
+                        )
+                    )
+                    response = chat_session.send_message([function_response])
+        reply_text = response.text
+        conversation_history[history_key] = chat_session.history
+        return reply_text
+    except Exception as e:
+        logging.error(f"Erro ao processar com IA: {e}")
+        return "Desculpe, não consegui processar sua solicitação no momento."
+
+# --- FUNÇÃO DE ENVIO DO TWILIO (Renomeada) ---
+# Esta é a tua função 'enviar_mensagem_whatsapp' original, agora renomeada
+def enviar_mensagem_whatsapp_twilio(destinatario, mensagem):
+    """
+    Envia uma mensagem de texto para o destinatário usando a API do Twilio.
+    """
+    try:
+        client = WhatsAppClient()
+        api_res = client.send_text(destinatario, mensagem) 
+        if api_res.get("status") not in ('queued', 'sent', 'delivered', 'accepted'): 
+            logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
+            return False
+        logging.info(f"Mensagem enviada para {destinatario} via Twilio.")
+        return True
+    except Exception as e:
+        logging.error(f"Erro ao enviar mensagem via Twilio: {e}")
+        return False
+
+# --- NOVA FUNÇÃO DE ENVIO DA META (Adicionada) ---
+def enviar_mensagem_whatsapp_meta(destinatario, mensagem):
+    """
+    Envia uma mensagem de texto para o destinatário usando a API do WhatsApp (Meta).
+    """
+    access_token = os.getenv("META_ACCESS_TOKEN")
+    phone_number_id = os.getenv("META_PHONE_NUMBER_ID")
+   
+    # Garantir que o número está no formato da Meta (ex: 5511...)
+    if destinatario.startswith('whatsapp:'):
+        destinatario = destinatario.replace('whatsapp:', '')
+   
+    url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
+    headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+   
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": destinatario,
+        "type": "text",
+        "text": {"body": mensagem}
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        logging.info(f"Mensagem enviada para {destinatario} via Meta: {response.json()}")
+        return True
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Erro ao enviar mensagem via Meta: {e}")
+        logging.error(f"Response Body: {e.response.text if e.response else 'Sem resposta'}")
+        return False
 
 # --- FUNÇÕES DE AUTENTICAÇÃO (AJUSTADO REDIRECT) ---
 
@@ -283,19 +395,22 @@ def editar_agendamento(agendamento_id):
     return render_template('editar_agendamento.html',
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
 
-# --- WEBHOOK ---
+# --- ROTA DO TWILIO (Atualizada para chamar a função renomeada) ---
+# Esta é a tua rota '/webhook' original
 @bp.route('/webhook', methods=['POST'])
-def webhook():
+def webhook_twilio(): # Mudei o nome da função (boa prática)
+    """
+    Webhook para receber mensagens do Twilio.
+    """
     data = request.values
     logging.info("PAYLOAD RECEBIDO DA TWILIO: %s", data)
     try:
-        msg_text = data.get('Body')
-        from_number_raw = data.get('From')
+        mensagem_recebida = data.get('Body')
+        remetente = data.get('From')
         to_number_raw = data.get('To') 
-        if not from_number_raw or not msg_text or not to_number_raw:
+        if not remetente or not mensagem_recebida or not to_number_raw:
             logging.warning("Webhook da Twilio recebido sem 'From', 'Body' ou 'To'.")
             return 'OK', 200 
-        from_number = sanitize_msisdn(from_number_raw) 
         barbearia_phone = sanitize_msisdn(to_number_raw)
         barbearia = Barbearia.query.filter_by(telefone_whatsapp=barbearia_phone).first()
         if not barbearia:
@@ -306,61 +421,80 @@ def webhook():
              return 'OK', 200
         barbearia_id = barbearia.id
         logging.info(f"Mensagem roteada para Barbearia ID: {barbearia_id} ({barbearia.nome_fantasia})")
-        if ai_service.model is None:
-            logging.error("Modelo da IA não inicializado. Usando fallback.")
-            reply_text = "Olá! Estamos com um problema técnico em nossa IA. Tente novamente em breve, por favor."
-            client = WhatsAppClient()
-            client.send_text(from_number, reply_text) 
-            return 'OK', 200
-        history_key = f"{barbearia_id}:{from_number}"
-        historico_atual = conversation_history.get(history_key, [])
-        if not historico_atual:
-             current_date_str = datetime.now().strftime('%d de %B de %Y')
-             historico_atual = [
-                 {"role": "user", "parts": [f"[CONTEXTO DO SISTEMA: Hoje é {current_date_str}]"]},
-                 {"role": "model", "parts": ["Entendido. Como posso ajudá-lo?"]}
-             ]
-        chat_session = ai_service.model.start_chat(history=historico_atual)
-        response = chat_session.send_message(msg_text)
-        while response.parts and any(part.function_call for part in response.parts):
-            for part in response.parts:
-                if part.function_call:
-                    func_name = part.function_call.name
-                    args = dict(part.function_call.args or {}) 
-                    logging.info(f"IA solicitou a ferramenta '{func_name}' com os argumentos: {args}")
-                    result = "Erro interno ao chamar ferramenta." 
-                    try:
-                        if func_name == 'criar_agendamento':
-                            args['telefone_cliente'] = from_number 
-                            result = ai_service.criar_agendamento(barbearia_id=barbearia_id, **args)
-                        elif func_name == 'listar_profissionais':
-                            result = ai_service.listar_profissionais(barbearia_id=barbearia_id)
-                        elif func_name == 'listar_servicos':
-                            result = ai_service.listar_servicos(barbearia_id=barbearia_id)
-                        elif func_name == 'calcular_horarios_disponiveis':
-                            result = ai_service.calcular_horarios_disponiveis(barbearia_id=barbearia_id, **args)
-                        else:
-                            result = "Ferramenta desconhecida."
-                    except Exception as tool_exc:
-                         logging.error(f"Erro ao executar a ferramenta '{func_name}': {tool_exc}", exc_info=True)
-                         result = f"Desculpe, ocorreu um erro ao tentar {func_name.replace('_', ' ')}."
-                    function_response = genai.protos.Part(
-                        function_response=genai.protos.FunctionResponse(
-                            name=func_name,
-                            response={"result": result}
-                        )
-                    )
-                    response = chat_session.send_message([function_response])
-        reply_text = response.text
-        client = WhatsAppClient()
-        api_res = client.send_text(from_number, reply_text) 
-        if api_res.get("status") not in ('queued', 'sent', 'delivered', 'accepted'): 
-            logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
-        conversation_history[history_key] = chat_session.history
+       
+        print(f"Mensagem recebida do Twilio de {remetente}: {mensagem_recebida}")
+        resposta_ia = processar_mensagem_whatsapp(mensagem_recebida, remetente, barbearia_id)
+       
+        if resposta_ia:
+            # Chama a função específica do Twilio
+            enviar_mensagem_whatsapp_twilio(remetente, resposta_ia)
+           
+        return "Mensagem processada", 200
     except Exception as e:
-        logging.error("Erro CRÍTICO no processamento do webhook: %s", e, exc_info=True)
-        return 'OK', 200 
-    return 'OK', 200
+        logging.error(f"Erro no webhook do Twilio: {e}")
+        return "Erro interno", 500
+
+# --- NOVA ROTA PARA O WEBHOOK DA META (Adicionada) ---
+@bp.route('/meta-webhook', methods=['GET', 'POST'])
+def webhook_meta():
+    """
+    Webhook para verificação e recebimento de mensagens da Meta.
+    """
+    if request.method == 'GET':
+        # --- VERIFICAÇÃO DO WEBHOOK (PASSO ÚNICO) ---
+        mode = request.args.get('hub.mode')
+        token = request.args.get('hub.verify_token')
+        challenge = request.args.get('hub.challenge')
+        if mode == 'subscribe' and token == META_VERIFY_TOKEN:
+            print("Webhook da Meta verificado com sucesso!")
+            return challenge, 200
+        else:
+            print(f"Falha na verificação do Webhook da Meta. Token recebido: {token}")
+            return "Falha na verificação", 403
+    elif request.method == 'POST':
+        # --- RECEBIMENTO DE MENSAGENS ---
+        data = request.get_json()
+        print(f"Payload recebido da Meta: {json.dumps(data, indent=2)}")
+        try:
+            if (data.get('object') == 'whatsapp_business_account' and
+                data.get('entry') and data['entry'][0].get('changes') and
+                data['entry'][0]['changes'][0].get('value') and
+                data['entry'][0]['changes'][0]['value'].get('messages')):
+               
+                message_data = data['entry'][0]['changes'][0]['value']['messages'][0]
+               
+                if message_data.get('type') == 'text':
+                    mensagem_recebida = message_data['text']['body']
+                    remetente = message_data['from'] # Formato: "55..."
+                   
+                    # Adicionar lógica para encontrar barbearia via phone_number_id (ex: adicione um campo Barbearia.meta_phone_number_id no modelo)
+                    phone_number_id = data['entry'][0]['changes'][0]['value']['metadata']['phone_number_id']
+                    barbearia = Barbearia.query.filter_by(meta_phone_number_id=phone_number_id).first()  # Assumindo campo adicionado no modelo Barbearia
+                    if not barbearia:
+                        logging.error(f"CRÍTICO: Nenhuma barbearia encontrada para phone_number_id {phone_number_id}. Ignorando mensagem.")
+                        return jsonify({"status": "ignored"}), 200 
+                    if barbearia.status_assinatura != 'ativa':
+                        logging.warning(f"Mensagem recebida para barbearia '{barbearia.nome_fantasia}' com assinatura '{barbearia.status_assinatura}'. Ignorando.")
+                        return jsonify({"status": "ignored"}), 200 
+                    barbearia_id = barbearia.id
+                   
+                    print(f"Mensagem recebida da Meta de {remetente}: {mensagem_recebida}")
+                   
+                    resposta_ia = processar_mensagem_whatsapp(mensagem_recebida, remetente, barbearia_id)
+                   
+                    if resposta_ia:
+                        # Chama a função específica da Meta
+                        enviar_mensagem_whatsapp_meta(remetente, resposta_ia)
+               
+                return jsonify({"status": "success"}), 200
+            else:
+                print("Payload da Meta recebido, mas não é uma mensagem de texto. Ignorando.")
+                return jsonify({"status": "ignored"}), 200
+        except Exception as e:
+            print(f"Erro ao processar payload da Meta: {e}")
+            return jsonify({"status": "error"}), 500
+    else:
+        return "Método não permitido", 405
 
 # --- ROTAS SECRETAS ---
 @bp.route('/admin/reset-database/<string:secret_key>')
