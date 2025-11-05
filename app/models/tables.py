@@ -12,11 +12,19 @@ class Barbearia(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome_fantasia = db.Column(db.String(100), nullable=False)
     
+    # Campo para controlo de pagamentos
+    status_assinatura = db.Column(db.String(20), nullable=False, default='inativa')
+    
+    # --- NOVOS CAMPOS PARA API OFICIAL (META) ---
+    
+    meta_phone_number_id = db.Column(db.String(50), nullable=True)
+    meta_access_token = db.Column(db.String(255), nullable=True) # Access tokens
+    
     # Este é o "Número do Robô" (ex: o n.º da Twilio) que esta barbearia usa.
     # É assim que o webhook saberá de qual barbearia a mensagem veio.
     # Deve ser único!
     telefone_whatsapp = db.Column(db.String(20), unique=True, nullable=False)
-    
+
     # Campo para controlo de pagamentos (FASE DE NEGÓCIO)
     status_assinatura = db.Column(db.String(20), nullable=False, default='inativa')
     
