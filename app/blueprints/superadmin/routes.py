@@ -51,6 +51,11 @@ def nova_barbearia():
         status_assinatura = request.form.get('status_assinatura')
         admin_email = request.form.get('admin_email')
         admin_senha = request.form.get('admin_senha')
+        
+        # --- CORREÇÃO 1: Adicionar o 'get' dos novos campos ---
+        meta_phone_number_id = request.form.get('meta_phone_number_id')
+        meta_access_token = request.form.get('meta_access_token')
+        # -----------------------------------------------------
 
         erros = []
         if not nome_fantasia: erros.append("O Nome Fantasia é obrigatório.")
@@ -70,13 +75,16 @@ def nova_barbearia():
             return render_template('superadmin/novo.html', form_data=request.form)
 
         try:
+            # --- CORREÇÃO 2: Corrigir Indentação e adicionar campos ao construtor ---
             nova_barbearia = Barbearia(
                 nome_fantasia=nome_fantasia,
                 telefone_whatsapp=telefone_whatsapp,
-                status_assinatura=status_assinatura
-            )
+                status_assinatura=status_assinatura,
+                # Estas linhas estavam fora do construtor e com indentação errada
                 meta_phone_number_id=meta_phone_number_id,
                 meta_access_token=meta_access_token
+            )
+            # --------------------------------------------------------------------
                         
             db.session.add(nova_barbearia)
             db.session.flush() 
@@ -115,16 +123,21 @@ def editar_barbearia(barbearia_id):
         telefone_whatsapp = request.form.get('telefone_whatsapp')
         status_assinatura = request.form.get('status_assinatura')
         
+        # --- CORREÇÃO 3: Adicionar o 'get' dos novos campos ---
         meta_phone_number_id = request.form.get('meta_phone_number_id')
         meta_access_token = request.form.get('meta_access_token')
+        # -----------------------------------------------------
 
         erros = []
         if not nome_fantasia: erros.append("O Nome Fantasia é obrigatório.")
         if not telefone_whatsapp: erros.append("O Telefone WhatsApp é obrigatório.")
         if not status_assinatura: erros.append("O Status da Assinatura é obrigatório.")
 
-        'meta_phone_number_id': barbearia.meta_phone_number_id,
-        'meta_access_token': barbearia.meta_access_token
+        # --- CORREÇÃO 4: Remover linhas inválidas ---
+        # As linhas abaixo estavam aqui e causavam um erro de sintaxe.
+        # 'meta_phone_number_id': barbearia.meta_phone_number_id,
+        # 'meta_access_token': barbearia.meta_access_token
+        # ----------------------------------------------
             
         if telefone_whatsapp:
             existente = Barbearia.query.filter(
@@ -144,6 +157,11 @@ def editar_barbearia(barbearia_id):
             barbearia.telefone_whatsapp = telefone_whatsapp
             barbearia.status_assinatura = status_assinatura
             
+            # --- CORREÇÃO 5: Adicionar a ATUALIZAÇÃO dos campos ---
+            barbearia.meta_phone_number_id = meta_phone_number_id
+            barbearia.meta_access_token = meta_access_token
+            # -----------------------------------------------------
+            
             db.session.commit() 
             
             flash(f'Barbearia "{nome_fantasia}" atualizada com sucesso!', 'success')
@@ -155,11 +173,16 @@ def editar_barbearia(barbearia_id):
             flash(f'Erro ao salvar no banco de dados: {e}', 'danger')
             return render_template('superadmin/editar.html', barbearia=barbearia, form_data=request.form)
 
+    # --- CORREÇÃO 6: Adicionar campos ao dicionário de pré-preenchimento ---
     form_data_preenchido = {
         'nome_fantasia': barbearia.nome_fantasia,
         'telefone_whatsapp': barbearia.telefone_whatsapp,
-        'status_assinatura': barbearia.status_assinatura
+        'status_assinatura': barbearia.status_assinatura,
+        # Adicionar os campos aqui para o HTML preencher os <input value="...">
+        'meta_phone_number_id': barbearia.meta_phone_number_id,
+        'meta_access_token': barbearia.meta_access_token
     }
+    # --------------------------------------------------------------------
     return render_template('superadmin/editar.html', barbearia=barbearia, form_data=form_data_preenchido)
 
 # --- 🚀 NOVA ROTA: APAGAR BARBEARIA ---
