@@ -123,8 +123,8 @@ def editar_barbearia(barbearia_id):
         if not telefone_whatsapp: erros.append("O Telefone WhatsApp é obrigatório.")
         if not status_assinatura: erros.append("O Status da Assinatura é obrigatório.")
 
-                'meta_phone_number_id': barbearia.meta_phone_number_id,
-                'meta_access_token': barbearia.meta_access_token
+        'meta_phone_number_id': barbearia.meta_phone_number_id,
+        'meta_access_token': barbearia.meta_access_token
             
         if telefone_whatsapp:
             existente = Barbearia.query.filter(
