@@ -1,3 +1,4 @@
+<!-- editar.html -->
 <!DOCTYPE html>
 {# Template para Editar Barbearia Existente #}
 <html class="dark" lang="pt-br">
@@ -76,6 +77,18 @@
                     <option value="inativa" {% if form_data.get('status_assinatura') == 'inativa' %}selected{% endif %}>Inativa</option>
                     <option value="pendente" {% if form_data.get('status_assinatura') == 'pendente' %}selected{% endif %}>Pendente</option>
                 </select>
+            </div>
+            <div>
+              <label for="meta_phone_number_id" class="block text-sm font-medium text-text-secondary-dark mb-1">Meta Phone Number ID</label>
+              <input type="text" id="meta_phone_number_id" name="meta_phone_number_id" 
+                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+                     value="{{ form_data.get('meta_phone_number_id', '') }}">
+            </div>
+            <div>
+              <label for="meta_access_token" class="block text-sm font-medium text-text-secondary-dark mb-1">Meta Access Token</label>
+              <input type="text" id="meta_access_token" name="meta_access_token" 
+                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+                     value="{{ form_data.get('meta_access_token', '') }}">
             </div>
           </div>
 

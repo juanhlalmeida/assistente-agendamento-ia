@@ -75,6 +75,9 @@ def nova_barbearia():
                 telefone_whatsapp=telefone_whatsapp,
                 status_assinatura=status_assinatura
             )
+                meta_phone_number_id=meta_phone_number_id,
+                meta_access_token=meta_access_token
+                        
             db.session.add(nova_barbearia)
             db.session.flush() 
 
@@ -112,10 +115,16 @@ def editar_barbearia(barbearia_id):
         telefone_whatsapp = request.form.get('telefone_whatsapp')
         status_assinatura = request.form.get('status_assinatura')
         
+        meta_phone_number_id = request.form.get('meta_phone_number_id')
+        meta_access_token = request.form.get('meta_access_token')
+
         erros = []
         if not nome_fantasia: erros.append("O Nome Fantasia é obrigatório.")
         if not telefone_whatsapp: erros.append("O Telefone WhatsApp é obrigatório.")
         if not status_assinatura: erros.append("O Status da Assinatura é obrigatório.")
+
+                'meta_phone_number_id': barbearia.meta_phone_number_id,
+                'meta_access_token': barbearia.meta_access_token
             
         if telefone_whatsapp:
             existente = Barbearia.query.filter(
