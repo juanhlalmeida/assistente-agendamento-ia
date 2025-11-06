@@ -7,6 +7,7 @@ from app.extensions import db
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask import current_app 
+from app.blueprints.superadmin.routes import bp as superadmin_bp
 
 # --- INSTÂNCIAS GLOBAIS ---
 login_manager = LoginManager()
