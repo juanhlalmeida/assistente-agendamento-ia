@@ -1,6 +1,7 @@
 # app/models/tables.py
 from app.extensions import db
 from flask_login import UserMixin
+from sqlalchemy import Text
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # ---------------------------------------------------------------------
@@ -18,7 +19,7 @@ class Barbearia(db.Model):
     # --- NOVOS CAMPOS PARA API OFICIAL (META) ---
     
     meta_phone_number_id = db.Column(db.String(50), nullable=True)
-    meta_access_token = db.Column(db.String(255), nullable=True) # Access tokens
+    meta_access_token = db.Column(db.Text, nullable=True) # Access tokens
     
     # Este é o "Número do Robô" (ex: o n.º da Twilio) que esta barbearia usa.
     # É assim que o webhook saberá de qual barbearia a mensagem veio.
