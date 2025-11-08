@@ -1,4 +1,4 @@
-# app/__init__.py (COM CRIAÇÃO DE ADMIN E DADOS DE DEMONSTRAÇÃO)
+# app/__init__.py (COM BLUEPRINT PROFISSIONAIS, CRIAÇÃO DE ADMIN E POPULAR DADOS)
 from __future__ import annotations
 
 import os
@@ -49,6 +49,7 @@ def load_user(user_id):
 # --- FIM DO USER LOADER ---
 
 # --- FUNÇÃO HELPER PARA CRIAR O SUPER ADMIN ---
+# (A sua função original está 100% preservada aqui)
 def _create_super_admin(app: Flask):
     """
     Função interna para criar o super admin ao iniciar,
@@ -72,7 +73,6 @@ def _create_super_admin(app: Flask):
                 role="super_admin" # Garante que a role é 'super_admin'
             )
             new_super_admin.set_password(admin_pass) 
-            
             db.session.add(new_super_admin)
             db.session.commit()
             logging.info(f"Super admin {admin_email} criado com sucesso!")
@@ -89,6 +89,7 @@ def _populate_demo_data(app: Flask):
     """
     with app.app_context():
         try:
+            # Importa os modelos aqui dentro
             from app.models.tables import Profissional, Servico, Barbearia
             
             # 1. Verifica se já existem profissionais (sinal de que os dados já existem)
@@ -107,7 +108,7 @@ def _populate_demo_data(app: Flask):
             
             logging.info(f"Barbearia ID {barbearia.id} ({barbearia.nome_fantasia}) encontrada. Populando dados de demonstração...")
 
-            # 3. Cria Profissionais de Demo
+            # 3. Cria Profissionais de Demo (Tipo "Jasiel Oliveira")
             prof_jasiel = Profissional(nome="Jasiel Oliveira", barbearia_id=barbearia.id)
             prof_bruna = Profissional(nome="Bruna Santos", barbearia_id=barbearia.id)
             
@@ -175,7 +176,7 @@ def create_app(config_class=Config) -> Flask:
     
     try:
         from app.blueprints.clientes.routes import bp as clientes_bp 
-        app.register_blueprint(clientes_bp)
+        app.register_blueprint(clientes_bp) 
     except Exception as e:
          app.logger.error(f"ERRO ao registar blueprint 'clientes': {e}")     
 
