@@ -46,14 +46,14 @@ class Config:
                     "No Render, configure a variável de ambiente DATABASE_URL."
                 )
             
-            # --- CORREÇÃO ADICIONADA AQUI ---
-            # Força o 'sslmode=require' para o PostgreSQL do Render
-            # Isto corrige o erro 'SSL connection has been closed unexpectedly'
+            # --- ESTA É A CORREÇÃO FINAL E CRUCIAL ---
+            # Só adiciona ?sslmode=require SE 'sslmode=' ainda não estiver na URL
             if "sslmode=" not in db_url:
                 cls.SQLALCHEMY_DATABASE_URI = db_url + "?sslmode=require"
             else:
+                # Se já estiver (como a URL do Neon), usa-a como está
                 cls.SQLALCHEMY_DATABASE_URI = db_url
-            # -------------------------------
+            # ------------------------------------------
             
             return
 
