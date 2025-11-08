@@ -36,8 +36,12 @@ class Config:
         """
         db_url = (os.getenv("DATABASE_URL") or "").strip()
 
+        # --- ESTA É A ÚNICA CORREÇÃO NECESSÁRIA ---
+        # A URL Interna do Render/Neon é 'postgres://'
+        # O SQLAlchemy prefere 'postgresql://'
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
+        # ---------------------------------------------
 
         if cls.APP_ENV == "production":
             if not db_url:
@@ -46,15 +50,8 @@ class Config:
                     "No Render, configure a variável de ambiente DATABASE_URL."
                 )
             
-            # --- ESTA É A CORREÇÃO FINAL E CRUCIAL ---
-            # Só adiciona ?sslmode=require SE 'sslmode=' ainda não estiver na URL
-            if "sslmode=" not in db_url:
-                cls.SQLALCHEMY_DATABASE_URI = db_url + "?sslmode=require"
-            else:
-                # Se já estiver (como a URL do Neon), usa-a como está
-                cls.SQLALCHEMY_DATABASE_URI = db_url
-            # ------------------------------------------
-            
+            # Sem lógicas de SSL. Apenas usa a URL interna.
+            cls.SQLALCHEMY_DATABASE_URI = db_url
             return
 
         # development/test
