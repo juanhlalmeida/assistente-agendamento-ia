@@ -45,7 +45,16 @@ class Config:
                     "DATABASE_URL não definido em produção. "
                     "No Render, configure a variável de ambiente DATABASE_URL."
                 )
-            cls.SQLALCHEMY_DATABASE_URI = db_url
+            
+            # --- CORREÇÃO ADICIONADA AQUI ---
+            # Força o 'sslmode=require' para o PostgreSQL do Render
+            # Isto corrige o erro 'SSL connection has been closed unexpectedly'
+            if "sslmode=" not in db_url:
+                cls.SQLALCHEMY_DATABASE_URI = db_url + "?sslmode=require"
+            else:
+                cls.SQLALCHEMY_DATABASE_URI = db_url
+            # -------------------------------
+            
             return
 
         # development/test
