@@ -1,8 +1,8 @@
-# app/__init__.py (COM BLUEPRINT PROFISSIONAIS)
+# app/__init__.py (COM BLUEPRINT PROFISSIONAIS E CRIAÇÃO DE ADMIN)
 from __future__ import annotations
 
-import os  # Adicionado para os.environ
-
+import os
+import logging # --- ADICIONADO: Para a nossa nova função de admin ---
 from flask import Flask
 from config import Config
 from app.extensions import db  
@@ -10,10 +10,11 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask import current_app 
 from app.blueprints.superadmin.routes import bp as superadmin_bp
+from werkzeug.security import generate_password_hash # --- ADICIONADO: Para a senha ---
 
 # --- INSTÂNCIAS GLOBAIS ---
 login_manager = LoginManager()
-login_manager.login_view = 'main.login' # Assumindo que login está no blueprint 'main' agora
+login_manager.login_view = 'main.login' 
 login_manager.login_message = 'Por favor, faça login para aceder a esta página.'
 login_manager.login_message_category = 'info' 
 
@@ -23,6 +24,7 @@ migrate = Migrate()
 # --- USER LOADER ---
 @login_manager.user_loader
 def load_user(user_id):
+    # (O seu código original do user_loader está 100% preservado aqui)
     current_app.logger.info(f"Tentando carregar usuário com ID da sessão: {user_id}")
     try:
         user_id_int = int(user_id) 
@@ -46,29 +48,77 @@ def load_user(user_id):
         return None
 # --- FIM DO USER LOADER ---
 
+# --- ADICIONADO: FUNÇÃO HELPER PARA CRIAR O SUPER ADMIN ---
+def _create_super_admin(app: Flask):
+    """
+    Função interna para criar o super admin ao iniciar,
+    se as variáveis de ambiente estiverem definidas e o usuário não existir.
+    """
+    # Usamos o 'app.app_context()' para garantir que estamos
+    # dentro do contexto da aplicação, necessário para 'db' e 'os.getenv'
+    with app.app_context():
+        # 1. Tenta ler as variáveis de ambiente
+        admin_email = os.getenv('SUPER_ADMIN_EMAIL')
+        admin_pass = os.getenv('SUPER_ADMIN_PASSWORD')
+        
+        # 2. Se as variáveis não estiverem definidas, não faz nada
+        if not admin_email or not admin_pass:
+            logging.info("SUPER_ADMIN_EMAIL ou SUPER_ADMIN_PASSWORD não definidos. Ignorando criação de super admin.")
+            return
+
+        # 3. Se estiverem definidas, verifica se o usuário já existe
+        try:
+            # Importamos o User aqui dentro para evitar importação circular
+            from app.models.tables import User 
+            
+            if User.query.filter_by(email=admin_email).first():
+                logging.info(f"Super admin com email {admin_email} já existe.")
+                return
+            
+            # 4. Se não existir, cria o novo super admin
+            logging.info(f"Criando novo super admin para {admin_email}...")
+            
+            new_super_admin = User(
+                email=admin_email,
+                nome="Super Admin", # Nome Padrão
+                role="super_admin" # Garante que a role é 'super_admin'
+            )
+            # Usa o método set_password do teu modelo User
+            new_super_admin.set_password(admin_pass) 
+            
+            db.session.add(new_super_admin)
+            db.session.commit()
+            
+            logging.info(f"Super admin {admin_email} criado com sucesso!")
+
+        except Exception as e:
+            db.session.rollback()
+            # Usamos logging.error aqui pois é um erro crítico
+            logging.error(f"ERRO CRÍTICO ao tentar criar super admin: {e}", exc_info=True)
+# --------------------------------------------------
+
+
 def create_app(config_class=Config) -> Flask:
     Config.init_app()
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_class)
 
     # --- CORREÇÃO DA URL DO BANCO DE DADOS ---
+    # (O seu código original está 100% preservado aqui)
     database_url = os.environ.get('DATABASE_URL')
     if database_url is None:
         raise ValueError("DATABASE_URL não está definida no ambiente!")
 
-    # Corrija esquema se necessário (postgres -> postgresql)
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-    # Remova parâmetros extras como channel_binding (se existir)
     if 'channel_binding' in database_url:
-        # Divide a URL e remove o parâmetro
         base_url, params = database_url.split('?', 1) if '?' in database_url else (database_url, '')
         params_list = [p for p in params.split('&') if not p.startswith('channel_binding=')]
         database_url = base_url + ('?' + '&'.join(params_list) if params_list else '')
 
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Evita warnings
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     # ----------------------------------------
 
     # --- INICIALIZAÇÃO DAS EXTENSÕES ---
@@ -78,6 +128,7 @@ def create_app(config_class=Config) -> Flask:
     # ---------------------------------
 
     # --- REGISTO DOS BLUEPRINTS ---
+    # (O seu código original está 100% preservado aqui)
     try:
         from app.routes import bp as main_routes_bp 
         app.register_blueprint(main_routes_bp) 
@@ -90,27 +141,23 @@ def create_app(config_class=Config) -> Flask:
     except Exception as e:
          app.logger.error(f"ERRO ao registar blueprint 'servicos': {e}")
 
-    # --- NOVO BLUEPRINT PROFISSIONAIS ---
     try:
         from app.blueprints.profissionais.routes import bp as profissionais_bp 
-        app.register_blueprint(profissionais_bp) # Já tem url_prefix='/profissionais'
+        app.register_blueprint(profissionais_bp) 
     except Exception as e:
          app.logger.error(f"ERRO ao registar blueprint 'profissionais': {e}")
-    # ------------------------------------
-
+    
     try:
         from app.blueprints.clientes.routes import bp as clientes_bp 
-        app.register_blueprint(clientes_bp) # Já tem url_prefix='/clientes'
+        app.register_blueprint(clientes_bp) 
     except Exception as e:
          app.logger.error(f"ERRO ao registar blueprint 'clientes': {e}")     
 
-    # Registro do superadmin fora do try de clientes (removido duplicado)
-    app.register_blueprint(superadmin_bp)  # Já tem url_prefix='/superadmin'
+    app.register_blueprint(superadmin_bp)
     
-    # -------------------------------
     try:
         from app.blueprints.dashboard.routes import bp as dashboard_bp 
-        app.register_blueprint(dashboard_bp) # Já tem url_prefix='/dashboard'
+        app.register_blueprint(dashboard_bp) 
     except Exception as e:
          app.logger.error(f"ERRO ao registar blueprint 'dashboard': {e}")
 
@@ -124,4 +171,9 @@ def create_app(config_class=Config) -> Flask:
         from app.models import tables
     # --------------------------
 
+    # --- ADICIONADO: CHAMA A FUNÇÃO DE CRIAR ADMIN ---
+    # Isto será executado assim que o servidor iniciar
+    _create_super_admin(app)
+    # ------------------------------------------------
+    
     return app
