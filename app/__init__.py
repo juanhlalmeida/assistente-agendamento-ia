@@ -1,8 +1,8 @@
-# app/__init__.py (COM BLUEPRINT PROFISSIONAIS E CRIAÇÃO DE ADMIN)
+# app/__init__.py (COM CRIAÇÃO DE ADMIN E DADOS DE DEMONSTRAÇÃO)
 from __future__ import annotations
 
 import os
-import logging # --- ADICIONADO: Para a nossa nova função de admin ---
+import logging 
 from flask import Flask
 from config import Config
 from app.extensions import db  
@@ -10,7 +10,7 @@ from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask import current_app 
 from app.blueprints.superadmin.routes import bp as superadmin_bp
-from werkzeug.security import generate_password_hash # --- ADICIONADO: Para a senha ---
+from werkzeug.security import generate_password_hash 
 
 # --- INSTÂNCIAS GLOBAIS ---
 login_manager = LoginManager()
@@ -48,54 +48,83 @@ def load_user(user_id):
         return None
 # --- FIM DO USER LOADER ---
 
-# --- ADICIONADO: FUNÇÃO HELPER PARA CRIAR O SUPER ADMIN ---
+# --- FUNÇÃO HELPER PARA CRIAR O SUPER ADMIN ---
 def _create_super_admin(app: Flask):
     """
     Função interna para criar o super admin ao iniciar,
     se as variáveis de ambiente estiverem definidas e o usuário não existir.
     """
-    # Usamos o 'app.app_context()' para garantir que estamos
-    # dentro do contexto da aplicação, necessário para 'db' e 'os.getenv'
     with app.app_context():
-        # 1. Tenta ler as variáveis de ambiente
         admin_email = os.getenv('SUPER_ADMIN_EMAIL')
         admin_pass = os.getenv('SUPER_ADMIN_PASSWORD')
-        
-        # 2. Se as variáveis não estiverem definidas, não faz nada
         if not admin_email or not admin_pass:
             logging.info("SUPER_ADMIN_EMAIL ou SUPER_ADMIN_PASSWORD não definidos. Ignorando criação de super admin.")
             return
-
-        # 3. Se estiverem definidas, verifica se o usuário já existe
         try:
-            # Importamos o User aqui dentro para evitar importação circular
             from app.models.tables import User 
-            
             if User.query.filter_by(email=admin_email).first():
                 logging.info(f"Super admin com email {admin_email} já existe.")
                 return
-            
-            # 4. Se não existir, cria o novo super admin
             logging.info(f"Criando novo super admin para {admin_email}...")
-            
             new_super_admin = User(
                 email=admin_email,
                 nome="Super Admin", # Nome Padrão
                 role="super_admin" # Garante que a role é 'super_admin'
             )
-            # Usa o método set_password do teu modelo User
             new_super_admin.set_password(admin_pass) 
             
             db.session.add(new_super_admin)
             db.session.commit()
-            
             logging.info(f"Super admin {admin_email} criado com sucesso!")
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"ERRO CRÍTICO ao tentar criar super admin: {e}", exc_info=True)
+# --------------------------------------------------
+
+# --- ADICIONADO: FUNÇÃO HELPER PARA POPULAR DADOS DE DEMO ---
+def _populate_demo_data(app: Flask):
+    """
+    Cria profissionais e serviços de demonstração se o banco de dados estiver vazio.
+    Associado à Barbearia com ID 1 (a que você criou no admin).
+    """
+    with app.app_context():
+        try:
+            from app.models.tables import Profissional, Servico, Barbearia
+            
+            # 1. Verifica se já existem profissionais (sinal de que os dados já existem)
+            if Profissional.query.count() > 0:
+                logging.info("Banco de dados já populado. Ignorando dados de demonstração.")
+                return
+
+            # 2. Encontra a Barbearia (assumimos que é a ID 1, a primeira que você criou)
+            barbearia = Barbearia.query.get(1) 
+            if not barbearia:
+                # Se não for a ID 1, tenta pegar a primeira que encontrar
+                barbearia = Barbearia.query.first()
+                if not barbearia:
+                    logging.warning("Nenhuma barbearia encontrada. Não é possível popular dados de demo.")
+                    return
+            
+            logging.info(f"Barbearia ID {barbearia.id} ({barbearia.nome_fantasia}) encontrada. Populando dados de demonstração...")
+
+            # 3. Cria Profissionais de Demo
+            prof_jasiel = Profissional(nome="Jasiel Oliveira", barbearia_id=barbearia.id)
+            prof_bruna = Profissional(nome="Bruna Santos", barbearia_id=barbearia.id)
+            
+            # 4. Cria Serviços de Demo
+            serv_corte = Servico(nome="Corte Masculino", duracao_minutos=30, preco=40.00, barbearia_id=barbearia.id)
+            serv_barba = Servico(nome="Barba e Bigode", duracao_minutos=30, preco=35.00, barbearia_id=barbearia.id)
+            serv_completo = Servico(nome="Corte e Barba", duracao_minutos=60, preco=70.00, barbearia_id=barbearia.id)
+            
+            db.session.add_all([prof_jasiel, prof_bruna, serv_corte, serv_barba, serv_completo])
+            db.session.commit()
+            
+            logging.info("Dados de demonstração (Profissionais e Serviços) criados com sucesso!")
 
         except Exception as e:
             db.session.rollback()
-            # Usamos logging.error aqui pois é um erro crítico
-            logging.error(f"ERRO CRÍTICO ao tentar criar super admin: {e}", exc_info=True)
-# --------------------------------------------------
+            logging.error(f"ERRO CRÍTICO ao tentar popular dados de demonstração: {e}", exc_info=True)
+# --------------------------------------------------------
 
 
 def create_app(config_class=Config) -> Flask:
@@ -108,17 +137,14 @@ def create_app(config_class=Config) -> Flask:
     database_url = os.environ.get('DATABASE_URL')
     if database_url is None:
         raise ValueError("DATABASE_URL não está definida no ambiente!")
-
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
-
     if 'channel_binding' in database_url:
         base_url, params = database_url.split('?', 1) if '?' in database_url else (database_url, '')
         params_list = [p for p in params.split('&') if not p.startswith('channel_binding=')]
         database_url = base_url + ('?' + '&'.join(params_list) if params_list else '')
-
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
     # ----------------------------------------
 
     # --- INICIALIZAÇÃO DAS EXTENSÕES ---
@@ -149,11 +175,11 @@ def create_app(config_class=Config) -> Flask:
     
     try:
         from app.blueprints.clientes.routes import bp as clientes_bp 
-        app.register_blueprint(clientes_bp) 
+        app.register_blueprint(clientes_bp)
     except Exception as e:
          app.logger.error(f"ERRO ao registar blueprint 'clientes': {e}")     
 
-    app.register_blueprint(superadmin_bp)
+    app.register_blueprint(superadmin_bp) 
     
     try:
         from app.blueprints.dashboard.routes import bp as dashboard_bp 
@@ -171,9 +197,9 @@ def create_app(config_class=Config) -> Flask:
         from app.models import tables
     # --------------------------
 
-    # --- ADICIONADO: CHAMA A FUNÇÃO DE CRIAR ADMIN ---
-    # Isto será executado assim que o servidor iniciar
+    # --- CHAMA AS FUNÇÕES DE INICIALIZAÇÃO ---
     _create_super_admin(app)
-    # ------------------------------------------------
+    _populate_demo_data(app) # <--- ADICIONADO
+    # ---------------------------------------
     
     return app

@@ -1,4 +1,3 @@
-
 # app/services/ai_service.py
 import os
 import logging
@@ -20,12 +19,12 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # --- PROMPT (Ajustado para Preços "A partir de") ---
 SYSTEM_INSTRUCTION_TEMPLATE = """
-Você é a Luana, a assistente de IA da Barber Shop Jeziel Oliveira. Sua personalidade é carismática, simpática e muito eficiente. Use emojis de forma natural (✂️, ✨, 😉, 👍).
-Use o contexto da conversa para entender "hoje" e "amanhã".
+Você é 'Luana', uma assistente de IA da {barbearia_nome}.
+Seja sempre simpática, direta e 100% focada em agendamentos. Use emojis (✂️, ✨, 😉, 👍) quando apropriado.
+O seu ID de cliente é: {cliente_whatsapp}
+A sua Barbearia ID é: {barbearia_id}
 
-**REGRAS DE OURO (NÃO QUEBRE NUNCA):**
-
-1.  **SAUDAÇÃO INICIAL:** Comece com: "Olá! Sou Luana da Barber Shop Jeziel Oliveira 😊. Como posso ajudar: agendar, reagendar ou cancelar?"
+1.  **SSAUDAÇÃO INICIAL: Sempre comece a primeira conversa com: "Olá! Bem-vindo(a) à {barbearia_nome}! 😊 Como posso ajudar no seu agendamento? Ou quer reagendar ou cancelar um horário?"
 2.  **PARA AGENDAR - SEJA PROATIVA:**
     * **CONFIRME PROFISSIONAIS:** Use `listar_profissionais` primeiro. **Confie na lista retornada.** Ofereça os nomes da lista. Se o cliente pedir um nome que não está na lista, informe educadamente quem está disponível.
     * **CONFIRME SERVIÇOS E PREÇOS:** Use `listar_servicos`. Ao apresentar ou confirmar um serviço, **SE** a ferramenta indicar "(a partir de)" ao lado do preço, **REPITA** essa informação para o cliente. Ex: "O Platinado (120 min) custa *a partir de* R$ 100,00." Para outros serviços, diga o preço normalmente.
@@ -66,7 +65,6 @@ def listar_profissionais(barbearia_id: int) -> str:
             return f"Profissionais disponíveis: {', '.join(nomes)}."
     except Exception as e:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_profissionais': {e}", exc_info=True)
-        # Retorna mensagem genérica para a IA, mas loga o detalhe
         return f"Erro ao listar profissionais: Ocorreu um erro interno."
 
 # 🚀 FUNÇÃO LISTAR_SERVICOS ATUALIZADA (Adiciona "(a partir de)")
@@ -280,3 +278,114 @@ except NotFound as nf_error:
     logging.error(f"ERRO CRÍTICO: Modelo Gemini '{model_name_to_use}' não encontrado: {nf_error}", exc_info=True)
 except Exception as e:
     logging.error(f"ERRO CRÍTICO GERAL ao inicializar o modelo Gemini: {e}", exc_info=True)
+
+# --- ADIÇÃO: O HISTÓRICO DA CONVERSA ---
+# (Precisamos de um dicionário para guardar o histórico de cada cliente)
+convo_history = {}
+
+# --- ADIÇÃO: A FUNÇÃO PRINCIPAL DE PROCESSAMENTO (O cérebro) ---
+def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
+    """
+    Processa a mensagem do usuário usando o Gemini, com histórico e ferramentas.
+    Otimizado para usar MENOS requisições.
+    """
+    if not model:
+        logging.error("Modelo Gemini não inicializado. Abortando.")
+        return "Desculpe, meu cérebro (IA) está offline no momento. Tente novamente mais tarde."
+    try:
+        barbearia = Barbearia.query.get(barbearia_id)
+        if not barbearia:
+            logging.error(f"Barbearia ID {barbearia_id} não encontrada no processar_ia_gemini.")
+            return "Desculpe, não consegui identificar para qual barbearia você está ligando."
+        # Formata o prompt do sistema com os dados da barbearia
+        system_prompt = SYSTEM_INSTRUCTION_TEMPLATE.format(
+            barbearia_nome=barbearia.nome_fantasia,
+            cliente_whatsapp=cliente_whatsapp,
+            barbearia_id=barbearia_id
+        )
+        # Inicia (ou recupera) o histórico
+        if cliente_whatsapp not in convo_history:
+            logging.info(f"Iniciando novo histórico de chat para o cliente {cliente_whatsapp}.")
+            # Cria o histórico de chat com o prompt do sistema
+            convo_history[cliente_whatsapp] = model.start_chat(history=[
+                {'role': 'user', 'parts': [system_prompt]},
+                {'role': 'model', 'parts': [
+                    f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! 😊 Como posso ajudar no seu agendamento?"
+                ]}
+            ])
+            # Retorna a saudação inicial na primeira mensagem
+            return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! 😊 Como posso ajudar no seu agendamento?"
+       
+        chat_session = convo_history[cliente_whatsapp]
+        # Envia a mensagem do usuário para a IA
+        logging.info(f"Enviando mensagem para a IA: {user_message}")
+        
+        import time
+        from google.api_core.exceptions import ResourceExhausted
+        
+        retries = 3
+        for attempt in range(retries):
+            try:
+                response = chat_session.send_message(user_message)
+                break
+            except ResourceExhausted as e:
+                wait_time = 60
+                logging.warning(f"Quota excedida. Tentando novamente em {wait_time}s...")
+                time.sleep(wait_time)
+            except Exception as e:
+                logging.error(f"Erro na tentativa {attempt+1}: {e}")
+                if attempt == retries - 1:
+                    return "Desculpe, limite de IA excedido. Tente mais tarde."
+        else:
+            return "Desculpe, erro persistente na IA."
+        
+        response = chat_session.send_message(user_message)
+       
+        # --- LÓGICA DE FERRAMENTAS ---
+        while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
+           
+            function_call = response.candidates[0].content.parts[0].function_call
+            function_name = function_call.name
+            function_args = function_call.args
+           
+            logging.info(f"IA solicitou a ferramenta '{function_name}' com os argumentos: {dict(function_args)}")
+            # Mapeia o nome da função para a função Python real
+            tool_map = {
+                "listar_profissionais": listar_profissionais,
+                "listar_servicos": listar_servicos,
+                "calcular_horarios_disponiveis": calcular_horarios_disponiveis,
+                "criar_agendamento": criar_agendamento,
+            }
+            if function_name in tool_map:
+                function_to_call = tool_map[function_name]
+               
+                kwargs = dict(function_args)
+               
+                # Injeta o barbearia_id em todas as chamadas
+                kwargs['barbearia_id'] = barbearia_id
+               
+                # Injeta o telefone do cliente APENAS no agendamento
+                if function_name == 'criar_agendamento':
+                     kwargs['telefone_cliente'] = cliente_whatsapp # Passa o telefone
+               
+                # Chama a função
+                tool_response = function_to_call(**kwargs)
+               
+                # Envia a resposta da ferramenta de volta para a IA
+                response = chat_session.send_message(
+                    genai.Part(function_response={"name": function_name, "response": tool_response}),
+                )
+            else:
+                logging.error(f"Erro: IA tentou chamar uma ferramenta desconhecida: {function_name}")
+                response = chat_session.send_message(
+                    genai.Part(function_response={"name": function_name, "response": {"error": "Ferramenta não encontrada."}}),
+                )
+        # --- Resposta Final ---
+        final_response_text = response.candidates[0].content.parts[0].text
+        logging.info(f"Resposta final da IA: {final_response_text}")
+        return final_response_text
+    except Exception as e:
+        logging.error(f"Erro ao processar com IA: {e}", exc_info=True)
+        if cliente_whatsapp in convo_history:
+            del convo_history[cliente_whatsapp] # Limpa o histórico se der erro
+        return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
