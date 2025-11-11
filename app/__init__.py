@@ -1,4 +1,4 @@
-# app/__init__.py (COM BLUEPRINT PROFISSIONAIS, CRIAÇÃO DE ADMIN E POPULAR DADOS)
+# app/__init__.py (CORRIGIDO PARA O BANCO PAGO DO RENDER)
 from __future__ import annotations
 
 import os
@@ -49,7 +49,7 @@ def load_user(user_id):
 # --- FIM DO USER LOADER ---
 
 # --- FUNÇÃO HELPER PARA CRIAR O SUPER ADMIN ---
-# (A sua função original está 100% preservada aqui)
+# (Preservado 100% - é seguro)
 def _create_super_admin(app: Flask):
     """
     Função interna para criar o super admin ao iniciar,
@@ -81,69 +81,33 @@ def _create_super_admin(app: Flask):
             logging.error(f"ERRO CRÍTICO ao tentar criar super admin: {e}", exc_info=True)
 # --------------------------------------------------
 
-# --- ADICIONADO: FUNÇÃO HELPER PARA POPULAR DADOS DE DEMO ---
-def _populate_demo_data(app: Flask):
-    """
-    Cria profissionais e serviços de demonstração se o banco de dados estiver vazio.
-    Associado à Barbearia com ID 1 (a que você criou no admin).
-    """
-    with app.app_context():
-        try:
-            # Importa os modelos aqui dentro
-            from app.models.tables import Profissional, Servico, Barbearia
-            
-            # 1. Verifica se já existem profissionais (sinal de que os dados já existem)
-            if Profissional.query.count() > 0:
-                logging.info("Banco de dados já populado. Ignorando dados de demonstração.")
-                return
-
-            # 2. Encontra a Barbearia (assumimos que é a ID 1, a primeira que você criou)
-            barbearia = Barbearia.query.get(1) 
-            if not barbearia:
-                # Se não for a ID 1, tenta pegar a primeira que encontrar
-                barbearia = Barbearia.query.first()
-                if not barbearia:
-                    logging.warning("Nenhuma barbearia encontrada. Não é possível popular dados de demo.")
-                    return
-            
-            logging.info(f"Barbearia ID {barbearia.id} ({barbearia.nome_fantasia}) encontrada. Populando dados de demonstração...")
-
-            # 3. Cria Profissionais de Demo (Tipo "Jasiel Oliveira")
-            prof_jasiel = Profissional(nome="Jasiel Oliveira", barbearia_id=barbearia.id)
-            prof_bruna = Profissional(nome="Bruna Santos", barbearia_id=barbearia.id)
-            
-            # 4. Cria Serviços de Demo
-            serv_corte = Servico(nome="Corte Masculino", duracao_minutos=30, preco=40.00, barbearia_id=barbearia.id)
-            serv_barba = Servico(nome="Barba e Bigode", duracao_minutos=30, preco=35.00, barbearia_id=barbearia.id)
-            serv_completo = Servico(nome="Corte e Barba", duracao_minutos=60, preco=70.00, barbearia_id=barbearia.id)
-            
-            db.session.add_all([prof_jasiel, prof_bruna, serv_corte, serv_barba, serv_completo])
-            db.session.commit()
-            
-            logging.info("Dados de demonstração (Profissionais e Serviços) criados com sucesso!")
-
-        except Exception as e:
-            db.session.rollback()
-            logging.error(f"ERRO CRÍTICO ao tentar popular dados de demonstração: {e}", exc_info=True)
-# --------------------------------------------------------
-
+# --- A FUNÇÃO _populate_demo_data FOI REMOVIDA DE PROPÓSITO ---
+# (Não é mais necessária, pois o banco reativado tem os seus dados antigos)
 
 def create_app(config_class=Config) -> Flask:
     Config.init_app()
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_class)
 
-    # --- CORREÇÃO DA URL DO BANCO DE DADOS ---
-    # (O seu código original está 100% preservado aqui)
+    # --- CORREÇÃO DA URL DO BANCO DE DADOS (PARA O RENDER PAGO) ---
     database_url = os.environ.get('DATABASE_URL')
     if database_url is None:
         raise ValueError("DATABASE_URL não está definida no ambiente!")
+
+    # 1. Troca 'postgres://' por 'postgresql://' (preferência do SQLAlchemy)
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+    # 2. Força o 'sslmode=require' (Necessário para o banco PAGO do Render)
+    if "postgresql://" in database_url and "sslmode=" not in database_url:
+         database_url = database_url + "?sslmode=require"
+    
+    # 3. Remove 'channel_binding' (que era do Neon, se por acaso ainda estiver na variável)
     if 'channel_binding' in database_url:
-        base_url, params = database_url.split('?', 1) if '?' in database_url else (database_url, '')
+        base_url, params = database_url.split('?', 1)
         params_list = [p for p in params.split('&') if not p.startswith('channel_binding=')]
         database_url = base_url + ('?' + '&'.join(params_list) if params_list else '')
+        
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
     # ----------------------------------------
@@ -200,7 +164,7 @@ def create_app(config_class=Config) -> Flask:
 
     # --- CHAMA AS FUNÇÕES DE INICIALIZAÇÃO ---
     _create_super_admin(app)
-    _populate_demo_data(app) # <--- ADICIONADO
+    # A linha _populate_demo_data() foi REMOVIDA
     # ---------------------------------------
     
     return app
