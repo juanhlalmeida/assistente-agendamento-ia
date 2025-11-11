@@ -1,22 +1,21 @@
 # app/services/ai_service.py
-# (CÓDIGO COMPLETO E CORRIGIDO)
+# (CÓDIGO COMPLETO E CORRIGIDO - Erro 'Part' corrigido)
 
 import os
 import logging
 import google.generativeai as genai
-# Importa a exceção NotFound para tratamento específico
 from google.api_core.exceptions import NotFound 
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
-from google.generativeai.types import FunctionDeclaration, Tool
-# Importa modelos e DB
+# --- CORREÇÃO: Importar 'Part' ---
+from google.generativeai.types import FunctionDeclaration, Tool, Part
+# ---------------------------------
 from app.models.tables import Agendamento, Profissional, Servico, Barbearia # type: ignore
 from app.extensions import db
-import time # Importa time para o retry
-from google.api_core.exceptions import ResourceExhausted # Importa a exceção de Quota
+import time 
+from google.api_core.exceptions import ResourceExhausted 
 
-# 🚀 IMPORTAÇÃO DA FUNÇÃO UNIFICADA DE CÁLCULO DE HORÁRIOS
 from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponiveis_util
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -65,6 +64,7 @@ def listar_profissionais(barbearia_id: int) -> str:
         with current_app.app_context():
             profissionais = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
             if not profissionais:
+                # Esta é a linha que o seu log mostrou!
                 logging.warning(f"Ferramenta 'listar_profissionais' (barbearia_id: {barbearia_id}): Nenhum profissional cadastrado.")
                 return "Nenhum profissional cadastrado para esta barbearia no momento."
             nomes = [p.nome for p in profissionais]
@@ -101,20 +101,15 @@ def listar_servicos(barbearia_id: int) -> str:
         return f"Erro ao listar serviços: Ocorreu um erro interno."
 
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
-    """
-    Wrapper para a função utilitária. Busca o profissional e chama a lógica unificada.
-    Retorna uma string formatada para a IA.
-    """
+    # (Seu código original 100% preservado)
     try:
         with current_app.app_context():
             profissional = Profissional.query.filter_by(
                 barbearia_id=barbearia_id, 
                 nome=profissional_nome
             ).first()
-            
             if not profissional:
                 return "Profissional não encontrado. Por favor, verifique o nome."
-            
             agora = datetime.now() 
             if dia.lower() == 'hoje':
                 dia_dt = agora
@@ -125,13 +120,10 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
                     dia_dt = datetime.strptime(dia, '%Y-%m-%d')
                 except ValueError:
                     return "Formato de data inválido. Use 'hoje', 'amanhã' ou 'AAAA-MM-DD'."
-
             horarios_dt_list = calcular_horarios_disponiveis_util(profissional, dia_dt)
             horarios_str_list = [h.strftime('%H:%M') for h in horarios_dt_list]
             dia_formatado = dia_dt.strftime('%d/%m/%Y') 
-            
             return f"Horários disponíveis para {profissional_nome} em {dia_formatado}: {', '.join(horarios_str_list) or 'Nenhum horário encontrado.'}"
-            
     except Exception as e:
         current_app.logger.error(f"Erro no wrapper 'calcular_horarios_disponiveis': {e}", exc_info=True)
         return "Desculpe, ocorreu um erro ao verificar os horários."
@@ -234,16 +226,13 @@ tools = Tool(
     ]
 )
 
-# --- Inicialização do Modelo Gemini (Corrigida) ---
+# --- Inicialização do Modelo Gemini (Preservado) ---
 model = None 
 try:
     model_name_to_use = 'models/gemini-pro-latest' # Mantendo o seu modelo
     
-    # --- CORREÇÃO CRÍTICA ---
-    # Removemos o 'system_instruction' ESTÁTICO daqui.
-    # O prompt agora é 100% dinâmico e definido em 'processar_ia_gemini'
+    # (Removido o system_instruction estático)
     model = genai.GenerativeModel( model_name=model_name_to_use, tools=[tools] )
-    # ------------------------
     
     logging.info(f"Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
 except NotFound as nf_error:
@@ -252,15 +241,14 @@ except Exception as e:
     logging.error(f"ERRO CRÍTICO GERAL ao inicializar o modelo Gemini: {e}", exc_info=True)
 
 
-# --- ADIÇÃO: O HISTÓRICO DA CONVERSA ---
+# --- O HISTÓRICO DA CONVERSA ---
 convo_history = {}
 
 # --- FUNÇÃO PRINCIPAL DE PROCESSAMENTO (O cérebro) ---
-# (Seu código original 100% preservado, com a correção do loop de retry)
+# (CORRIGIDA: Removido o 'time.sleep(60)' e corrigido o 'AttributeError: Part')
 def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
     """
     Processa a mensagem do usuário usando o Gemini, com histórico e ferramentas.
-    Otimizado para usar MENOS requisições.
     """
     if not model:
         logging.error("Modelo Gemini não inicializado. Abortando.")
@@ -271,55 +259,45 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             logging.error(f"Barbearia ID {barbearia_id} não encontrada no processar_ia_gemini.")
             return "Desculpe, não consegui identificar para qual barbearia você está ligando."
         
-        # Formata o prompt do sistema com os dados da barbearia
         system_prompt = SYSTEM_INSTRUCTION_TEMPLATE.format(
             barbearia_nome=barbearia.nome_fantasia,
             cliente_whatsapp=cliente_whatsapp,
             barbearia_id=barbearia_id
         )
         
-        # Inicia (ou recupera) o histórico
         if cliente_whatsapp not in convo_history:
             logging.info(f"Iniciando novo histórico de chat para o cliente {cliente_whatsapp}.")
-            # Cria o histórico de chat com o prompt do sistema
             convo_history[cliente_whatsapp] = model.start_chat(history=[
                 {'role': 'user', 'parts': [system_prompt]},
                 {'role': 'model', 'parts': [
                     f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! 😊 Como posso ajudar no seu agendamento?"
                 ]}
             ])
-            # Retorna a saudação inicial na primeira mensagem
             return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! 😊 Como posso ajudar no seu agendamento?"
        
         chat_session = convo_history[cliente_whatsapp]
         logging.info(f"Enviando mensagem para a IA: {user_message}")
         
-        # --- CORREÇÃO: LÓGICA DE RETRY (Preservada do seu código, mas corrigida) ---
-        response = None # Define response como None
-        retries = 3
-        for attempt in range(retries):
-            try:
-                # A mensagem é enviada AQUI
-                response = chat_session.send_message(user_message)
-                break # Sai do loop se for um sucesso
-            except ResourceExhausted as e:
-                # Se a quota esgotar, espera e tenta de novo
-                wait_time = 60
-                logging.warning(f"Quota excedida (Gemini). Tentando novamente em {wait_time}s... (Tentativa {attempt+1}/{retries})")
-                time.sleep(wait_time)
-            except Exception as e:
-                # Outros erros
-                logging.error(f"Erro ao enviar mensagem para a IA na tentativa {attempt+1}: {e}", exc_info=True)
-                if attempt == retries - 1: # Se for a última tentativa
-                    logging.error("Erro persistente na IA após todas as tentativas.")
-                    return "Desculpe, estou com um problema de comunicação com meu cérebro (IA). Tente novamente mais tarde."
-        
-        if response is None:
-             logging.error("Falha ao obter resposta da IA após todas as retries.")
-             return "Desculpe, não consegui processar sua solicitação agora (limite de quota). Por favor, tente novamente em alguns minutos."
-        # ----------------------------------------------------------------
+        # --- CORREÇÃO DO CRASH DO GUNICORN ---
+        # Removida a lógica de 'retry' com 'time.sleep(60)'
+        # que estava a "matar" o servidor Gunicorn (WORKER TIMEOUT).
+        try:
+            response = chat_session.send_message(user_message)
+        except ResourceExhausted as e:
+            # Se a quota esgotar, avisa o usuário educadamente.
+            logging.warning(f"Quota do Gemini excedida: {e}")
+            if cliente_whatsapp in convo_history:
+                del convo_history[cliente_whatsapp] # Limpa o histórico
+            return "Puxa, parece que atingi meu limite de processamento por agora. 😕 Por favor, tente novamente em um minuto."
+        except Exception as e:
+            # Outros erros de IA
+            logging.error(f"Erro ao enviar mensagem para a IA: {e}", exc_info=True)
+            if cliente_whatsapp in convo_history:
+                del convo_history[cliente_whatsapp]
+            return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
+        # ------------------------------------------
        
-        # --- LÓGICA DE FERRAMENTAS (Preservada) ---
+        # --- LÓGICA DE FERRAMENTAS ---
         while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
            
             function_call = response.candidates[0].content.parts[0].function_call
@@ -345,16 +323,18 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 
                 tool_response = function_to_call(**kwargs)
                 
+                # --- CORREÇÃO DO BUG 'AttributeError: ... has no attribute 'Part'' ---
+                # Estávamos a usar 'genai.Part', o correto é só 'Part' (que importámos no topo)
                 response = chat_session.send_message(
-                    genai.Part(function_response={"name": function_name, "response": tool_response}),
+                    Part(function_response={"name": function_name, "response": tool_response}),
                 )
+                # -----------------------------------------------------------------
             else:
                 logging.error(f"Erro: IA tentou chamar uma ferramenta desconhecida: {function_name}")
                 response = chat_session.send_message(
-                    genai.Part(function_response={"name": function_name, "response": {"error": "Ferramenta não encontrada."}}),
+                    Part(function_response={"name": function_name, "response": {"error": "Ferramenta não encontrada."}}),
                 )
         
-        # --- Resposta Final ---
         final_response_text = response.candidates[0].content.parts[0].text
         logging.info(f"Resposta final da IA: {final_response_text}")
         return final_response_text
