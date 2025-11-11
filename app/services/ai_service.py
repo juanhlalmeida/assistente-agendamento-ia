@@ -1,5 +1,5 @@
 # app/services/ai_service.py
-# (CÓDIGO COMPLETO E CORRIGIDO - Erro 'Part' corrigido)
+# (CÓDIGO COMPLETO E CORRIGIDO - Erro 'Part' e 'Import' corrigidos)
 
 import os
 import logging
@@ -8,9 +8,9 @@ from google.api_core.exceptions import NotFound
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
-# --- CORREÇÃO: Importar 'Part' ---
-from google.generativeai.types import FunctionDeclaration, Tool, Part
-# ---------------------------------
+# --- CORREÇÃO: 'Part' foi removido desta importação ---
+from google.generativeai.types import FunctionDeclaration, Tool 
+# ---------------------------------------------------
 from app.models.tables import Agendamento, Profissional, Servico, Barbearia # type: ignore
 from app.extensions import db
 import time 
@@ -64,7 +64,6 @@ def listar_profissionais(barbearia_id: int) -> str:
         with current_app.app_context():
             profissionais = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
             if not profissionais:
-                # Esta é a linha que o seu log mostrou!
                 logging.warning(f"Ferramenta 'listar_profissionais' (barbearia_id: {barbearia_id}): Nenhum profissional cadastrado.")
                 return "Nenhum profissional cadastrado para esta barbearia no momento."
             nomes = [p.nome for p in profissionais]
@@ -74,27 +73,24 @@ def listar_profissionais(barbearia_id: int) -> str:
         return f"Erro ao listar profissionais: Ocorreu um erro interno."
 
 def listar_servicos(barbearia_id: int) -> str:
-    """Lista os serviços, adicionando '(a partir de)' para preços variáveis."""
+    # (Seu código original 100% preservado)
     try:
         with current_app.app_context():
             servicos = Servico.query.filter_by(barbearia_id=barbearia_id).order_by(Servico.nome).all()
             if not servicos:
                 logging.warning(f"Ferramenta 'listar_servicos' (barbearia_id: {barbearia_id}): Nenhum serviço cadastrado.")
                 return "Nenhum serviço cadastrado para esta barbearia."
-            
             lista_formatada = []
             servicos_a_partir_de = [
                 "Platinado", "Luzes", "Coloração", "Pigmentação", 
                 "Selagem", "Escova Progressiva", "Relaxamento", 
                 "Alisamento", "Hidratação", "Reconstrução"
             ]
-            
             for s in servicos:
                 preco_str = f"R$ {s.preco:.2f}"
                 if s.nome in servicos_a_partir_de:
                     preco_str += " (a partir de)"
                 lista_formatada.append(f"{s.nome} ({s.duracao} min, {preco_str})")
-                
             return f"Serviços disponíveis: {'; '.join(lista_formatada)}."
     except Exception as e:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_servicos': {e}", exc_info=True)
@@ -280,7 +276,6 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         
         # --- CORREÇÃO DO CRASH DO GUNICORN ---
         # Removida a lógica de 'retry' com 'time.sleep(60)'
-        # que estava a "matar" o servidor Gunicorn (WORKER TIMEOUT).
         try:
             response = chat_session.send_message(user_message)
         except ResourceExhausted as e:
@@ -323,16 +318,16 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 
                 tool_response = function_to_call(**kwargs)
                 
-                # --- CORREÇÃO DO BUG 'AttributeError: ... has no attribute 'Part'' ---
-                # Estávamos a usar 'genai.Part', o correto é só 'Part' (que importámos no topo)
+                # --- CORREÇÃO DO BUG 'AttributeError' ---
+                # A sintaxe correta para a sua biblioteca é 'genai.protos.Part'
                 response = chat_session.send_message(
-                    Part(function_response={"name": function_name, "response": tool_response}),
+                    genai.protos.Part(function_response={"name": function_name, "response": tool_response}),
                 )
-                # -----------------------------------------------------------------
+                # ----------------------------------------
             else:
                 logging.error(f"Erro: IA tentou chamar uma ferramenta desconhecida: {function_name}")
                 response = chat_session.send_message(
-                    Part(function_response={"name": function_name, "response": {"error": "Ferramenta não encontrada."}}),
+                    genai.protos.Part(function_response={"name": function_name, "response": {"error": "Ferramenta não encontrada."}}),
                 )
         
         final_response_text = response.candidates[0].content.parts[0].text
@@ -344,3 +339,5 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         if cliente_whatsapp in convo_history:
             del convo_history[cliente_whatsapp] # Limpa o histórico se der erro
         return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
+    
+    #teste
