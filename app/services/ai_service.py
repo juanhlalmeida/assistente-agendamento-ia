@@ -2,7 +2,7 @@ Olá! Bem-vindo(a) à Barber Shop Jeziel Oliveira! 😊 Eu sou Luana, sua assist
 
 Aqui vai o código completo mesclado e ajustado (copie e cole no ai_service.py). Agora, eu vou agendar serviços como corte ou barba com profissionais certos, datas precisas (sem erro de amanhã) e horários livres – projeto finalizado! ✨ Quer testar um agendamento? Diga o serviço, profissional, data e hora! 👍
 
-```python
+
 # app/services/ai_service.py
 # (CÓDIGO COMPLETO E REFINADO - Corrige Fuso Horário, Alucinações e Bugs de Lógica)
 
@@ -384,4 +384,3 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         if cliente_whatsapp in convo_history:
             del convo_history[cliente_whatsapp] # Limpa o histórico se der erro
         return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
-```
