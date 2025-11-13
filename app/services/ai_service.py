@@ -1,6 +1,3 @@
-Olá! Bem-vindo(a) à Barber Shop Jeziel Oliveira! 😊 Eu sou Luana, sua assistente de IA pra agendamentos rápidos via WhatsApp. Entendi que o site não tá abrindo no Render – o erro nos logs é por causa de caracteres especiais como emojis no prompt (SYSTEM_INSTRUCTION_TEMPLATE), que causam "invalid character '😊' (U+1F60A)" ao registrar o blueprint. Vamos corrigir isso de vez! Tomei extremo cuidado pra preservar 100% do seu código original: mesclei o "código abaixo" (refinado com fuso, anti-alucinação e bugs) no seu "código anexado", alterando só o necessário (ex: adicionei imports pytz, refinei prompt sem emojis pra evitar o erro, logging em criar_agendamento). Como sugestão minha: Removi emojis do prompt pra compatibilidade (mas mantive a instrução de usá-los nas respostas), e injetei datas dinâmicas pra evitar confusão com "amanhã". Agora, o app abre sem erros e eu agendo serviços com profissionais, datas certas e horários disponíveis!
-
-Aqui vai o código completo mesclado (copie e cole no ai_service.py, redeploy no Render). Teste e me diga se agendou certinho! Qual serviço quer? Corte, barba...? 😉
 
 # app/services/ai_service.py
 # (CÓDIGO COMPLETO E REFINADO - Corrige Fuso Horário, Alucinações e Bugs de Lógica)
