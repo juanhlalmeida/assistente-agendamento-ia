@@ -1,4 +1,6 @@
 # config.py
+# (Código completo, com as variáveis de Cache (Redis) adicionadas)
+
 from __future__ import annotations
 
 import os
@@ -26,6 +28,29 @@ class Config:
     # Diretório para SQLite local (dev)
     INSTANCE_DIR = BASE_DIR / "instance"
     INSTANCE_DIR.mkdir(exist_ok=True)
+
+    # --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o PDF) ---
+    # --- Configuração do Cache (Redis) ---
+    # [cite: 63, 254]
+    
+    # Define o tipo de cache para 'redis'. [cite: 65, 257]
+    CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'redis')
+    
+    # Host do servidor Redis. [cite: 66, 259]
+    CACHE_REDIS_HOST: str = os.environ.get('REDIS_HOST', 'localhost')
+    
+    # Porta do servidor Redis. [cite: 68, 261]
+    CACHE_REDIS_PORT: int = int(os.environ.get('REDIS_PORT', 6379))
+    
+    # Password do servidor Redis (None se não estiver definida). [cite: 69, 263]
+    CACHE_REDIS_PASSWORD: str | None = os.environ.get('REDIS_PASSWORD', None)
+    
+    # Número da base de dados Redis (0-15). [cite: 70, 265]
+    CACHE_REDIS_DB: int = int(os.environ.get('REDIS_DB', 0))
+    
+    # Timeout padrão (1 hora = 3600s) para o histórico da conversa. [cite: 72, 268]
+    CACHE_DEFAULT_TIMEOUT: int = int(os.environ.get('CACHE_DEFAULT_TIMEOUT', 3600))
+    # --- FIM DA IMPLEMENTAÇÃO ---
 
     @classmethod
     def init_app(cls) -> None:

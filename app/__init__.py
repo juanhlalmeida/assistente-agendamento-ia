@@ -11,6 +11,7 @@ from flask_login import LoginManager
 from flask import current_app 
 from app.blueprints.superadmin.routes import bp as superadmin_bp
 from werkzeug.security import generate_password_hash 
+from app.extensions import db, migrate, login_manager, cache
 
 # --- INSTÂNCIAS GLOBAIS ---
 login_manager = LoginManager()
@@ -116,6 +117,7 @@ def create_app(config_class=Config) -> Flask:
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
+    cache.init_app(app) # <-- ADICIONE ESTA LINHA
     # ---------------------------------
 
     # --- REGISTO DOS BLUEPRINTS ---
