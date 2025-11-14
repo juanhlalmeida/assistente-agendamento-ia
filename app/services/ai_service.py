@@ -14,9 +14,9 @@ from sqlalchemy.orm import joinedload
 # Importa o cache das extensões [cite: 165]
 from app.extensions import cache 
 # Importa os tipos de dados do Gemini para serialização
-from google.generativeai.types import Content # [cite: 105]
-# (Usamos 'protos' como no seu código original para FunctionCall/Response)
-from google.generativeai import protos # [cite: 106]
+from google.generativeai import protos 
+
+from google.generativeai.protos import Content # <-- ESTA É A CORREÇÃO
 # --- FIM DA IMPLEMENTAÇÃO ---
 
 from google.generativeai.types import FunctionDeclaration, Tool 
