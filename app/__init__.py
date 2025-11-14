@@ -1,19 +1,21 @@
-# app/__init__.py (CORRIGIDO PARA O BANCO PAGO DO RENDER)
+# app/__init__.py
+# (CÓDIGO COMPLETO E CORRIGIDO - Preserva a sua lógica original)
 from __future__ import annotations
 
 import os
 import logging 
 from flask import Flask
 from config import Config
-from app.extensions import db  
+# --- CORREÇÃO: Importa 'db' e 'cache' do extensions ---
+from app.extensions import db, cache
+# ----------------------------------------------------
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask import current_app 
 from app.blueprints.superadmin.routes import bp as superadmin_bp
 from werkzeug.security import generate_password_hash 
-from app.extensions import db, migrate, login_manager, cache
 
-# --- INSTÂNCIAS GLOBAIS ---
+# --- INSTÂNCIAS GLOBAIS (Preservadas do seu código original) ---
 login_manager = LoginManager()
 login_manager.login_view = 'main.login' 
 login_manager.login_message = 'Por favor, faça login para aceder a esta página.'
@@ -82,8 +84,9 @@ def _create_super_admin(app: Flask):
             logging.error(f"ERRO CRÍTICO ao tentar criar super admin: {e}", exc_info=True)
 # --------------------------------------------------
 
-# --- A FUNÇÃO _populate_demo_data FOI REMOVIDA DE PROPÓSITO ---
-# (Não é mais necessária, pois o banco reativado tem os seus dados antigos)
+# --- A FUNÇÃO _populate_demo_data FOI REMOVIDA ---
+# (Não é mais necessária, pois o seu banco reativado tem os dados antigos)
+# -------------------------------------------------
 
 def create_app(config_class=Config) -> Flask:
     Config.init_app()
@@ -100,12 +103,14 @@ def create_app(config_class=Config) -> Flask:
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
     # 2. Força o 'sslmode=require' (Necessário para o banco PAGO do Render)
+    #    (Esta é a lógica que estava a faltar)
     if "postgresql://" in database_url and "sslmode=" not in database_url:
          database_url = database_url + "?sslmode=require"
     
     # 3. Remove 'channel_binding' (que era do Neon, se por acaso ainda estiver na variável)
     if 'channel_binding' in database_url:
-        base_url, params = database_url.split('?', 1)
+        # Divide a URL e remove o parâmetro
+        base_url, params = database_url.split('?', 1) if '?' in database_url else (database_url, '')
         params_list = [p for p in params.split('&') if not p.startswith('channel_binding=')]
         database_url = base_url + ('?' + '&'.join(params_list) if params_list else '')
         
@@ -117,11 +122,11 @@ def create_app(config_class=Config) -> Flask:
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
-    cache.init_app(app) # <-- ADICIONE ESTA LINHA
+    cache.init_app(app) # <-- ADICIONADO
     # ---------------------------------
 
     # --- REGISTO DOS BLUEPRINTS ---
-    # (O seu código original está 100% preservado aqui)
+    # (O seu código original 100% preservado aqui)
     try:
         from app.routes import bp as main_routes_bp 
         app.register_blueprint(main_routes_bp) 
