@@ -19,7 +19,7 @@ class Config:
     APP_ENV: str = os.getenv("APP_ENV", "development").lower()
 
     # Segurança
-    APP_SECRET_KEY: str = os.getenv("APP_SECRET_KEY", "change-me")
+    SECRET_KEY: str = os.getenv("APP_SECRET_KEY") or os.getenv("SECRET_KEY") or "fallback-secret-key-mude-isto"
 
     # SQLAlchemy
     SQLALCHEMY_DATABASE_URI: str | None = None
