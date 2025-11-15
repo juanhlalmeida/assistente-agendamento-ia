@@ -33,23 +33,28 @@ class Config:
     # --- Configuração do Cache (Redis) ---
     # [cite: 63, 254]
     
-    # Define o tipo de cache para 'redis'. [cite: 65, 257]
-    CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'redis')
+    # O Render injeta a URL de conexão do Redis nesta variável
+    REDIS_URL = os.environ.get('REDIS_URL')
+    if REDIS_URL:
+        # ESTAMOS NO RENDER (Produção)
+        # Flask-Caching usará esta URL para se conectar ao serviço Redis
+        CACHE_TYPE = 'redis'
+        CACHE_REDIS_URL = REDIS_URL
+        
+        # Adiciona esta opção para compatibilidade com conexões SSL ('rediss://')
+        # que alguns provedores de Redis (incluindo o Render) podem usar.
+        CACHE_REDIS_OPTIONS = {
+            'ssl_cert_reqs': None
+        }
+        
+    else:
+        # ESTAMOS LOCALMENTE (Desenvolvimento)
+        # Se 'REDIS_URL' não for encontrada, usa o cache em memória simples.
+        # Isso permite que você rode o projeto localmente sem o Redis instalado.
+        CACHE_TYPE = 'SimpleCache'
     
-    # Host do servidor Redis. [cite: 66, 259]
-    CACHE_REDIS_HOST: str = os.environ.get('REDIS_HOST', 'localhost')
-    
-    # Porta do servidor Redis. [cite: 68, 261]
-    CACHE_REDIS_PORT: int = int(os.environ.get('REDIS_PORT', 6379))
-    
-    # Password do servidor Redis (None se não estiver definida). [cite: 69, 263]
-    CACHE_REDIS_PASSWORD: str | None = os.environ.get('REDIS_PASSWORD', None)
-    
-    # Número da base de dados Redis (0-15). [cite: 70, 265]
-    CACHE_REDIS_DB: int = int(os.environ.get('REDIS_DB', 0))
-    
-    # Timeout padrão (1 hora = 3600s) para o histórico da conversa. [cite: 72, 268]
-    CACHE_DEFAULT_TIMEOUT: int = int(os.environ.get('CACHE_DEFAULT_TIMEOUT', 3600))
+    # Tempo padrão que o histórico de chat ficará salvo (1 hora)
+    CACHE_DEFAULT_TIMEOUT = int(os.environ.get('CACHE_DEFAULT_TIMEOUT', 3600))
     # --- FIM DA IMPLEMENTAÇÃO ---
 
     @classmethod
