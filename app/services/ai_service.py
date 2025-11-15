@@ -476,6 +476,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 "listar_servicos": listar_servicos,
                 "calcular_horarios_disponiveis": calcular_horarios_disponiveis,
                 "criar_agendamento": criar_agendamento,
+                "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
             }
            
             if function_name in tool_map:
