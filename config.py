@@ -19,7 +19,7 @@ class Config:
     APP_ENV: str = os.getenv("APP_ENV", "development").lower()
 
     # Segurança
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "change-me")
+    SECRET_KEY1: str = os.getenv("SECRET_KEY1", "change-me")
 
     # SQLAlchemy
     SQLALCHEMY_DATABASE_URI: str | None = None
