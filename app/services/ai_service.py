@@ -9,6 +9,7 @@ from google.api_core.exceptions import NotFound
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
+from datetime import time as dt_time    
 
 # --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o PDF) ---
 # Importa o cache das extensões [cite: 165]
@@ -219,18 +220,23 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
                 dia_dt = datetime.strptime(dia, '%Y-%m-%d').date()
             except ValueError:
                 return "Formato de data inválido. Por favor, forneça a data no formato AAAA-MM-DD."
-            # Encontra os agendamentos
-            inicio_dia = datetime.combine(dia_dt, time.min)
-            fim_dia = datetime.combine(dia_dt, time.max)
+            
+            # Encontra os agendamentos - CORRIGIDO AQUI
+            from datetime import time as dt_time
+            inicio_dia = datetime.combine(dia_dt, dt_time.min)
+            fim_dia = datetime.combine(dia_dt, dt_time.max)
+            
             agendamentos_para_cancelar = Agendamento.query.filter(
                 Agendamento.barbearia_id == barbearia_id,
                 Agendamento.telefone_cliente == telefone_cliente,
                 Agendamento.data_hora >= inicio_dia,
                 Agendamento.data_hora <= fim_dia
             ).all()
+            
             if not agendamentos_para_cancelar:
                 logging.warning(f"Nenhum agendamento encontrado para {telefone_cliente} no dia {dia}")
                 return f"Não encontrei nenhum agendamento no seu nome (telefone: {telefone_cliente}) para o dia {dia_dt.strftime('%d/%m/%Y')}."
+            
             # Cancela os agendamentos
             nomes_servicos = []
             for ag in agendamentos_para_cancelar:
