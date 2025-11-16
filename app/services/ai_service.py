@@ -289,7 +289,7 @@ tools = Tool(
 model = None 
 try:
     # ✅ MUDANÇA 1: Trocado para Flash (94% economia)
-    model_name_to_use = 'models/gemini-1.5-flash-latest'  # Era: 'models/gemini-pro-latest'
+    model_name_to_use = 'gemini-2.5-flash'  # Era: 'models/gemini-pro-latest'
     
     model = genai.GenerativeModel(model_name=model_name_to_use, tools=[tools])
     
