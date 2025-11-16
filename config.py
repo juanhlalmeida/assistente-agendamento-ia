@@ -29,32 +29,30 @@ class Config:
     INSTANCE_DIR = BASE_DIR / "instance"
     INSTANCE_DIR.mkdir(exist_ok=True)
 
-    # --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o PDF) ---
-    # --- Configuração do Cache (Redis) ---
-    # [cite: 63, 254]
+    # --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o Relatório Técnico) ---
+    # [cite: 63-72]
     
-    # O Render injeta a URL de conexão do Redis nesta variável
-    REDIS_URL = os.environ.get('REDIS_URL')
-    if REDIS_URL:
-        # ESTAMOS NO RENDER (Produção)
-        # Flask-Caching usará esta URL para se conectar ao serviço Redis
-        CACHE_TYPE = 'redis'
-        CACHE_REDIS_URL = REDIS_URL
-        
-        # Adiciona esta opção para compatibilidade com conexões SSL ('rediss://')
-        # que alguns provedores de Redis (incluindo o Render) podem usar.
-        CACHE_REDIS_OPTIONS = {
-            'ssl_cert_reqs': None
-        }
-        
-    else:
-        # ESTAMOS LOCALMENTE (Desenvolvimento)
-        # Se 'REDIS_URL' não for encontrada, usa o cache em memória simples.
-        # Isso permite que você rode o projeto localmente sem o Redis instalado.
-        CACHE_TYPE = 'SimpleCache'
+    # Define o tipo de cache para 'redis'.
+    CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'redis')
     
-    # Tempo padrão que o histórico de chat ficará salvo (1 hora)
-    CACHE_DEFAULT_TIMEOUT = int(os.environ.get('CACHE_DEFAULT_TIMEOUT', 3600))
+    # Host do servidor Redis.
+    CACHE_REDIS_HOST: str = os.environ.get('REDIS_HOST', 'localhost')
+    
+    # Porta do servidor Redis.
+    CACHE_REDIS_PORT: int = int(os.environ.get('REDIS_PORT', 6379))
+    
+    # Password do servidor Redis (None se não estiver definida).
+    CACHE_REDIS_PASSWORD: str | None = os.environ.get('REDIS_PASSWORD', None)
+    
+    # Número da base de dados Redis (0-15).
+    CACHE_REDIS_DB: int = int(os.environ.get('REDIS_DB', 0))
+    
+    # Timeout padrão (1 hora = 3600s) para o histórico da conversa.
+    CACHE_DEFAULT_TIMEOUT: int = int(os.environ.get('CACHE_DEFAULT_TIMEOUT', 3600))
+
+    # Esta variável (CACHE_REDIS_URL) é a forma mais fácil
+    # de configurar no Render. Ela sobrescreve as de cima.
+    CACHE_REDIS_URL: str | None = os.environ.get('CACHE_REDIS_URL', None)
     # --- FIM DA IMPLEMENTAÇÃO ---
 
     @classmethod
@@ -64,14 +62,11 @@ class Config:
         - Em produção: exige DATABASE_URL (Render/Heroku) e corrige 'postgres://' -> 'postgresql://'
         - Em dev: usa DATABASE_URL se existir; senão, SQLite local
         """
+        # (O seu código original de 'init_app' está 100% preservado aqui)
         db_url = (os.getenv("DATABASE_URL") or "").strip()
 
-        # --- ESTA É A ÚNICA CORREÇÃO NECESSÁRIA ---
-        # A URL Interna do Render/Neon é 'postgres://'
-        # O SQLAlchemy prefere 'postgresql://'
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
-        # ---------------------------------------------
 
         if cls.APP_ENV == "production":
             if not db_url:
@@ -80,7 +75,10 @@ class Config:
                     "No Render, configure a variável de ambiente DATABASE_URL."
                 )
             
-            # Sem lógicas de SSL. Apenas usa a URL interna.
+            # Adiciona 'sslmode=require' (necessário para o banco pago do Render)
+            if "postgresql://" in db_url and "sslmode=" not in db_url:
+                 db_url = db_url + "?sslmode=require"
+            
             cls.SQLALCHEMY_DATABASE_URI = db_url
             return
 

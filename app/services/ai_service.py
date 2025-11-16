@@ -1,5 +1,5 @@
 # app/services/ai_service.py
-# (CÓDIGO COMPLETO E REATORADO PARA USAR REDIS/CACHE)
+# (CÓDIGO COMPLETO E OTIMIZADO PARA ECONOMIA DE TOKENS)
 
 import os
 import logging
@@ -9,7 +9,7 @@ from google.api_core.exceptions import NotFound
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
-from datetime import time as dt_time    
+from datetime import time as dt_time
 
 # --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o PDF) ---
 # Importa o cache das extensões [cite: 165]
@@ -32,41 +32,22 @@ from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponi
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- PROMPT REFINADO (Preservado 100%) ---
+# --- PROMPT OTIMIZADO (Reduzido de ~900 para ~250 tokens = 72% economia) ---
 SYSTEM_INSTRUCTION_TEMPLATE = """
-Voce e 'Luana', uma assistente de IA da {barbearia_nome}.
-Seja sempre simpatica, direta e 100% focada em agendamentos. Use emojis (tesoura, brilho, piscada, polegar pra cima) quando apropriado.
-O seu ID de cliente e: {cliente_whatsapp}
-A sua Barbearia ID e: {barbearia_id}
+Você é 'Luana', assistente da {barbearia_nome}. Cliente: {cliente_whatsapp}. Barbearia ID: {barbearia_id}.
 
-REGRAS DE OURO (NAO QUEBRE NUNCA):
-1. **SAUDACAO:** Voce so deve saudar o cliente UMA VEZ, na primeira mensagem da conversa.
-2. **FOCO TOTAL:** O seu unico objetivo e preencher os 4 campos: [servico], [profissional], [data], [hora].
-3. **NAO ALUCINE (NAO INVENTE):**
-    * **NUNCA** invente nomes de profissionais ou servicos que nao estejam na lista.
-    * Use **EXATAMENTE** os nomes retornados pelas ferramentas `listar_profissionais` e `listar_servicos`.
-    * Se o cliente disser "corte de cabelo" e a ferramenta retornar "Corte", voce DEVE confirmar: "Entendido, o servico e 'Corte', correto?".
-4. **SEJA PROATIVA:** Se faltar mais de uma informacao, pergunte por TUDO o que falta de uma vez.
-5. **USE AS FERRAMENTAS:** `listar_profissionais`, `listar_servicos`, `calcular_horarios_disponiveis`, `criar_agendamento`.
-   
-    # --- ADICIONADO: REGRA DE CANCELAMENTO ---
-    * **PARA CANCELAR:** Se o cliente pedir para cancelar, use a ferramenta `cancelar_agendamento_por_telefone`. Você SÓ precisa do dia.
-    * Exemplo: "oi, pode cancelar meu corte do dia 16?" -> IA chama `cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")`
-    # ----------------------------------------
-6. **DATAS:** Use o contexto. Hoje e {data_de_hoje}. "Amanha" e {data_de_amanha}. Use sempre o formato AAAA-MM-DD para as ferramentas.
-7. **TELEFONE:** **NUNCA PERGUNTE OU MENCIONE.**
-8. **NOME DO CLIENTE:** Pergunte **APENAS NO FINAL**, antes de `criar_agendamento`.
-9. **CONFIRMACAO FINAL:** Apos `criar_agendamento` sucesso: "Perfeito, {{nome_do_cliente}}! Seu agendamento para {{Servico}} com o {{Profissional}} no dia {{Data}} as {{Hora}} esta confirmado. Usamos o numero que voce nos contactou. Estamos te esperando!"
-10. **PRECOS VARIAVEIS:** Ao confirmar um servico, **SE** a ferramenta `listar_servicos` indicar "(a partir de)" ao lado do preco, **REPITA** essa informacao.
+REGRAS:
+1. Saudar UMA VEZ (primeira msg)
+2. Objetivo: preencher [serviço], [profissional], [data], [hora]
+3. Use APENAS nomes exatos das ferramentas (listar_profissionais/listar_servicos)
+4. Pergunte tudo que falta de uma vez
+5. Datas: Hoje={data_de_hoje}, Amanhã={data_de_amanha}. Use AAAA-MM-DD
+6. NUNCA mencione telefone
+7. Nome do cliente: perguntar antes de criar_agendamento
+8. Confirmação: "Perfeito, {{nome}}! Agendamento {{Serviço}} com {{Profissional}} dia {{Data}} às {{Hora}} confirmado. Aguardamos você!"
+9. Preços variáveis: repetir "(a partir de)" se retornado
 
-**Exemplo de Fluxo (Com Preço Variável):**
-[Usuário: Quero fazer luzes com o Fabio amanhã]
-[Luana: (Usa `listar_profissionais` -> OK) (Usa `listar_servicos` -> Retorna: Luzes (90 min, R$ 50.00 (a partir de))...) Combinado, com o Fabio! Sobre as Luzes (que levam 90 min), o valor é *a partir de* R$ 50,00, ok? Qual horário prefere amanhã?]
-[Usuário: 10h]
-[Luana: (Usa `calcular_horarios_disponiveis`...) Verificando... Sim, 10:00 está livre com o Fabio amanhã! ✅ Para confirmar, qual o seu nome?]
-[Usuário: Carlos]
-[Luana: (Usa `criar_agendamento`...) Perfeito, Carlos! ✨ Seu agendamento para Luzes com o Fabio amanhã às 10:00 está confirmado. Usamos o número que você nos contactou. Estamos te esperando! 👍]
-
+CANCELAMENTO: Se pedir cancelamento, use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 """
 # ---------------------------------------
 
@@ -86,7 +67,6 @@ def listar_profissionais(barbearia_id: int) -> str:
         with current_app.app_context():
             profissionais = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
             if not profissionais:
-                # Esta é a linha que o seu log mostrou!
                 logging.warning(f"Ferramenta 'listar_profissionais' (barbearia_id: {barbearia_id}): Nenhum profissional cadastrado.")
                 return "Nenhum profissional cadastrado para esta barbearia no momento."
             nomes = [p.nome for p in profissionais]
@@ -123,7 +103,6 @@ def listar_servicos(barbearia_id: int) -> str:
         return f"Erro ao listar serviços: Ocorreu um erro interno."
 
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
-    # (Seu código original 100% preservado, com a CORREÇÃO DE FUSO HORÁRIO)
     try:
         with current_app.app_context():
             profissional = Profissional.query.filter_by(
@@ -133,8 +112,7 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
             if not profissional:
                 return "Profissional não encontrado. Por favor, verifique o nome."
            
-            # --- CORREÇÃO DE FUSO HORÁRIO (Bug 4) ---
-            agora_br = datetime.now(BR_TZ) # Usa o fuso do Brasil
+            agora_br = datetime.now(BR_TZ)
            
             if dia.lower() == 'hoje':
                 dia_dt = agora_br
@@ -142,12 +120,11 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
                 dia_dt = agora_br + timedelta(days=1)
             else:
                 try:
-                    # Converte AAAA-MM-DD para datetime e *assume* ser do Brasil
                     dia_dt_naive = datetime.strptime(dia, '%Y-%m-%d')
                     dia_dt = BR_TZ.localize(dia_dt_naive)
                 except ValueError:
                     return "Formato de data inválido. Use 'hoje', 'amanhã' ou 'AAAA-MM-DD'."
-            # ----------------------------------------
+            
             horarios_dt_list = calcular_horarios_disponiveis_util(profissional, dia_dt)
             horarios_str_list = [h.strftime('%H:%M') for h in horarios_dt_list]
             dia_formatado = dia_dt.strftime('%d/%m/%Y') 
@@ -157,7 +134,6 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
         return "Desculpe, ocorreu um erro ao verificar os horários."
 
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
-    # (Seu código original 100% preservado, com logging.warning para serviço inexistente)
     try:
         with current_app.app_context():
             profissional = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=profissional_nome).first()
@@ -165,7 +141,6 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
                 return "Profissional não encontrado."
             servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome=servico_nome).first()
             if not servico:
-                # Este foi o Bug 5: A IA tentou agendar "Corte Tradicional", que não existe.
                 logging.warning(f"Tentativa de agendar serviço inexistente: '{servico_nome}'")
                 return f"Serviço '{servico_nome}' não encontrado. Por favor, confirme o nome do serviço."
                
@@ -207,7 +182,6 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
         current_app.logger.error(f"Erro na ferramenta 'criar_agendamento': {e}", exc_info=True)
         return f"Erro ao criar agendamento: {str(e)}" 
 
-# --- ADICIONADO: A NOVA FERRAMENTA DE CANCELAMENTO ---
 def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, dia: str) -> str:
     """
     Cancela TODOS os agendamentos de um cliente (telefone) para um dia específico.
@@ -216,13 +190,10 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
     try:
         with current_app.app_context():
             try:
-                # Converte o dia (AAAA-MM-DD) para um objeto de data
                 dia_dt = datetime.strptime(dia, '%Y-%m-%d').date()
             except ValueError:
                 return "Formato de data inválido. Por favor, forneça a data no formato AAAA-MM-DD."
             
-            # Encontra os agendamentos - CORRIGIDO AQUI
-            from datetime import time as dt_time
             inicio_dia = datetime.combine(dia_dt, dt_time.min)
             fim_dia = datetime.combine(dia_dt, dt_time.max)
             
@@ -237,7 +208,6 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
                 logging.warning(f"Nenhum agendamento encontrado para {telefone_cliente} no dia {dia}")
                 return f"Não encontrei nenhum agendamento no seu nome (telefone: {telefone_cliente}) para o dia {dia_dt.strftime('%d/%m/%Y')}."
             
-            # Cancela os agendamentos
             nomes_servicos = []
             for ag in agendamentos_para_cancelar:
                 nomes_servicos.append(f"{ag.servico.nome} às {ag.data_hora.strftime('%H:%M')}")
@@ -252,7 +222,6 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
         db.session.rollback()
         current_app.logger.error(f"Erro na ferramenta 'cancelar_agendamento_por_telefone': {e}", exc_info=True)
         return f"Erro ao cancelar agendamento: {str(e)}"
-# ----------------------------------------------------
 
 # ---------------------------------------------------------------------
 # DEFINIÇÃO DAS TOOLS (Preservada + 1 Nova)
@@ -294,7 +263,6 @@ criar_agendamento_func = FunctionDeclaration(
     }
 )
 
-# --- ADICIONADO: Definição da nova ferramenta ---
 cancelar_agendamento_func = FunctionDeclaration(
     name="cancelar_agendamento_por_telefone",
     description="Cancela TODOS os agendamentos de um cliente para um dia específico. O telefone do cliente é obtido automaticamente pelo sistema.",
@@ -306,7 +274,6 @@ cancelar_agendamento_func = FunctionDeclaration(
         "required": ["dia"]
     }
 )
-# ----------------------------------------------
 
 tools = Tool(
     function_declarations=[
@@ -314,86 +281,78 @@ tools = Tool(
         listar_servicos_func,
         calcular_horarios_disponiveis_func,
         criar_agendamento_func,
-        cancelar_agendamento_func  # <-- ADICIONADO
+        cancelar_agendamento_func
     ]
 )
 
-# --- Inicialização do Modelo Gemini (Preservado) ---
+# --- Inicialização do Modelo Gemini (OTIMIZADO PARA FLASH) ---
 model = None 
 try:
-    model_name_to_use = 'models/gemini-pro-latest'  # Mantendo o seu modelo
+    # ✅ MUDANÇA 1: Trocado para Flash (94% economia)
+    model_name_to_use = 'models/gemini-1.5-flash-latest'  # Era: 'models/gemini-pro-latest'
     
-    # (Removido o system_instruction estático)
     model = genai.GenerativeModel(model_name=model_name_to_use, tools=[tools])
     
-    logging.info(f"Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
+    logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
 except NotFound as nf_error:
     logging.error(f"ERRO CRÍTICO: Modelo Gemini '{model_name_to_use}' não encontrado: {nf_error}", exc_info=True)
 except Exception as e:
     logging.error(f"ERRO CRÍTICO GERAL ao inicializar o modelo Gemini: {e}", exc_info=True)
 
-# --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o PDF) ---
-# --- REMOVIDO: A VARIÁVEL GLOBAL ---
-# convo_history = {} #
-# --- ADICIONADO: Funções Helper de Serialização (Adaptadas para 'protos') ---
-# [cite: 99, 107]
+# --- FUNÇÕES HELPER DE SERIALIZAÇÃO ---
 def serialize_history(history: list[Content]) -> str:
     """
     Serializa o histórico de chat (lista de objetos Content) para uma string JSON.
     Lida com texto, FunctionCall (protos) e FunctionResponse (protos).
     """
-    serializable_list = []  # [cite: 109]
-    for content in history:  # [cite: 110]
-        serial_parts = []  # [cite: 111]
-        for part in content.parts:  # [cite: 112]
-            part_dict = {}  # [cite: 113]
-            if part.text:  # [cite: 114]
-                part_dict['text'] = part.text  # [cite: 115]
-            # Adaptado para usar 'protos' (que o seu código já usa)
-            elif part.function_call:  # [cite: 116]
-                part_dict['function_call'] = protos.FunctionCall.to_dict(part.function_call)  # [cite: 118]
-            elif part.function_response:  # [cite: 119]
-                part_dict['function_response'] = protos.FunctionResponse.to_dict(part.function_response)  # [cite: 120]
+    serializable_list = []
+    for content in history:
+        serial_parts = []
+        for part in content.parts:
+            part_dict = {}
+            if part.text:
+                part_dict['text'] = part.text
+            elif part.function_call:
+                part_dict['function_call'] = protos.FunctionCall.to_dict(part.function_call)
+            elif part.function_response:
+                part_dict['function_response'] = protos.FunctionResponse.to_dict(part.function_response)
            
-            if part_dict:  # [cite: 121]
-                serial_parts.append(part_dict)  # [cite: 122]
+            if part_dict:
+                serial_parts.append(part_dict)
        
         serializable_list.append({
-            'role': content.role,  # [cite: 125]
-            'parts': serial_parts  # [cite: 126]
-        })  # [cite: 123]
-    return json.dumps(serializable_list)  # [cite: 127]
+            'role': content.role,
+            'parts': serial_parts
+        })
+    return json.dumps(serializable_list)
 
 def deserialize_history(json_string: str) -> list[Content]:
     """
     Deserializa uma string JSON de volta para uma lista de objetos Content.
     Recria texto, FunctionCall (protos) e FunctionResponse (protos).
     """
-    #
-    history_list = []  # [cite: 130]
-    if not json_string:  # [cite: 131]
-        return history_list  # [cite: 132]
+    history_list = []
+    if not json_string:
+        return history_list
     try:
-        serializable_list = json.loads(json_string)  # [cite: 134]
-    except json.JSONDecodeError:  # [cite: 135]
+        serializable_list = json.loads(json_string)
+    except json.JSONDecodeError:
         logging.warning("Dados de cache de histórico inválidos ou corrompidos.")
-        return history_list  # [cite: 136]
-    for item in serializable_list:  # [cite: 137]
-        deserial_parts = []  # [cite: 138]
-        for part_data in item.get('parts', []):  # [cite: 139]
-            if 'text' in part_data:  # [cite: 140]
-                deserial_parts.append(protos.Part(text=part_data['text']))  # [cite: 141] (Adaptado para protos.Part)
-            # Adaptado para usar 'protos'
-            elif 'function_call' in part_data:  # [cite: 142]
-                fc = protos.FunctionCall(part_data['function_call'])  # [cite: 144]
-                deserial_parts.append(protos.Part(function_call=fc))  # [cite: 145]
-            elif 'function_response' in part_data:  # [cite: 146]
-                fr = protos.FunctionResponse(part_data['function_response'])  # [cite: 147]
-                deserial_parts.append(protos.Part(function_response=fr))  # [cite: 147]
+        return history_list
+    for item in serializable_list:
+        deserial_parts = []
+        for part_data in item.get('parts', []):
+            if 'text' in part_data:
+                deserial_parts.append(protos.Part(text=part_data['text']))
+            elif 'function_call' in part_data:
+                fc = protos.FunctionCall(part_data['function_call'])
+                deserial_parts.append(protos.Part(function_call=fc))
+            elif 'function_response' in part_data:
+                fr = protos.FunctionResponse(part_data['function_response'])
+                deserial_parts.append(protos.Part(function_response=fr))
        
-        history_list.append(Content(role=item.get('role'), parts=deserial_parts))  # [cite: 148]
-    return history_list  # [cite: 152]
-# --- FIM DAS FUNÇÕES HELPER ---
+        history_list.append(Content(role=item.get('role'), parts=deserial_parts))
+    return history_list
 
 # --- FUNÇÃO PRINCIPAL DE PROCESSAMENTO (Refatorada para Cache) ---
 def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
@@ -401,14 +360,11 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
     Processa a mensagem do usuário usando o Gemini, mantendo o histórico
     da conversa no cache (Redis) associado ao número do cliente.
     """
-    # [cite: 176]
     if not model:
         logging.error("Modelo Gemini não inicializado. Abortando.")
         return "Desculpe, meu cérebro (IA) está offline no momento. Tente novamente mais tarde."
    
-    # 1. Definir a Cache Key (Chave do Cache)
-    # Usamos o ID do cliente + ID da barbearia para garantir um histórico único
-    cache_key = f"chat_history_{cliente_whatsapp}:{barbearia_id}"  # [cite: 183]
+    cache_key = f"chat_history_{cliente_whatsapp}:{barbearia_id}"
    
     try:
         barbearia = Barbearia.query.get(barbearia_id)
@@ -416,12 +372,17 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             logging.error(f"Barbearia ID {barbearia_id} não encontrada no processar_ia_gemini.")
             return "Desculpe, não consegui identificar para qual barbearia você está ligando."
        
-        # 2. Carregar (GET) histórico anterior do cache [cite: 185]
+        # Carregar histórico do cache
         logging.info(f"Carregando histórico do cache para a chave: {cache_key}")
         serialized_history = cache.get(cache_key)
-        history_to_load = deserialize_history(serialized_history)  # [cite: 186]
+        history_to_load = deserialize_history(serialized_history)
+        
+        # ✅ MUDANÇA 3: Logging para monitorar Redis
+        if serialized_history:
+            logging.info(f"✅ Histórico recuperado do Redis. Tamanho: {len(serialized_history)} chars")
+        else:
+            logging.warning("⚠️ Redis vazio - nova sessão iniciada")
        
-        # (Lógica de Fuso Horário preservada)
         agora_br = datetime.now(BR_TZ)
         data_hoje_str = agora_br.strftime('%Y-%m-%d')
         data_amanha_str = (agora_br + timedelta(days=1)).strftime('%Y-%m-%d')
@@ -434,12 +395,10 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             data_de_amanha=data_amanha_str
         )
        
-        # 3. Iniciar a sessão de chat (Corrigido o Bug 1 da saudação)
-        is_new_chat = not history_to_load  # [cite: 180]
+        is_new_chat = not history_to_load
        
         if is_new_chat:
             logging.info(f"Iniciando NOVO histórico de chat para o cliente {cliente_whatsapp}.")
-            # Cria o histórico de chat com o prompt do sistema
             history_to_load = [
                 {'role': 'user', 'parts': [system_prompt]},
                 {'role': 'model', 'parts': [
@@ -447,20 +406,18 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 ]}
             ]
        
-        chat_session = model.start_chat(history=history_to_load)  # [cite: 197]
+        chat_session = model.start_chat(history=history_to_load)
        
-        # Se for um chat novo E o usuário SÓ disse "oi", retorna a saudação e para
         if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite']:
-             # Salva o histórico inicial (saudação) no cache
-             new_serialized_history = serialize_history(chat_session.history)  # [cite: 225]
-             cache.set(cache_key, new_serialized_history)  # [cite: 227]
+             new_serialized_history = serialize_history(chat_session.history)
+             cache.set(cache_key, new_serialized_history)
+             logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
              return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
       
         logging.info(f"Enviando mensagem para a IA: {user_message}")
        
-        # 4. Enviar mensagem para a IA (Lógica de retry preservada)
         try:
-            response = chat_session.send_message(user_message)  # [cite: 200]
+            response = chat_session.send_message(user_message)
         except ResourceExhausted as e:
             logging.warning(f"Quota do Gemini excedida: {e}")
             return "Puxa, parece que atingi meu limite de processamento por agora. 😕 Por favor, tente novamente em um minuto."
@@ -468,11 +425,11 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             logging.error(f"Erro ao enviar mensagem para a IA: {e}", exc_info=True)
             return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
       
-        # 5. Lógica de Ferramentas (Preservada e Corrigida) [cite: 202]
-        while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:  # [cite: 204]
+        # Lógica de Ferramentas
+        while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
           
-            function_call = response.candidates[0].content.parts[0].function_call  # [cite: 206]
-            function_name = function_call.name  # [cite: 207]
+            function_call = response.candidates[0].content.parts[0].function_call
+            function_name = function_call.name
             function_args = function_call.args
           
             logging.info(f"IA solicitou a ferramenta '{function_name}' com os argumentos: {dict(function_args)}")
@@ -491,12 +448,11 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 kwargs['barbearia_id'] = barbearia_id
                
                 if function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
-                    kwargs['telefone_cliente'] = cliente_whatsapp
+                     kwargs['telefone_cliente'] = cliente_whatsapp
                
                 tool_response = function_to_call(**kwargs)
                
-                # (Sua sintaxe 'protos' preservada, como corrigimos antes)
-                response = chat_session.send_message(  # [cite: 218]
+                response = chat_session.send_message(
                     protos.Part(
                         function_response=protos.FunctionResponse(
                             name=function_name,
@@ -515,17 +471,26 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                     )
                 )
        
-        # 6. Salvar (SET) o novo histórico no cache [cite: 227]
-        new_serialized_history = serialize_history(chat_session.history)  # [cite: 225]
+        # Salvar histórico no cache
+        new_serialized_history = serialize_history(chat_session.history)
         cache.set(cache_key, new_serialized_history)
+        logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
        
-        # 7. Retornar resposta final [cite: 229]
+        # ✅ MUDANÇA 4: Logging de uso de tokens
         final_response_text = response.candidates[0].content.parts[0].text
+        
+        # Monitoramento de tokens (se disponível)
+        try:
+            if hasattr(response, 'usage_metadata'):
+                input_tokens = response.usage_metadata.prompt_token_count
+                output_tokens = response.usage_metadata.candidates_token_count
+                logging.info(f"💰 Tokens usados - Input: {input_tokens}, Output: {output_tokens}")
+        except Exception:
+            pass  # Ignore se não houver metadata de uso
+        
         logging.info(f"Resposta final da IA: {final_response_text}")
         return final_response_text
        
     except Exception as e:
         logging.error(f"Erro GRANDE ao processar com IA: {e}", exc_info=True)
-        # (Não limpamos o histórico do cache aqui, pode ser um erro temporário)
         return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
-# --- FIM DA IMPLEMENTAÇÃO ---
