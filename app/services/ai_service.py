@@ -484,8 +484,8 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 kwargs = dict(function_args)
                 kwargs['barbearia_id'] = barbearia_id
                
-                if function_name == 'criar_agendamento':
-                     kwargs['telefone_cliente'] = cliente_whatsapp
+                if function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
+                    kwargs['telefone_cliente'] = cliente_whatsapp
                
                 tool_response = function_to_call(**kwargs)
                
