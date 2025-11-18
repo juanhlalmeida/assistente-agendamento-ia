@@ -1,5 +1,5 @@
 # app/services/ai_service.py
-# (CÓDIGO COMPLETO E ULTRA-OTIMIZADO PARA ECONOMIA DE TOKENS)
+# (CÓDIGO COMPLETO E BLINDADO - VERSÃO FINAL)
 
 import os
 import logging
@@ -324,7 +324,7 @@ tools = Tool(
 # ============================================
 model = None
 try:
-    model_name_to_use = 'gemini-2.5-flash'
+    model_name_to_use = 'gemini-1.5-flash'
     model = genai.GenerativeModel(model_name=model_name_to_use, tools=[tools])
     logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
 except NotFound as nf_error:
@@ -394,15 +394,16 @@ def deserialize_history(json_string: str) -> list[Content]:
     return history_list
 
 # ============================================
-# 🚀 FUNÇÃO PRINCIPAL (ULTRA-OTIMIZADA)
+# 🚀 FUNÇÃO PRINCIPAL (ULTRA-OTIMIZADA + BLINDADA)
 # ============================================
 
 def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
     """
-    Processa mensagem com 3 camadas de otimização:
-    1. Filtro pré-IA (bloqueia spam antes de gastar tokens)
-    2. Janela deslizante de histórico (máximo 10 mensagens)
-    3. Limpeza automática após agendamento/cancelamento
+    Processa mensagem com 4 camadas de proteção:
+    1. Filtro pré-IA (bloqueia spam)
+    2. Detecção de histórico corrompido
+    3. Janela deslizante (máximo 10 mensagens)
+    4. Limpeza automática em caso de erro
     """
     if not model:
         logging.error("Modelo Gemini não inicializado. Abortando.")
@@ -453,7 +454,25 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                     f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
                 ]}
             ]
-       
+        
+        # ✅ CAMADA 2: VALIDAÇÃO DO HISTÓRICO (DETECTAR CORROMPIDO)
+        if history_to_load:
+            # Verifica se último item é function_call sem response
+            ultimo_item = history_to_load[-1] if history_to_load else None
+            if ultimo_item and ultimo_item.get('role') == 'model':
+                ultimo_parts = ultimo_item.get('parts', [])
+                if ultimo_parts and any('function_call' in str(part) for part in ultimo_parts):
+                    # Histórico corrompido detectado!
+                    logging.error(f"🚨 HISTÓRICO CORROMPIDO DETECTADO para {cache_key}! Limpando...")
+                    cache.delete(cache_key)
+                    # Recomeça do zero
+                    history_to_load = [
+                        {'role': 'user', 'parts': [system_prompt]},
+                        {'role': 'model', 'parts': [
+                            f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
+                        ]}
+                    ]
+        
         chat_session = model.start_chat(history=history_to_load)
        
         if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite']:
@@ -464,18 +483,34 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
       
         logging.info(f"Enviando mensagem para a IA: {user_message}")
        
+        # ✅ VARIÁVEL DE CONTROLE PARA SALVAR HISTÓRICO
+        historico_valido = False
+        
         try:
             response = chat_session.send_message(user_message)
+            historico_valido = True  # Se chegou aqui, pode salvar
+            
         except ResourceExhausted as e:
             logging.warning(f"Quota do Gemini excedida: {e}")
             return "Puxa, parece que atingi meu limite de processamento por agora. 😕 Por favor, tente novamente em um minuto."
         except Exception as e:
             logging.error(f"Erro ao enviar mensagem para a IA: {e}", exc_info=True)
+            # ✅ NÃO SALVA HISTÓRICO SE DEU ERRO
+            # ✅ LIMPA HISTÓRICO CORROMPIDO
+            cache.delete(cache_key)
+            logging.warning(f"🧹 Histórico limpo devido a erro. Próxima mensagem começará do zero.")
             return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
       
-        # Loop de Ferramentas
-        while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
-          
+        # Loop de Ferramentas com proteção contra loop infinito
+        max_iterations = 10  # Previne loop infinito
+        iteration = 0
+        
+        while (iteration < max_iterations and 
+               response.candidates and 
+               response.candidates[0].content.parts and 
+               response.candidates[0].content.parts[0].function_call):
+            
+            iteration += 1
             function_call = response.candidates[0].content.parts[0].function_call
             function_name = function_call.name
             function_args = function_call.args
@@ -500,19 +535,26 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                
                 tool_response = function_to_call(**kwargs)
                 
-                # ✅ CAMADA 3: LIMPEZA AUTOMÁTICA APÓS SUCESSO
+                # ✅ CAMADA 4: LIMPEZA AUTOMÁTICA APÓS SUCESSO
                 if "sucesso" in str(tool_response).lower() and function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
                     logging.info("🧹 Agendamento/Cancelamento concluído. Limpando histórico para próxima conversa.")
                     cache.delete(cache_key)
+                    historico_valido = False  # Não salvar (já foi deletado)
                
-                response = chat_session.send_message(
-                    protos.Part(
-                        function_response=protos.FunctionResponse(
-                            name=function_name,
-                            response={"result": tool_response}
+                try:
+                    response = chat_session.send_message(
+                        protos.Part(
+                            function_response=protos.FunctionResponse(
+                                name=function_name,
+                                response={"result": tool_response}
+                            )
                         )
                     )
-                )
+                except Exception as e:
+                    logging.error(f"Erro ao enviar function_response: {e}", exc_info=True)
+                    # ✅ LIMPA HISTÓRICO SE DEU ERRO NO LOOP
+                    cache.delete(cache_key)
+                    return "Desculpe, tive um problema ao processar a ferramenta. Vamos recomeçar."
             else:
                 logging.error(f"Erro: IA tentou chamar uma ferramenta desconhecida: {function_name}")
                 response = chat_session.send_message(
@@ -523,11 +565,17 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                         )
                     )
                 )
+        
+        if iteration >= max_iterations:
+            logging.error("⚠️ Loop infinito detectado! Abortando.")
+            cache.delete(cache_key)
+            return "Desculpe, tive um problema. Vamos recomeçar."
        
-        # ✅ CAMADA 2: Salvar histórico COM LIMITE (serialize_history já limita a 10)
-        new_serialized_history = serialize_history(chat_session.history)
-        cache.set(cache_key, new_serialized_history)
-        logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
+        # ✅ CAMADA 3: SÓ SALVA HISTÓRICO SE NÃO HOUVE ERRO
+        if historico_valido:
+            new_serialized_history = serialize_history(chat_session.history)
+            cache.set(cache_key, new_serialized_history)
+            logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
        
         # Logging de tokens
         final_response_text = response.candidates[0].content.parts[0].text
@@ -545,5 +593,10 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
        
     except Exception as e:
         logging.error(f"Erro GRANDE ao processar com IA: {e}", exc_info=True)
+        # ✅ SEMPRE LIMPA CACHE EM CASO DE ERRO CRÍTICO
+        try:
+            cache.delete(cache_key)
+            logging.info("🧹 Cache limpo após erro crítico")
+        except:
+            pass
         return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
-        
