@@ -31,7 +31,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 SYSTEM_INSTRUCTION_TEMPLATE = """
 PERSONA: Luana, assistente da {barbearia_nome}.
 OBJETIVO: Agendamentos. Foco 100%.
-TOM: Simpática, humanizada, descontraida, direta, emojis (✂️✨😉👍).
+TOM: Simpática, direta, emojis (✂️✨😉👍).
 ID_CLIENTE: {cliente_whatsapp} | BARBEARIA_ID: {barbearia_id}
 HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
 REGRAS CRÍTICAS:
@@ -312,17 +312,65 @@ except Exception as e:
 # ==============================================================================
 # 3. FUNÇÕES DE CACHE COM JANELA DESLIZANTE (LIMITA O TAMANHO DO HISTÓRICO)
 # ==============================================================================
+
+def is_valid_gemini_history(history: list[Content]) -> bool:
+    """
+    Valida se o histórico segue as regras da API Gemini para function calling:
+    - Function calls (model) após user (texto ou response).
+    - Function responses (user) imediatamente após function calls.
+    - Não termina com call não respondida.
+    - Não inicia com response sem call ou call sem user anterior.
+    """
+    for i in range(len(history)):
+        current = history[i]
+        if current.role == 'model':
+            has_call = any(part.function_call for part in current.parts)
+            if has_call:
+                # Deve vir após user (texto ou response)
+                if i == 0 or history[i-1].role != 'user':
+                    return False
+                # Próximo deve ser user response (se não for o fim)
+                if i + 1 < len(history):
+                    next_turn = history[i+1]
+                    if next_turn.role != 'user' or not any(part.function_response for part in next_turn.parts):
+                        return False
+            else:
+                # Model texto: após user
+                if i == 0 or history[i-1].role != 'user':
+                    return False
+        elif current.role == 'user':
+            has_response = any(part.function_response for part in current.parts)
+            if has_response:
+                # Deve vir após model call
+                if i == 0 or history[i-1].role != 'model' or not any(part.function_call for part in history[i-1].parts):
+                    return False
+        else:
+            return False  # Role inválido
+    # Não termina com call não respondida
+    if len(history) > 0 and history[-1].role == 'model' and any(part.function_call for part in history[-1].parts):
+        return False
+    return True
+
 def serialize_history(history: list[Content]) -> str:
     """
-    Serializa o histórico mantendo APENAS as últimas 10 mensagens.
-    Isso impede que o custo de tokens cresça infinitamente.
+    Serializa o histórico mantendo APENAS as últimas mensagens válidas (janela deslizante inteligente).
+    Evita cortes que quebram pares function_call/response para prevenir erros 400 na API Gemini.
     """
-    MAX_MESSAGES = 10
-   
-    # Janela Deslizante: Corta o histórico se for muito grande
-    if len(history) > MAX_MESSAGES:
+    MAX_MESSAGES = 30  # Aumentado para segurança (convos normais não chegam a isso, e cleanup reseta após agendamento)
+    
+    logging.info(f"Histórico original: {len(history)} mensagens.")
+    
+    # Encontra o maior sufixo válido <= MAX_MESSAGES
+    for length in range(MAX_MESSAGES, 0, -1):
+        suffix = history[-length:]
+        if is_valid_gemini_history(suffix):
+            logging.info(f"✅ Encontrado sufixo válido de {len(suffix)} mensagens.")
+            history = suffix
+            break
+    else:
+        logging.warning(f"⚠️ Nenhum sufixo válido encontrado. Usando último {MAX_MESSAGES} (pode causar erros).")
         history = history[-MAX_MESSAGES:]
-   
+    
     serializable_list = []
     for content in history:
         serial_parts = []
@@ -344,56 +392,30 @@ def serialize_history(history: list[Content]) -> str:
         })
     return json.dumps(serializable_list)
 
-def deserialize_history(json_string: str) -> list[Content]:
-    history_list = []
-    if not json_string:
-        return history_list
-    try:
-        serializable_list = json.loads(json_string)
-    except json.JSONDecodeError:
-        logging.warning("Dados de cache de histórico inválidos ou corrompidos.")
-        return history_list
-    for item in serializable_list:
-        deserial_parts = []
-        for part_data in item.get('parts', []):
-            if 'text' in part_data:
-                deserial_parts.append(protos.Part(text=part_data['text']))
-            elif 'function_call' in part_data:
-                fc = protos.FunctionCall(part_data['function_call'])
-                deserial_parts.append(protos.Part(function_call=fc))
-            elif 'function_response' in part_data:
-                fr = protos.FunctionResponse(part_data['function_response'])
-                deserial_parts.append(protos.Part(function_response=fr))
-       
-        history_list.append(protos.Content(role=item.get('role'), parts=deserial_parts))
-    return history_list
-
-# ==============================================================================
-# 4. FUNÇÃO PRINCIPAL (CÉREBRO COM TODAS AS OTIMIZAÇÕES)
-# ==============================================================================
 def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
     if not model:
         return "Desculpe, sistema offline."
-   
+  
     # 1. FILTRAGEM DE SPAM (Custo Zero)
     if mensagem_bloqueada(user_message):
         return "Desculpe, sou apenas uma assistente de agendamento. Como posso ajudar com seu horário? 😊"
-    cache_key = f"chat_history_{cliente_whatsapp}:{barbearia_id}"
    
+    cache_key = f"chat_history_{cliente_whatsapp}:{barbearia_id}"
+  
     try:
         barbearia = Barbearia.query.get(barbearia_id)
         if not barbearia:
             return "Erro: Barbearia não encontrada."
-       
+      
         logging.info(f"Carregando histórico (Redis) para: {cache_key}")
         serialized_history = cache.get(cache_key)
         history_to_load = deserialize_history(serialized_history)
-       
+      
         # Datas dinâmicas para o prompt
         agora_br = datetime.now(BR_TZ)
         data_hoje = agora_br.strftime('%Y-%m-%d')
         data_amanha = (agora_br + timedelta(days=1)).strftime('%Y-%m-%d')
-       
+      
         system_prompt = SYSTEM_INSTRUCTION_TEMPLATE.format(
             barbearia_nome=barbearia.nome_fantasia,
             cliente_whatsapp=cliente_whatsapp,
@@ -401,25 +423,28 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             data_de_hoje=data_hoje,
             data_de_amanha=data_amanha
         )
-       
+      
         is_new_chat = not history_to_load
-       
+      
         if is_new_chat:
             logging.info(f"Nova conversa iniciada para {cliente_whatsapp}")
             history_to_load = [
                 {'role': 'user', 'parts': [system_prompt]},
                 {'role': 'model', 'parts': [f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! 😊 Como posso ajudar?"]}
             ]
-       
+      
         chat_session = model.start_chat(history=history_to_load)
-       
+      
         # Se é novo chat e o usuário só disse "oi", responde do cache (Custo Zero de IA)
         if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde']:
              new_serialized_history = serialize_history(chat_session.history)
              cache.set(cache_key, new_serialized_history)
              return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! 😊 Como posso ajudar no seu agendamento?"
-       
+      
         logging.info(f"Enviando mensagem para IA: {user_message}")
+      
+        # ✅ MUDANÇA 1: Variável para controlar se deve salvar histórico
+        save_history = True
        
         try:
             response = chat_session.send_message(user_message)
@@ -427,17 +452,27 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             return "Estou com muitos pedidos agora. Por favor, tente novamente em 1 minuto."
         except Exception as e:
             logging.error(f"Erro Gemini: {e}")
+            # ✅ MUDANÇA 2: Limpa Redis se der erro
+            cache.delete(cache_key)
+            logging.info("🧹 Cache limpo após erro no Gemini")
             return "Tive um erro técnico. Pode repetir, por favor?"
-       
+      
         # Execução de Ferramentas
-        while response.candidates and response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
+        max_iterations = 10 # Previne loop infinito
+        iteration = 0
+       
+        while (iteration < max_iterations and
+               response.candidates and
+               response.candidates[0].content.parts and
+               response.candidates[0].content.parts[0].function_call):
            
+            iteration += 1
             function_call = response.candidates[0].content.parts[0].function_call
             function_name = function_call.name
             function_args = function_call.args
-           
+          
             logging.info(f"IA chamou ferramenta: {function_name}")
-           
+          
             tool_map = {
                 "listar_profissionais": listar_profissionais,
                 "listar_servicos": listar_servicos,
@@ -445,31 +480,38 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 "criar_agendamento": criar_agendamento,
                 "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
             }
-           
+          
             if function_name in tool_map:
                 function_to_call = tool_map[function_name]
                 kwargs = dict(function_args)
                 kwargs['barbearia_id'] = barbearia_id
-               
+              
                 if function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
                      kwargs['telefone_cliente'] = cliente_whatsapp
-               
+              
                 tool_response = function_to_call(**kwargs)
-               
-                # --- LIMPEZA AUTOMÁTICA DE CACHE (Economia Máxima) ---
-                # Se agendou ou cancelou com sucesso, limpa a memória para a próxima vez ser "zerada"
+              
+                # Limpeza automática de cache após sucesso
                 if "sucesso" in str(tool_response).lower() and function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
-                    logging.info("✅ Ação concluída com sucesso. Limpando cache para economizar tokens na próxima sessão.")
+                    logging.info("✅ Ação concluída com sucesso. Limpando cache.")
                     cache.delete(cache_key)
-               
-                response = chat_session.send_message(
-                    protos.Part(
-                        function_response=protos.FunctionResponse(
-                            name=function_name,
-                            response={"result": tool_response}
+                    save_history = False # Não salvar pois já limpou
+              
+                try:
+                    response = chat_session.send_message(
+                        protos.Part(
+                            function_response=protos.FunctionResponse(
+                                name=function_name,
+                                response={"result": tool_response}
+                            )
                         )
                     )
-                )
+                except Exception as e:
+                    logging.error(f"Erro ao enviar function_response: {e}")
+                    # ✅ Limpa Redis se der erro no loop de ferramentas
+                    cache.delete(cache_key)
+                    logging.info("🧹 Cache limpo após erro no loop de ferramentas")
+                    return "Tive um problema técnico. Vamos recomeçar? O que você gostaria?"
             else:
                 response = chat_session.send_message(
                     protos.Part(
@@ -480,25 +522,38 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                     )
                 )
        
-        # Salva o histórico (limitado a 10 msgs pela função serialize)
-        new_serialized_history = serialize_history(chat_session.history)
-        cache.set(cache_key, new_serialized_history)
-       
-        # ✅ MUDANÇA 4: Logging de uso de tokens
+        # Proteção contra loop infinito
+        if iteration >= max_iterations:
+            logging.error("⚠️ Loop infinito detectado!")
+            cache.delete(cache_key)
+            return "Tive um problema. Vamos recomeçar?"
+      
+        # ✅ Salva o histórico APENAS se tudo deu certo
+        if save_history:
+            new_serialized_history = serialize_history(chat_session.history)
+            cache.set(cache_key, new_serialized_history)
+            logging.info(f"✅ Histórico salvo no Redis")
+      
+        # Logging de uso de tokens
         final_response_text = response.candidates[0].content.parts[0].text
-        
-        # Monitoramento de tokens (se disponível)
+       
         try:
             if hasattr(response, 'usage_metadata'):
                 input_tokens = response.usage_metadata.prompt_token_count
                 output_tokens = response.usage_metadata.candidates_token_count
                 logging.info(f"💰 Tokens usados - Input: {input_tokens}, Output: {output_tokens}")
         except Exception:
-            pass  # Ignore se não houver metadata de uso
-        
+            pass
+       
         logging.info(f"Resposta final da IA: {final_response_text}")
         return final_response_text
-       
+      
     except Exception as e:
         logging.error(f"Erro Geral no ai_service: {e}", exc_info=True)
+        # ✅ Sempre limpa cache em caso de erro crítico
+        try:
+            cache.delete(cache_key)
+            logging.info("🧹 Cache limpo após erro crítico")
+        except:
+            pass
         return "Desculpe, ocorreu um erro inesperado."
