@@ -324,7 +324,7 @@ tools = Tool(
 # ============================================
 model = None
 try:
-    model_name_to_use = 'gemini-1.5-flash'
+    model_name_to_use = 'gemini-1.5-flash-latest'
     model = genai.GenerativeModel(model_name=model_name_to_use, tools=[tools])
     logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
 except NotFound as nf_error:
