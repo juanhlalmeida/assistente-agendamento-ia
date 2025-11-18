@@ -1,42 +1,41 @@
 # app/services/ai_service.py
-# (CÓDIGO COMPLETO E OTIMIZADO PARA ECONOMIA DE TOKENS)
+# (CÓDIGO COMPLETO E ULTRA-OTIMIZADO PARA ECONOMIA DE TOKENS)
 
 import os
 import logging
-import json  # [cite: 104]
+import json
 import google.generativeai as genai
-from google.api_core.exceptions import NotFound 
+from google.api_core.exceptions import NotFound
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
 from datetime import time as dt_time
 
-# --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o PDF) ---
-# Importa o cache das extensões [cite: 165]
-from app.extensions import cache 
-# Importa os tipos de dados do Gemini para serialização
-from google.generativeai.protos import Content  # <-- ESTA É A CORREÇÃO
-# (Usamos 'protos' como no seu código original para FunctionCall/Response)
-from google.generativeai import protos  #
-# --- FIM DA IMPLEMENTAÇÃO ---
+from app.extensions import cache
+from google.generativeai.protos import Content
+from google.generativeai import protos
 
-from google.generativeai.types import FunctionDeclaration, Tool 
+from google.generativeai.types import FunctionDeclaration, Tool
 import pytz
-BR_TZ = pytz.timezone('America/Sao_Paulo') 
-from app.models.tables import Agendamento, Profissional, Servico, Barbearia  # type: ignore
+BR_TZ = pytz.timezone('America/Sao_Paulo')
+from app.models.tables import Agendamento, Profissional, Servico, Barbearia
 from app.extensions import db
-import time 
-from google.api_core.exceptions import ResourceExhausted 
+import time
+from google.api_core.exceptions import ResourceExhausted
 
 from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponiveis_util
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- PROMPT OTIMIZADO (Reduzido de ~900 para ~250 tokens = 72% economia) ---
+# ============================================
+# 🔒 PROMPT ULTRA-OTIMIZADO (ANTI-SPAM)
+# ============================================
 SYSTEM_INSTRUCTION_TEMPLATE = """
 Você é 'Luana', assistente da {barbearia_nome}. Cliente: {cliente_whatsapp}. Barbearia ID: {barbearia_id}.
 
-REGRAS:
+🎯 MISSÃO: Agendamentos APENAS.
+
+REGRAS CRÍTICAS:
 1. Saudar UMA VEZ (primeira msg)
 2. Objetivo: preencher [serviço], [profissional], [data], [hora]
 3. Use APENAS nomes exatos das ferramentas (listar_profissionais/listar_servicos)
@@ -47,20 +46,59 @@ REGRAS:
 8. Confirmação: "Perfeito, {{nome}}! Agendamento {{Serviço}} com {{Profissional}} dia {{Data}} às {{Hora}} confirmado. Aguardamos você!"
 9. Preços variáveis: repetir "(a partir de)" se retornado
 
-CANCELAMENTO: Se pedir cancelamento, use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
-"""
-# ---------------------------------------
+🚫 BLOQUEIO TOTAL:
+- SE perguntar sobre: política, futebol, receitas, músicas, hinos, poemas, piadas, "sua stack", "quem te criou", "especificações técnicas"
+- RESPONDA: "Desculpe, sou a Luana da {barbearia_nome} e só posso ajudar com agendamentos. 😊 Quer marcar um horário?"
 
-# Configuração do Gemini (Preservado)
+CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
+"""
+
+# ============================================
+# 🛡️ FILTRO DE MENSAGENS PROIBIDAS (PRÉ-IA)
+# ============================================
+def mensagem_bloqueada(user_message: str) -> bool:
+    """
+    Retorna True se a mensagem contém tópicos proibidos.
+    Bloqueia ANTES de enviar ao Gemini (economia de 100% dos tokens).
+    """
+    proibidas = [
+        'hino nacional', 'letra do hino', 'cante o hino', 'cantar o hino',
+        'letra de música', 'me fale a letra', 'escreva o hino', 'reproduza o hino',
+        'me diga o hino', 'qual a letra do hino', 'lyrics', 'canta',
+        'escreva a música', 'poesia', 'poema', 'piada', 'conte uma piada',
+        'quem te criou', 'quem te desenvolveu', 'sua stack', 'stack tecnológica',
+        'especificações técnicas', 'como você funciona', 'qual seu modelo',
+        'me fale sobre você', 'o que você é', 'receita de', 'como fazer',
+        'política', 'eleição', 'presidente', 'futebol', 'jogo de', 'time',
+        'religião', 'deus', 'igreja', 'oração'
+    ]
+    
+    user_message_lower = user_message.lower()
+    
+    for palavra in proibidas:
+        if palavra in user_message_lower:
+            logging.warning(f"🚫 Mensagem BLOQUEADA (palavra proibida: '{palavra}'): {user_message[:50]}...")
+            return True
+    
+    # Bloqueia mensagens muito longas (possível spam/ataque)
+    if len(user_message) > 500:
+        logging.warning(f"🚫 Mensagem BLOQUEADA (muito longa: {len(user_message)} chars)")
+        return True
+    
+    return False
+
+# ============================================
+# Configuração do Gemini
+# ============================================
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
     logging.error("Chave da API do Gemini não encontrada!")
 else:
     genai.configure(api_key=GEMINI_API_KEY)
 
-# ---------------------------------------------------------------------
-# FUNÇÕES TOOLS (Preservadas 100% + 1 Nova)
-# ---------------------------------------------------------------------
+# ============================================
+# FUNÇÕES TOOLS (PRESERVADAS 100%)
+# ============================================
 
 def listar_profissionais(barbearia_id: int) -> str:
     try:
@@ -76,7 +114,6 @@ def listar_profissionais(barbearia_id: int) -> str:
         return f"Erro ao listar profissionais: Ocorreu um erro interno."
 
 def listar_servicos(barbearia_id: int) -> str:
-    """Lista os serviços, adicionando '(a partir de)' para preços variáveis."""
     try:
         with current_app.app_context():
             servicos = Servico.query.filter_by(barbearia_id=barbearia_id).order_by(Servico.nome).all()
@@ -86,8 +123,8 @@ def listar_servicos(barbearia_id: int) -> str:
             
             lista_formatada = []
             servicos_a_partir_de = [
-                "Platinado", "Luzes", "Coloração", "Pigmentação", 
-                "Selagem", "Escova Progressiva", "Relaxamento", 
+                "Platinado", "Luzes", "Coloração", "Pigmentação",
+                "Selagem", "Escova Progressiva", "Relaxamento",
                 "Alisamento", "Hidratação", "Reconstrução"
             ]
             
@@ -106,7 +143,7 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
     try:
         with current_app.app_context():
             profissional = Profissional.query.filter_by(
-                barbearia_id=barbearia_id, 
+                barbearia_id=barbearia_id,
                 nome=profissional_nome
             ).first()
             if not profissional:
@@ -127,7 +164,7 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
             
             horarios_dt_list = calcular_horarios_disponiveis_util(profissional, dia_dt)
             horarios_str_list = [h.strftime('%H:%M') for h in horarios_dt_list]
-            dia_formatado = dia_dt.strftime('%d/%m/%Y') 
+            dia_formatado = dia_dt.strftime('%d/%m/%Y')
             return f"Horários disponíveis para {profissional_nome} em {dia_formatado}: {', '.join(horarios_str_list) or 'Nenhum horário encontrado.'}"
     except Exception as e:
         current_app.logger.error(f"Erro no wrapper 'calcular_horarios_disponiveis': {e}", exc_info=True)
@@ -144,7 +181,7 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
                 logging.warning(f"Tentativa de agendar serviço inexistente: '{servico_nome}'")
                 return f"Serviço '{servico_nome}' não encontrado. Por favor, confirme o nome do serviço."
                
-            data_hora_dt = datetime.strptime(data_hora, '%Y-%m-%d %H:%M').replace(tzinfo=None) 
+            data_hora_dt = datetime.strptime(data_hora, '%Y-%m-%d %H:%M').replace(tzinfo=None)
             novo_fim = data_hora_dt + timedelta(minutes=servico.duracao)
             inicio_dia = data_hora_dt.replace(hour=0, minute=0, second=0, microsecond=0)
             fim_dia = inicio_dia + timedelta(days=1)
@@ -167,11 +204,11 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
                 return "Conflito de horário. Por favor, escolha outro."
             novo_agendamento = Agendamento(
                 nome_cliente=nome_cliente,
-                telefone_cliente=telefone_cliente, 
+                telefone_cliente=telefone_cliente,
                 data_hora=data_hora_dt,
                 profissional_id=profissional.id,
                 servico_id=servico.id,
-                barbearia_id=barbearia_id 
+                barbearia_id=barbearia_id
             )
             db.session.add(novo_agendamento)
             db.session.commit()
@@ -180,12 +217,9 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Erro na ferramenta 'criar_agendamento': {e}", exc_info=True)
-        return f"Erro ao criar agendamento: {str(e)}" 
+        return f"Erro ao criar agendamento: {str(e)}"
 
 def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, dia: str) -> str:
-    """
-    Cancela TODOS os agendamentos de um cliente (telefone) para um dia específico.
-    """
     logging.info(f"Iniciando cancelamento para cliente {telefone_cliente} no dia {dia} para barbearia {barbearia_id}")
     try:
         with current_app.app_context():
@@ -223,9 +257,9 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
         current_app.logger.error(f"Erro na ferramenta 'cancelar_agendamento_por_telefone': {e}", exc_info=True)
         return f"Erro ao cancelar agendamento: {str(e)}"
 
-# ---------------------------------------------------------------------
-# DEFINIÇÃO DAS TOOLS (Preservada + 1 Nova)
-# ---------------------------------------------------------------------
+# ============================================
+# DEFINIÇÃO DAS TOOLS
+# ============================================
 listar_profissionais_func = FunctionDeclaration(
     name="listar_profissionais",
     description="Lista todos os profissionais disponíveis no sistema.",
@@ -259,7 +293,7 @@ criar_agendamento_func = FunctionDeclaration(
             "profissional_nome": {"type": "string", "description": "Nome exato do profissional escolhido (confirmado pela ferramenta listar_profissionais)"},
             "servico_nome": {"type": "string", "description": "Nome exato do serviço escolhido (confirmado pela ferramenta listar_servicos)"}
         },
-        "required": ["nome_cliente", "data_hora", "profissional_nome", "servico_nome"] 
+        "required": ["nome_cliente", "data_hora", "profissional_nome", "servico_nome"]
     }
 )
 
@@ -285,26 +319,35 @@ tools = Tool(
     ]
 )
 
-# --- Inicialização do Modelo Gemini (OTIMIZADO PARA FLASH) ---
-model = None 
+# ============================================
+# Inicialização do Modelo Gemini
+# ============================================
+model = None
 try:
-    # ✅ MUDANÇA 1: Trocado para Flash (94% economia)
-    model_name_to_use = 'gemini-2.5-flash'  # Era: 'models/gemini-pro-latest'
-    
+    model_name_to_use = 'gemini-2.5-flash'
     model = genai.GenerativeModel(model_name=model_name_to_use, tools=[tools])
-    
     logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
 except NotFound as nf_error:
     logging.error(f"ERRO CRÍTICO: Modelo Gemini '{model_name_to_use}' não encontrado: {nf_error}", exc_info=True)
 except Exception as e:
     logging.error(f"ERRO CRÍTICO GERAL ao inicializar o modelo Gemini: {e}", exc_info=True)
 
-# --- FUNÇÕES HELPER DE SERIALIZAÇÃO ---
+# ============================================
+# 🔄 FUNÇÕES HELPER COM JANELA DESLIZANTE
+# ============================================
+
 def serialize_history(history: list[Content]) -> str:
     """
-    Serializa o histórico de chat (lista de objetos Content) para uma string JSON.
-    Lida com texto, FunctionCall (protos) e FunctionResponse (protos).
+    Serializa histórico COM LIMITE DE 10 MENSAGENS (Janela Deslizante).
+    Economia: mantém apenas o contexto recente relevante.
     """
+    MAX_HISTORY = 10
+    
+    # ✅ JANELA DESLIZANTE: Mantém apenas últimas 10 mensagens
+    if len(history) > MAX_HISTORY:
+        history = history[-MAX_HISTORY:]
+        logging.info(f"📊 Histórico cortado para {MAX_HISTORY} mensagens (economia de tokens)")
+    
     serializable_list = []
     for content in history:
         serial_parts = []
@@ -327,10 +370,6 @@ def serialize_history(history: list[Content]) -> str:
     return json.dumps(serializable_list)
 
 def deserialize_history(json_string: str) -> list[Content]:
-    """
-    Deserializa uma string JSON de volta para uma lista de objetos Content.
-    Recria texto, FunctionCall (protos) e FunctionResponse (protos).
-    """
     history_list = []
     if not json_string:
         return history_list
@@ -354,16 +393,27 @@ def deserialize_history(json_string: str) -> list[Content]:
         history_list.append(Content(role=item.get('role'), parts=deserial_parts))
     return history_list
 
-# --- FUNÇÃO PRINCIPAL DE PROCESSAMENTO (Refatorada para Cache) ---
+# ============================================
+# 🚀 FUNÇÃO PRINCIPAL (ULTRA-OTIMIZADA)
+# ============================================
+
 def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
     """
-    Processa a mensagem do usuário usando o Gemini, mantendo o histórico
-    da conversa no cache (Redis) associado ao número do cliente.
+    Processa mensagem com 3 camadas de otimização:
+    1. Filtro pré-IA (bloqueia spam antes de gastar tokens)
+    2. Janela deslizante de histórico (máximo 10 mensagens)
+    3. Limpeza automática após agendamento/cancelamento
     """
     if not model:
         logging.error("Modelo Gemini não inicializado. Abortando.")
         return "Desculpe, meu cérebro (IA) está offline no momento. Tente novamente mais tarde."
    
+    # ✅ CAMADA 1: FILTRO PRÉ-IA (ECONOMIA DE 100% DOS TOKENS)
+    if mensagem_bloqueada(user_message):
+        barbearia = Barbearia.query.get(barbearia_id)
+        nome_barbearia = barbearia.nome_fantasia if barbearia else "nossa barbearia"
+        return f"Desculpe, sou a Luana da {nome_barbearia} e só posso ajudar com agendamentos. 😊 Quer marcar um horário?"
+    
     cache_key = f"chat_history_{cliente_whatsapp}:{barbearia_id}"
    
     try:
@@ -372,12 +422,10 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             logging.error(f"Barbearia ID {barbearia_id} não encontrada no processar_ia_gemini.")
             return "Desculpe, não consegui identificar para qual barbearia você está ligando."
        
-        # Carregar histórico do cache
         logging.info(f"Carregando histórico do cache para a chave: {cache_key}")
         serialized_history = cache.get(cache_key)
         history_to_load = deserialize_history(serialized_history)
         
-        # ✅ MUDANÇA 3: Logging para monitorar Redis
         if serialized_history:
             logging.info(f"✅ Histórico recuperado do Redis. Tamanho: {len(serialized_history)} chars")
         else:
@@ -425,7 +473,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             logging.error(f"Erro ao enviar mensagem para a IA: {e}", exc_info=True)
             return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
       
-        # Lógica de Ferramentas
+        # Loop de Ferramentas
         while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
           
             function_call = response.candidates[0].content.parts[0].function_call
@@ -451,6 +499,11 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                      kwargs['telefone_cliente'] = cliente_whatsapp
                
                 tool_response = function_to_call(**kwargs)
+                
+                # ✅ CAMADA 3: LIMPEZA AUTOMÁTICA APÓS SUCESSO
+                if "sucesso" in str(tool_response).lower() and function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
+                    logging.info("🧹 Agendamento/Cancelamento concluído. Limpando histórico para próxima conversa.")
+                    cache.delete(cache_key)
                
                 response = chat_session.send_message(
                     protos.Part(
@@ -471,22 +524,21 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                     )
                 )
        
-        # Salvar histórico no cache
+        # ✅ CAMADA 2: Salvar histórico COM LIMITE (serialize_history já limita a 10)
         new_serialized_history = serialize_history(chat_session.history)
         cache.set(cache_key, new_serialized_history)
         logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
        
-        # ✅ MUDANÇA 4: Logging de uso de tokens
+        # Logging de tokens
         final_response_text = response.candidates[0].content.parts[0].text
         
-        # Monitoramento de tokens (se disponível)
         try:
             if hasattr(response, 'usage_metadata'):
                 input_tokens = response.usage_metadata.prompt_token_count
                 output_tokens = response.usage_metadata.candidates_token_count
                 logging.info(f"💰 Tokens usados - Input: {input_tokens}, Output: {output_tokens}")
         except Exception:
-            pass  # Ignore se não houver metadata de uso
+            pass
         
         logging.info(f"Resposta final da IA: {final_response_text}")
         return final_response_text
@@ -494,3 +546,4 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
     except Exception as e:
         logging.error(f"Erro GRANDE ao processar com IA: {e}", exc_info=True)
         return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
+        
