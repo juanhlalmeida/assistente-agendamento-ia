@@ -1,26 +1,33 @@
 # app/services/ai_service.py
-# (CÓDIGO FINAL: OTIMIZADO PARA CUSTO, COM REDIS E FERRAMENTAS EXTERNAS)
+# (CÓDIGO COMPLETO E OTIMIZADO PARA ECONOMIA DE TOKENS)
+
 import os
 import logging
-import json
+import json  # [cite: 104]
 import google.generativeai as genai
-from google.api_core.exceptions import NotFound
+from google.api_core.exceptions import NotFound 
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
 from datetime import time as dt_time
-# --- CONFIGURAÇÃO DE CACHE E PROTOBUF ---
-from app.extensions import cache
-from google.generativeai import protos
-from google.generativeai.protos import Content
-from google.generativeai.types import FunctionDeclaration, Tool
+
+# --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o PDF) ---
+# Importa o cache das extensões [cite: 165]
+from app.extensions import cache 
+# Importa os tipos de dados do Gemini para serialização
+from google.generativeai.protos import Content  # <-- ESTA É A CORREÇÃO
+# (Usamos 'protos' como no seu código original para FunctionCall/Response)
+from google.generativeai import protos  #
+# --- FIM DA IMPLEMENTAÇÃO ---
+
+from google.generativeai.types import FunctionDeclaration, Tool 
 import pytz
-BR_TZ = pytz.timezone('America/Sao_Paulo')
+BR_TZ = pytz.timezone('America/Sao_Paulo') 
 from app.models.tables import Agendamento, Profissional, Servico, Barbearia  # type: ignore
 from app.extensions import db
-import time
-from google.api_core.exceptions import ResourceExhausted
-# --- IMPORTAÇÃO DAS FERRAMENTAS (MANTIDA) ---
+import time 
+from google.api_core.exceptions import ResourceExhausted 
+
 from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponiveis_util
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -73,7 +80,7 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # ---------------------------------------------------------------------
-# FUNÇÕES TOOLS (Preservadas 100% + 1 Nova)
+# FUNÇÕES TOOLS (Preservadas 100%)
 # ---------------------------------------------------------------------
 
 def listar_profissionais(barbearia_id: int) -> str:
@@ -238,7 +245,7 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
         return f"Erro ao cancelar agendamento: {str(e)}"
 
 # ---------------------------------------------------------------------
-# DEFINIÇÃO DAS TOOLS (Preservada + 1 Nova)
+# DEFINIÇÃO DAS TOOLS (Preservada)
 # ---------------------------------------------------------------------
 listar_profissionais_func = FunctionDeclaration(
     name="listar_profissionais",
@@ -299,78 +306,24 @@ tools = Tool(
     ]
 )
 
-# Inicialização do Modelo (USANDO FLASH PARA ECONOMIA)
-model = None
+# Inicialização do Modelo Gemini (OTIMIZADO PARA FLASH)
+model = None 
 try:
-    # MUDANÇA DE MODELO: O 'flash' é muito mais barato que o 'pro'
-    model_name_to_use = 'gemini-2.5-flash'
+    model_name_to_use = 'gemini-2.5-flash'  # Ajustado para modelo estável e barato
     model = genai.GenerativeModel(model_name=model_name_to_use, tools=[tools])
-    logging.info(f"Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
+    
+    logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
+except NotFound as nf_error:
+    logging.error(f"ERRO CRÍTICO: Modelo Gemini '{model_name_to_use}' não encontrado: {nf_error}", exc_info=True)
 except Exception as e:
     logging.error(f"ERRO CRÍTICO GERAL ao inicializar o modelo Gemini: {e}", exc_info=True)
 
-# ==============================================================================
-# 3. FUNÇÕES DE CACHE COM JANELA DESLIZANTE (LIMITA O TAMANHO DO HISTÓRICO)
-# ==============================================================================
-
-def is_valid_gemini_history(history: list[Content]) -> bool:
-    """
-    Valida se o histórico segue as regras da API Gemini para function calling:
-    - Function calls (model) após user (texto ou response).
-    - Function responses (user) imediatamente após function calls.
-    - Não termina com call não respondida.
-    - Não inicia com response sem call ou call sem user anterior.
-    """
-    for i in range(len(history)):
-        current = history[i]
-        if current.role == 'model':
-            has_call = any(part.function_call for part in current.parts)
-            if has_call:
-                # Deve vir após user (texto ou response)
-                if i == 0 or history[i-1].role != 'user':
-                    return False
-                # Próximo deve ser user response (se não for o fim)
-                if i + 1 < len(history):
-                    next_turn = history[i+1]
-                    if next_turn.role != 'user' or not any(part.function_response for part in next_turn.parts):
-                        return False
-            else:
-                # Model texto: após user
-                if i == 0 or history[i-1].role != 'user':
-                    return False
-        elif current.role == 'user':
-            has_response = any(part.function_response for part in current.parts)
-            if has_response:
-                # Deve vir após model call
-                if i == 0 or history[i-1].role != 'model' or not any(part.function_call for part in history[i-1].parts):
-                    return False
-        else:
-            return False  # Role inválido
-    # Não termina com call não respondida
-    if len(history) > 0 and history[-1].role == 'model' and any(part.function_call for part in history[-1].parts):
-        return False
-    return True
-
+# --- FUNÇÕES HELPER DE SERIALIZAÇÃO ---
 def serialize_history(history: list[Content]) -> str:
     """
-    Serializa o histórico mantendo APENAS as últimas mensagens válidas (janela deslizante inteligente).
-    Evita cortes que quebram pares function_call/response para prevenir erros 400 na API Gemini.
+    Serializa o histórico de chat (lista de objetos Content) para uma string JSON.
+    Lida com texto, FunctionCall (protos) e FunctionResponse (protos).
     """
-    MAX_MESSAGES = 30  # Aumentado para segurança (convos normais não chegam a isso, e cleanup reseta após agendamento)
-    
-    logging.info(f"Histórico original: {len(history)} mensagens.")
-    
-    # Encontra o maior sufixo válido <= MAX_MESSAGES
-    for length in range(MAX_MESSAGES, 0, -1):
-        suffix = history[-length:]
-        if is_valid_gemini_history(suffix):
-            logging.info(f"✅ Encontrado sufixo válido de {len(suffix)} mensagens.")
-            history = suffix
-            break
-    else:
-        logging.warning(f"⚠️ Nenhum sufixo válido encontrado. Usando último {MAX_MESSAGES} (pode causar erros).")
-        history = history[-MAX_MESSAGES:]
-    
     serializable_list = []
     for content in history:
         serial_parts = []
@@ -392,6 +345,37 @@ def serialize_history(history: list[Content]) -> str:
         })
     return json.dumps(serializable_list)
 
+def deserialize_history(json_string: str) -> list[Content]:
+    """
+    Deserializa uma string JSON de volta para uma lista de objetos Content.
+    Recria texto, FunctionCall (protos) e FunctionResponse (protos).
+    """
+    history_list = []
+    if not json_string:
+        return history_list
+    try:
+        serializable_list = json.loads(json_string)
+    except json.JSONDecodeError:
+        logging.warning("Dados de cache de histórico inválidos ou corrompidos.")
+        return history_list
+    for item in serializable_list:
+        deserial_parts = []
+        for part_data in item.get('parts', []):
+            if 'text' in part_data:
+                deserial_parts.append(protos.Part(text=part_data['text']))
+            elif 'function_call' in part_data:
+                fc = protos.FunctionCall(part_data['function_call'])
+                deserial_parts.append(protos.Part(function_call=fc))
+            elif 'function_response' in part_data:
+                fr = protos.FunctionResponse(part_data['function_response'])
+                deserial_parts.append(protos.Part(function_response=fr))
+       
+        history_list.append(Content(role=item.get('role'), parts=deserial_parts))
+    return history_list
+
+# ==============================================================================
+# 4. FUNÇÃO PRINCIPAL (CÉREBRO COM TODAS AS OTIMIZAÇÕES)
+# ==============================================================================
 def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
     if not model:
         return "Desculpe, sistema offline."
