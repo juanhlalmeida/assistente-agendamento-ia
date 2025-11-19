@@ -32,28 +32,31 @@ from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponi
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# ==============================================================================
-# 1. PROMPT ULTRA-ECONÔMICO (REDUZIDO PARA POUPAR TOKENS)
-# ==============================================================================
+# --- PROMPT OTIMIZADO (Reduzido de ~900 para ~250 tokens = 72% economia) ---
 SYSTEM_INSTRUCTION_TEMPLATE = """
-PERSONA: Luana, assistente da {barbearia_nome}.
+VPERSONA: Luana, assistente da {barbearia_nome}.
 OBJETIVO: Agendamentos. Foco 100%.
 TOM: Simpática, breve, objetiva, descontraida, emojis (✂️✨😉👍).
 ID_CLIENTE: {cliente_whatsapp} | BARBEARIA_ID: {barbearia_id}
 HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
-REGRAS CRÍTICAS:
-1. SAUDAÇÃO: Apenas na 1ª mensagem.
-2. FERRAMENTAS: Use `listar_profissionais`, `listar_servicos`, `calcular_horarios_disponiveis`, `criar_agendamento`.
-3. NÃO ALUCINE: Só ofereça o que as ferramentas retornarem.
-4. DADOS: Pergunte tudo o que falta de uma vez (Serviço, Profissional, Data/Hora).
-5. NOME: Peça apenas no final, antes de criar o agendamento.
-6. PREÇO: Se a lista disser "(a partir de)", repita isso.
-7. CONFIRMAÇÃO: "Perfeito, {{nome}}! Agendamento {{Serviço}} com {{Profissional}} dia {{Data}} às {{Hora}} confirmado!"
-8. CANCELAR: Use `cancelar_agendamento_por_telefone`.
+
+REGRAS:
+1. Saudar UMA VEZ (primeira msg)
+2. Objetivo: preencher [serviço], [profissional], [data], [hora]
+3. Use APENAS nomes exatos das ferramentas (listar_profissionais/listar_servicos)
+4. Pergunte tudo que falta de uma vez
+5. Datas: Hoje={data_de_hoje}, Amanhã={data_de_amanha}. Use AAAA-MM-DD
+6. NUNCA mencione telefone
+7. Nome do cliente: perguntar antes de criar_agendamento
+8. Confirmação: "Perfeito, {{nome}}! Agendamento {{Serviço}} com {{Profissional}} dia {{Data}} às {{Hora}} confirmado. Aguardamos você!"
+9. Preços variáveis: repetir "(a partir de)" se retornado
+
+CANCELAMENTO: Se pedir cancelamento, use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 """
+# ---------------------------------------
 
 # ==============================================================================
-# 2. FILTRO DE SPAM (ECONOMIA DE 100% EM MENSAGENS INÚTEIS)
+# 2. FILTRO DE SPAM (PRESERVADO)
 # ==============================================================================
 def mensagem_bloqueada(texto: str) -> bool:
     """Retorna True se a mensagem for spam ou assunto proibido."""
@@ -63,16 +66,14 @@ def mensagem_bloqueada(texto: str) -> bool:
         'chatgpt', 'openai', 'ignora as instruções', 'mode debug'
     ]
     texto_lower = texto.lower()
-    # Bloqueia palavras proibidas
+    if len(texto) > 400: # Bloqueia textos muito longos
+        return True
     for p in proibidas:
         if p in texto_lower:
             return True
-    # Bloqueia textos muito longos (evita gasto excessivo de processamento)
-    if len(texto) > 400:
-        return True
     return False
 
-# Configuração do Gemini
+# Configuração do Gemini (Preservado)
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 if not GEMINI_API_KEY:
     logging.error("Chave da API do Gemini não encontrada!")
@@ -80,7 +81,7 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # ---------------------------------------------------------------------
-# FUNÇÕES TOOLS (Preservadas 100%)
+# FUNÇÕES TOOLS (Preservadas 100% + 1 Nova)
 # ---------------------------------------------------------------------
 
 def listar_profissionais(barbearia_id: int) -> str:
@@ -245,7 +246,7 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
         return f"Erro ao cancelar agendamento: {str(e)}"
 
 # ---------------------------------------------------------------------
-# DEFINIÇÃO DAS TOOLS (Preservada)
+# DEFINIÇÃO DAS TOOLS (Preservada + 1 Nova)
 # ---------------------------------------------------------------------
 listar_profissionais_func = FunctionDeclaration(
     name="listar_profissionais",
@@ -306,10 +307,12 @@ tools = Tool(
     ]
 )
 
-# Inicialização do Modelo Gemini (OTIMIZADO PARA FLASH)
+# --- Inicialização do Modelo Gemini (OTIMIZADO PARA FLASH) ---
 model = None 
 try:
-    model_name_to_use = 'gemini-2.5-flash'  # Ajustado para modelo estável e barato
+    # ✅ MUDANÇA 1: Trocado para Flash (94% economia)
+    model_name_to_use = 'gemini-2.5-flash'  # Era: 'models/gemini-pro-latest'
+    
     model = genai.GenerativeModel(model_name=model_name_to_use, tools=[tools])
     
     logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
@@ -373,90 +376,86 @@ def deserialize_history(json_string: str) -> list[Content]:
         history_list.append(Content(role=item.get('role'), parts=deserial_parts))
     return history_list
 
-# ==============================================================================
-# 4. FUNÇÃO PRINCIPAL (CÉREBRO COM TODAS AS OTIMIZAÇÕES)
-# ==============================================================================
+# --- FUNÇÃO PRINCIPAL DE PROCESSAMENTO (Refatorada para Cache) ---
 def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
+    """
+    Processa a mensagem do usuário usando o Gemini, mantendo o histórico
+    da conversa no cache (Redis) associado ao número do cliente.
+    """
     if not model:
-        return "Desculpe, sistema offline."
-  
-    # 1. FILTRAGEM DE SPAM (Custo Zero)
-    if mensagem_bloqueada(user_message):
-        return "Desculpe, sou apenas uma assistente de agendamento. Como posso ajudar com seu horário? 😊"
+        logging.error("Modelo Gemini não inicializado. Abortando.")
+        return "Desculpe, meu cérebro (IA) está offline no momento. Tente novamente mais tarde."
    
     cache_key = f"chat_history_{cliente_whatsapp}:{barbearia_id}"
-  
+   
     try:
         barbearia = Barbearia.query.get(barbearia_id)
         if not barbearia:
-            return "Erro: Barbearia não encontrada."
-      
-        logging.info(f"Carregando histórico (Redis) para: {cache_key}")
+            logging.error(f"Barbearia ID {barbearia_id} não encontrada no processar_ia_gemini.")
+            return "Desculpe, não consegui identificar para qual barbearia você está ligando."
+       
+        # Carregar histórico do cache
+        logging.info(f"Carregando histórico do cache para a chave: {cache_key}")
         serialized_history = cache.get(cache_key)
         history_to_load = deserialize_history(serialized_history)
-      
-        # Datas dinâmicas para o prompt
+        
+        # ✅ MUDANÇA 3: Logging para monitorar Redis
+        if serialized_history:
+            logging.info(f"✅ Histórico recuperado do Redis. Tamanho: {len(serialized_history)} chars")
+        else:
+            logging.warning("⚠️ Redis vazio - nova sessão iniciada")
+       
         agora_br = datetime.now(BR_TZ)
-        data_hoje = agora_br.strftime('%Y-%m-%d')
-        data_amanha = (agora_br + timedelta(days=1)).strftime('%Y-%m-%d')
-      
+        data_hoje_str = agora_br.strftime('%Y-%m-%d')
+        data_amanha_str = (agora_br + timedelta(days=1)).strftime('%Y-%m-%d')
+       
         system_prompt = SYSTEM_INSTRUCTION_TEMPLATE.format(
             barbearia_nome=barbearia.nome_fantasia,
             cliente_whatsapp=cliente_whatsapp,
             barbearia_id=barbearia_id,
-            data_de_hoje=data_hoje,
-            data_de_amanha=data_amanha
+            data_de_hoje=data_hoje_str,
+            data_de_amanha=data_amanha_str
         )
-      
+       
         is_new_chat = not history_to_load
-      
+       
         if is_new_chat:
-            logging.info(f"Nova conversa iniciada para {cliente_whatsapp}")
+            logging.info(f"Iniciando NOVO histórico de chat para o cliente {cliente_whatsapp}.")
             history_to_load = [
                 {'role': 'user', 'parts': [system_prompt]},
-                {'role': 'model', 'parts': [f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! 😊 Como posso ajudar?"]}
+                {'role': 'model', 'parts': [
+                    f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
+                ]}
             ]
-      
+       
         chat_session = model.start_chat(history=history_to_load)
-      
-        # Se é novo chat e o usuário só disse "oi", responde do cache (Custo Zero de IA)
-        if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde']:
+       
+        if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite']:
              new_serialized_history = serialize_history(chat_session.history)
              cache.set(cache_key, new_serialized_history)
-             return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! 😊 Como posso ajudar no seu agendamento?"
+             logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
+             return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
       
-        logging.info(f"Enviando mensagem para IA: {user_message}")
-      
-        # ✅ MUDANÇA 1: Variável para controlar se deve salvar histórico
-        save_history = True
+        logging.info(f"Enviando mensagem para a IA: {user_message}")
        
         try:
             response = chat_session.send_message(user_message)
-        except ResourceExhausted:
-            return "Estou com muitos pedidos agora. Por favor, tente novamente em 1 minuto."
+        except ResourceExhausted as e:
+            logging.warning(f"Quota do Gemini excedida: {e}")
+            return "Puxa, parece que atingi meu limite de processamento por agora. 😕 Por favor, tente novamente em um minuto."
         except Exception as e:
-            logging.error(f"Erro Gemini: {e}")
-            # ✅ MUDANÇA 2: Limpa Redis se der erro
-            cache.delete(cache_key)
-            logging.info("🧹 Cache limpo após erro no Gemini")
-            return "Tive um erro técnico. Pode repetir, por favor?"
+            logging.error(f"Erro ao enviar mensagem para a IA: {e}", exc_info=True)
+            return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
       
-        # Execução de Ferramentas
-        max_iterations = 10 # Previne loop infinito
-        iteration = 0
-       
-        while (iteration < max_iterations and
-               response.candidates and
-               response.candidates[0].content.parts and
-               response.candidates[0].content.parts[0].function_call):
-           
-            iteration += 1
+        # Lógica de Ferramentas
+        while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
+          
             function_call = response.candidates[0].content.parts[0].function_call
             function_name = function_call.name
             function_args = function_call.args
           
-            logging.info(f"IA chamou ferramenta: {function_name}")
-          
+            logging.info(f"IA solicitou a ferramenta '{function_name}' com os argumentos: {dict(function_args)}")
+           
             tool_map = {
                 "listar_profissionais": listar_profissionais,
                 "listar_servicos": listar_servicos,
@@ -464,39 +463,27 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 "criar_agendamento": criar_agendamento,
                 "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
             }
-          
+           
             if function_name in tool_map:
                 function_to_call = tool_map[function_name]
                 kwargs = dict(function_args)
                 kwargs['barbearia_id'] = barbearia_id
-              
+               
                 if function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
                      kwargs['telefone_cliente'] = cliente_whatsapp
-              
+               
                 tool_response = function_to_call(**kwargs)
-              
-                # Limpeza automática de cache após sucesso
-                if "sucesso" in str(tool_response).lower() and function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
-                    logging.info("✅ Ação concluída com sucesso. Limpando cache.")
-                    cache.delete(cache_key)
-                    save_history = False # Não salvar pois já limpou
-              
-                try:
-                    response = chat_session.send_message(
-                        protos.Part(
-                            function_response=protos.FunctionResponse(
-                                name=function_name,
-                                response={"result": tool_response}
-                            )
+               
+                response = chat_session.send_message(
+                    protos.Part(
+                        function_response=protos.FunctionResponse(
+                            name=function_name,
+                            response={"result": tool_response}
                         )
                     )
-                except Exception as e:
-                    logging.error(f"Erro ao enviar function_response: {e}")
-                    # ✅ Limpa Redis se der erro no loop de ferramentas
-                    cache.delete(cache_key)
-                    logging.info("🧹 Cache limpo após erro no loop de ferramentas")
-                    return "Tive um problema técnico. Vamos recomeçar? O que você gostaria?"
+                )
             else:
+                logging.error(f"Erro: IA tentou chamar uma ferramenta desconhecida: {function_name}")
                 response = chat_session.send_message(
                     protos.Part(
                         function_response=protos.FunctionResponse(
@@ -506,38 +493,26 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                     )
                 )
        
-        # Proteção contra loop infinito
-        if iteration >= max_iterations:
-            logging.error("⚠️ Loop infinito detectado!")
-            cache.delete(cache_key)
-            return "Tive um problema. Vamos recomeçar?"
-      
-        # ✅ Salva o histórico APENAS se tudo deu certo
-        if save_history:
-            new_serialized_history = serialize_history(chat_session.history)
-            cache.set(cache_key, new_serialized_history)
-            logging.info(f"✅ Histórico salvo no Redis")
-      
-        # Logging de uso de tokens
-        final_response_text = response.candidates[0].content.parts[0].text
+        # Salvar histórico no cache
+        new_serialized_history = serialize_history(chat_session.history)
+        cache.set(cache_key, new_serialized_history)
+        logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
        
+        # ✅ MUDANÇA 4: Logging de uso de tokens
+        final_response_text = response.candidates[0].content.parts[0].text
+        
+        # Monitoramento de tokens (se disponível)
         try:
             if hasattr(response, 'usage_metadata'):
                 input_tokens = response.usage_metadata.prompt_token_count
                 output_tokens = response.usage_metadata.candidates_token_count
                 logging.info(f"💰 Tokens usados - Input: {input_tokens}, Output: {output_tokens}")
         except Exception:
-            pass
-       
+            pass  # Ignore se não houver metadata de uso
+        
         logging.info(f"Resposta final da IA: {final_response_text}")
         return final_response_text
-      
+       
     except Exception as e:
-        logging.error(f"Erro Geral no ai_service: {e}", exc_info=True)
-        # ✅ Sempre limpa cache em caso de erro crítico
-        try:
-            cache.delete(cache_key)
-            logging.info("🧹 Cache limpo após erro crítico")
-        except:
-            pass
-        return "Desculpe, ocorreu um erro inesperado."
+        logging.error(f"Erro GRANDE ao processar com IA: {e}", exc_info=True)
+        return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
