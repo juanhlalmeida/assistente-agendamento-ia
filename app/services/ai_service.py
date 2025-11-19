@@ -5,6 +5,7 @@ import os
 import logging
 import json  # [cite: 104]
 import google.generativeai as genai
+import re
 from google.api_core.exceptions import NotFound 
 from datetime import datetime, timedelta
 from flask import current_app
@@ -34,11 +35,16 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # --- PROMPT OTIMIZADO (Reduzido de ~900 para ~250 tokens = 72% economia) ---
 SYSTEM_INSTRUCTION_TEMPLATE = """
-VPERSONA: Luana, assistente da {barbearia_nome}.
+PERSONA: Luana, assistente da {barbearia_nome}.
 OBJETIVO: Agendamentos. Foco 100%.
 TOM: Simpática, breve, objetiva, descontraida, emojis (✂️✨😉👍).
 ID_CLIENTE: {cliente_whatsapp} | BARBEARIA_ID: {barbearia_id}
 HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
+
+🚨 PROTOCOLO DE RECUSA (SEGURANÇA):
+Se o usuário pedir QUALQUER COISA que não seja agendamento (ex: hino, piada, receita, política, futebol, tecnologia, letra de música), você DEVE recusar imediatamente com esta frase exata:
+"Desculpe, eu sou a Luana da {barbearia_nome} e só cuido dos agendamentos. 😊 Quer marcar um horário?"
+NÃO cante, NÃO explique, NÃO dê opiniões. Apenas recuse.
 
 REGRAS:
 1. Saudar UMA VEZ (primeira msg)
@@ -58,19 +64,48 @@ CANCELAMENTO: Se pedir cancelamento, use cancelar_agendamento_por_telefone(dia="
 # ==============================================================================
 # 2. FILTRO DE SPAM (PRESERVADO)
 # ==============================================================================
+# ============================================
+# 🛡️ FILTRO DE MENSAGENS PROIBIDAS (MELHORADO)
+# ============================================
 def mensagem_bloqueada(texto: str) -> bool:
-    """Retorna True se a mensagem for spam ou assunto proibido."""
-    proibidas = [
-        'hino nacional', 'cantar', 'poema', 'piada', 'receita', 'futebol',
-        'política', 'religião', 'quem te criou', 'sua stack', 'código fonte',
-        'chatgpt', 'openai', 'ignora as instruções', 'mode debug'
-    ]
+    """
+    Retorna True se a mensagem for spam ou assunto proibido.
+    Usa lógica mais robusta para apanhar variações.
+    """
     texto_lower = texto.lower()
-    if len(texto) > 400: # Bloqueia textos muito longos
+    
+    # Bloqueia textos muito longos (custo alto de processamento)
+    if len(texto) > 300: 
+        logging.warning(f"🚫 Mensagem BLOQUEADA (muito longa: {len(texto)} chars)")
         return True
-    for p in proibidas:
+
+    # Palavras-chave simples (alta precisão)
+    proibidas_exatas = [
+        'chatgpt', 'openai', 'ignore as instruções', 'mode debug', 
+        'sua stack', 'código fonte', 'quem te criou', 'quem te desenvolveu'
+    ]
+    for p in proibidas_exatas:
         if p in texto_lower:
             return True
+
+    # Padrões Regex (para apanhar "hino naciional", "futebow", etc.)
+    # \b = fronteira da palavra, .? = erro de digitação opcional
+    padroes_proibidos = [
+        r'hino.*nacion',     # Pega "hino nacional", "hino naciional", "hino da nação"
+        r'canta.*hino',      # Pega "cantar o hino", "canta hino"
+        r'letra.*m[uú]sica', # Pega "letra de musica", "letra da música"
+        r'futebo',           # Pega "futebol", "futebool"
+        r'pol[íi]tica',      # Pega "política", "politica"
+        r'receita.*de',      # Pega "receita de bolo"
+        r'piada',
+        r'poema',
+    ]
+
+    for padrao in padroes_proibidos:
+        if re.search(padrao, texto_lower):
+            logging.warning(f"🚫 Mensagem BLOQUEADA (padrão proibido: '{padrao}'): {texto[:50]}...")
+            return True
+            
     return False
 
 # Configuração do Gemini (Preservado)
