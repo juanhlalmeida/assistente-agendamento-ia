@@ -1,1 +1,39 @@
 
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 text-center">
+            {% if status == 'approved' %}
+                <div class="alert alert-success p-5">
+                    <h1 class="display-4">✅</h1>
+                    <h2 class="mb-3">Assinatura Ativada!</h2>
+                    <p class="lead">Seu pagamento foi aprovado com sucesso.</p>
+                    <p>Agora você pode usar todas as funcionalidades do sistema!</p>
+                </div>
+            {% elif status == 'pending' %}
+                <div class="alert alert-warning p-5">
+                    <h1 class="display-4">⏳</h1>
+                    <h2 class="mb-3">Pagamento Pendente</h2>
+                    <p class="lead">Aguardando confirmação do pagamento...</p>
+                    <p>Você receberá uma notificação assim que for aprovado.</p>
+                </div>
+            {% else %}
+                <div class="alert alert-danger p-5">
+                    <h1 class="display-4">❌</h1>
+                    <h2 class="mb-3">Erro no Pagamento</h2>
+                    <p class="lead">Houve um problema ao processar seu pagamento.</p>
+                    <p>Por favor, tente novamente.</p>
+                </div>
+            {% endif %}
+            
+            <div class="mt-4">
+                <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary btn-lg">
+                    Voltar ao Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
