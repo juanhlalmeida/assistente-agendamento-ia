@@ -22,7 +22,7 @@ class Barbearia(db.Model):
     assinatura_expira_em = db.Column(db.DateTime)
     
     # Adicione também este relacionamento:
-    #assinaturas = db.relationship('Assinatura', backref='barbearia', lazy=True)
+    assinaturas = db.relationship('Assinatura', backref='barbearia', lazy=True)
     
     # --- NOVOS CAMPOS PARA API OFICIAL (META) ---
     
