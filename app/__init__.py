@@ -1,5 +1,5 @@
 # app/__init__.py
-# (CÓDIGO COMPLETO E CORRIGIDO - Preserva a sua lógica original)
+# (CÓDIGO COMPLETO E CORRIGIDO - Preserva a sua lógica original + Assinaturas)
 from __future__ import annotations
 
 import os
@@ -84,10 +84,6 @@ def _create_super_admin(app: Flask):
             logging.error(f"ERRO CRÍTICO ao tentar criar super admin: {e}", exc_info=True)
 # --------------------------------------------------
 
-# --- A FUNÇÃO _populate_demo_data FOI REMOVIDA ---
-# (Não é mais necessária, pois o seu banco reativado tem os dados antigos)
-# -------------------------------------------------
-
 def create_app(config_class=Config) -> Flask:
     Config.init_app()
     app = Flask(__name__, instance_relative_config=True)
@@ -103,13 +99,11 @@ def create_app(config_class=Config) -> Flask:
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
     # 2. Força o 'sslmode=require' (Necessário para o banco PAGO do Render)
-    #    (Esta é a lógica que estava a faltar)
     if "postgresql://" in database_url and "sslmode=" not in database_url:
          database_url = database_url + "?sslmode=require"
     
     # 3. Remove 'channel_binding' (que era do Neon, se por acaso ainda estiver na variável)
     if 'channel_binding' in database_url:
-        # Divide a URL e remove o parâmetro
         base_url, params = database_url.split('?', 1) if '?' in database_url else (database_url, '')
         params_list = [p for p in params.split('&') if not p.startswith('channel_binding=')]
         database_url = base_url + ('?' + '&'.join(params_list) if params_list else '')
@@ -122,7 +116,7 @@ def create_app(config_class=Config) -> Flask:
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
-    cache.init_app(app) # <-- ADICIONADO
+    cache.init_app(app)
     # ---------------------------------
 
     # --- REGISTO DOS BLUEPRINTS ---
@@ -159,6 +153,17 @@ def create_app(config_class=Config) -> Flask:
     except Exception as e:
          app.logger.error(f"ERRO ao registar blueprint 'dashboard': {e}")
 
+    # ============================================
+    # ✨ ADIÇÃO: BLUEPRINT DE ASSINATURAS
+    # ============================================
+    try:
+        from app.blueprints.assinaturas import bp as assinaturas_bp
+        app.register_blueprint(assinaturas_bp)
+        app.logger.info("✅ Blueprint 'assinaturas' registrado com sucesso!")
+    except Exception as e:
+        app.logger.error(f"ERRO ao registar blueprint 'assinaturas': {e}")
+    # ============================================
+
     # Healthcheck
     @app.get("/health")
     def health():
@@ -171,7 +176,6 @@ def create_app(config_class=Config) -> Flask:
 
     # --- CHAMA AS FUNÇÕES DE INICIALIZAÇÃO ---
     _create_super_admin(app)
-    # A linha _populate_demo_data() foi REMOVIDA
     # ---------------------------------------
     
     return app
