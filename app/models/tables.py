@@ -15,6 +15,13 @@ class Barbearia(db.Model):
     
     # Campo para controlo de pagamentos
     status_assinatura = db.Column(db.String(20), nullable=False, default='inativa')
+
+    # ADICIONE ESTES DOIS:
+    assinatura_ativa = db.Column(db.Boolean, default=False)
+    assinatura_expira_em = db.Column(db.DateTime)
+    
+    # Adicione também este relacionamento:
+    assinaturas = db.relationship('Assinatura', backref='barbearia', lazy=True)
     
     # --- NOVOS CAMPOS PARA API OFICIAL (META) ---
     
