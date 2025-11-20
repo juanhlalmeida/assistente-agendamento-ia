@@ -1,5 +1,6 @@
 # app/models/tables.py
 from app.extensions import db
+from datetime import datetime
 from flask_login import UserMixin
 from sqlalchemy import Text
 from werkzeug.security import generate_password_hash, check_password_hash
