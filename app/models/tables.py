@@ -149,7 +149,7 @@ class Assinatura(db.Model):
     __tablename__ = 'assinaturas'
     
     id = db.Column(db.Integer, primary_key=True)
-    barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearias.id'), nullable=False)
+    barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearia.id'), nullable=False)
     plano_id = db.Column(db.Integer, db.ForeignKey('planos.id'), nullable=False)
     mp_preapproval_id = db.Column(db.String(100), unique=True)
     mp_payer_id = db.Column(db.String(100))
