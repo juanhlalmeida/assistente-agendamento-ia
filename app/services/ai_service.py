@@ -348,6 +348,20 @@ try:
     # ✅ MUDANÇA 1: Trocado para Flash (94% economia)
     model_name_to_use = 'gemini-2.5-flash'  # Era: 'models/gemini-pro-latest'
     
+    # 🔥 CORREÇÃO: Temperature=0.0 elimina "criatividade" indesejada para agendamentos
+    generation_config = GenerationConfig(
+        temperature=0.0,
+        top_p=0.95,
+        top_k=40,
+        max_output_tokens=1024,
+    )
+    
+    model = genai.GenerativeModel(
+        model_name=model_name_to_use, 
+        tools=[tools],
+        generation_config=generation_config
+    )
+    
     model = genai.GenerativeModel(model_name=model_name_to_use, tools=[tools])
     
     logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
