@@ -114,3 +114,61 @@ class Agendamento(db.Model):
     # --- A "ETIQUETA" ---
     # Adicionamos a ligação à Barbearia.
     barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearia.id'), nullable=False)
+
+# ====================================
+# SISTEMA DE ASSINATURAS
+# ====================================
+
+class Plano(db.Model):
+    """Planos de assinatura disponíveis"""
+    __tablename__ = 'planos'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    nome = db.Column(db.String(50), nullable=False)
+    descricao = db.Column(db.Text)
+    preco_mensal = db.Column(db.Float, nullable=False)
+    max_profissionais = db.Column(db.Integer, default=3)
+    max_servicos = db.Column(db.Integer, default=10)
+    tem_ia = db.Column(db.Boolean, default=True)
+    ativo = db.Column(db.Boolean, default=True)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    assinaturas = db.relationship('Assinatura', backref='plano', lazy=True)
+
+
+class Assinatura(db.Model):
+    """Assinaturas das barbearias"""
+    __tablename__ = 'assinaturas'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearias.id'), nullable=False)
+    plano_id = db.Column(db.Integer, db.ForeignKey('planos.id'), nullable=False)
+    mp_preapproval_id = db.Column(db.String(100), unique=True)
+    mp_payer_id = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='pending')
+    data_inicio = db.Column(db.DateTime)
+    data_fim = db.Column(db.DateTime)
+    proximo_vencimento = db.Column(db.DateTime)
+    tentativas_falhas = db.Column(db.Integer, default=0)
+    ultima_tentativa = db.Column(db.DateTime)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    pagamentos = db.relationship('Pagamento', backref='assinatura', lazy=True, cascade='all, delete-orphan')
+
+
+class Pagamento(db.Model):
+    """Histórico de pagamentos"""
+    __tablename__ = 'pagamentos'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    assinatura_id = db.Column(db.Integer, db.ForeignKey('assinaturas.id'), nullable=False)
+    mp_payment_id = db.Column(db.String(100), unique=True)
+    mp_status = db.Column(db.String(50))
+    mp_status_detail = db.Column(db.String(100))
+    valor = db.Column(db.Float, nullable=False)
+    metodo_pagamento = db.Column(db.String(50))
+    data_pagamento = db.Column(db.DateTime)
+    data_vencimento = db.Column(db.DateTime)
+    criado_em = db.Column(db.DateTime, default=datetime.utcnow)
+    atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
