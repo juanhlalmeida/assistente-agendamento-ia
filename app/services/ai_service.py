@@ -3,7 +3,7 @@
 
 import os
 import logging
-import json  # [cite: 104]
+import json  #
 import google.generativeai as genai
 import re
 from google.api_core.exceptions import NotFound 
@@ -13,7 +13,7 @@ from sqlalchemy.orm import joinedload
 from datetime import time as dt_time
 
 # --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o PDF) ---
-# Importa o cache das extensões [cite: 165]
+# Importa o cache das extensões
 from app.extensions import cache 
 # Importa os tipos de dados do Gemini para serialização
 from google.generativeai.protos import Content  # <-- ESTA É A CORREÇÃO
@@ -21,7 +21,8 @@ from google.generativeai.protos import Content  # <-- ESTA É A CORREÇÃO
 from google.generativeai import protos  #
 # --- FIM DA IMPLEMENTAÇÃO ---
 
-from google.generativeai.types import FunctionDeclaration, Tool 
+# --- ALTERAÇÃO 1: Importar GenerationConfig para controlar a temperatura ---
+from google.generativeai.types import FunctionDeclaration, Tool, GenerationConfig
 import pytz
 BR_TZ = pytz.timezone('America/Sao_Paulo') 
 from app.models.tables import Agendamento, Profissional, Servico, Barbearia  # type: ignore
@@ -33,7 +34,7 @@ from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponi
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- PROMPT OTIMIZADO (Reduzido de ~900 para ~250 tokens = 72% economia) ---
+# --- PROMPT OTIMIZADO (COM PROTOCOLO ANTI-ALUCINAÇÃO INSERIDO) ---
 SYSTEM_INSTRUCTION_TEMPLATE = """
 PERSONA: Luana, assistente da {barbearia_nome}.
 OBJETIVO: Agendamentos. Foco 100%.
@@ -41,10 +42,11 @@ TOM: Simpática, breve, objetiva, descontraida, emojis (✂️✨😉👍).
 ID_CLIENTE: {cliente_whatsapp} | BARBEARIA_ID: {barbearia_id}
 HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
 
-🚨 PROTOCOLO DE RECUSA (SEGURANÇA):
-Se o usuário pedir QUALQUER COISA que não seja agendamento (ex: hino, piada, receita, política, futebol, tecnologia, letra de música), você DEVE recusar imediatamente com esta frase exata:
-"Desculpe, eu sou a Luana da {barbearia_nome} e só cuido dos agendamentos. 😊 Quer marcar um horário?"
-NÃO cante, NÃO explique, NÃO dê opiniões. Apenas recuse.
+🚨 PROTOCOLO DE SEGURANÇA & ANTI-ALUCINAÇÃO (PRIORIDADE MÁXIMA):
+1. RECUSA DE TÓPICOS: Se o usuário pedir QUALQUER COISA que não seja agendamento (ex: hino, piada, receita, política, futebol, tecnologia, letra de música), você DEVE recusar imediatamente:
+   "Desculpe, eu sou a Luana da {barbearia_nome} e só cuido dos agendamentos. 😊 Quer marcar um horário?"
+   NÃO cante, NÃO explique, NÃO dê opiniões. Apenas recuse.
+2. REALIDADE DOS HORÁRIOS: Você está PROIBIDA de inventar horários. Se a ferramenta 'calcular_horarios_disponiveis' retornar vazio ou "Nenhum horário", diga ao cliente que não há vagas. NUNCA suponha que há um horário livre sem confirmação da ferramenta.
 
 REGRAS:
 1. Saudar UMA VEZ (primeira msg)
@@ -348,9 +350,9 @@ try:
     # ✅ MUDANÇA 1: Trocado para Flash (94% economia)
     model_name_to_use = 'gemini-2.5-flash'  # Era: 'models/gemini-pro-latest'
     
-    # 🔥 CORREÇÃO: Temperature=0.0 elimina "criatividade" indesejada para agendamentos
+    # --- ALTERAÇÃO 2: IMPLEMENTAÇÃO DO ESTUDO (Temperature 0 para evitar alucinação) ---
     generation_config = GenerationConfig(
-        temperature=0.0,
+        temperature=0.0,  # Zero criatividade para seguir as tools estritamente
         top_p=0.95,
         top_k=40,
         max_output_tokens=1024,
@@ -359,10 +361,8 @@ try:
     model = genai.GenerativeModel(
         model_name=model_name_to_use, 
         tools=[tools],
-        generation_config=generation_config
+        generation_config=generation_config # Aplicando a config
     )
-    
-    model = genai.GenerativeModel(model_name=model_name_to_use, tools=[tools])
     
     logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
 except NotFound as nf_error:
