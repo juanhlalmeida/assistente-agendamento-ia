@@ -17,7 +17,13 @@ def listar_planos():
     """Lista todos os planos disponíveis"""
     try:
         planos = Plano.query.filter_by(ativo=True).all()
-        return render_template('assinatura/planos.html', planos=planos)
+        barbearia = current_user.barbearia
+        
+        return render_template(
+            'assinatura/planos.html', 
+            planos=planos,
+            barbearia=barbearia
+        )
     except Exception as e:
         logging.error(f"Erro ao listar planos: {e}", exc_info=True)
         flash('Erro ao carregar planos de assinatura.', 'danger')
@@ -68,7 +74,8 @@ def assinar(plano_id):
 def retorno():
     """Página de retorno após pagamento"""
     status = request.args.get('status')
-    return render_template('assinatura/retorno.html', status=status)
+    barbearia = current_user.barbearia
+    return render_template('assinatura/retorno.html', status=status, barbearia=barbearia)
 
 @bp.route('/webhook', methods=['POST'])
 def webhook():
