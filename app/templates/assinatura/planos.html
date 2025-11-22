@@ -25,35 +25,37 @@
               <div class="p-8 flex-grow">
                 <div class="text-center mb-6">
                   <p class="text-4xl font-bold text-gray-900 dark:text-white">
-                    R$ {{ "%.2f"|format(plano.valor if plano.valor is defined else plano.preco if plano.preco is defined else 0) }}
+                    R$ {{ "%.2f"|format(plano.preco_mensal) }}
                     <span class="text-lg font-medium text-gray-500 dark:text-gray-400">/mês</span>
                   </p>
                   <p class="text-gray-600 dark:text-gray-400 mt-2">{{ plano.descricao }}</p>
                 </div>
 
                 <ul class="space-y-4">
-                  {% if plano.limite_profissionais %}
+                  {% if plano.max_profissionais %}
                   <li class="flex items-center">
                     <span class="material-icons-outlined text-primary text-xl">check_circle</span>
                     <span class="ml-3 text-gray-700 dark:text-gray-300">
-                      Até {{ plano.limite_profissionais }} profissionais
+                      Até {{ plano.max_profissionais }} profissionais
                     </span>
                   </li>
                   {% endif %}
                   
-                  {% if plano.limite_servicos %}
+                  {% if plano.max_servicos %}
                   <li class="flex items-center">
                     <span class="material-icons-outlined text-primary text-xl">check_circle</span>
                     <span class="ml-3 text-gray-700 dark:text-gray-300">
-                      Até {{ plano.limite_servicos }} serviços
+                      Até {{ plano.max_servicos }} serviços
                     </span>
                   </li>
                   {% endif %}
 
+                  {% if plano.tem_ia %}
                   <li class="flex items-center">
                     <span class="material-icons-outlined text-primary text-xl">check_circle</span>
                     <span class="ml-3 text-gray-700 dark:text-gray-300">Assistente IA Luana</span>
                   </li>
+                  {% endif %}
                   
                   <li class="flex items-center">
                     <span class="material-icons-outlined text-primary text-xl">check_circle</span>
@@ -85,7 +87,7 @@
           <p class="text-xl text-gray-500 dark:text-gray-400">
             Nenhum plano disponível no momento.
           </p>
-          <p class="text-sm text-gray-400 mt-2">
+          <p class="text-sm text-gray-400 dark:text-gray-300 mt-4">
             <a href="{{ url_for('dashboard.index') }}" class="text-primary hover:underline">
               ← Voltar ao Dashboard
             </a>
