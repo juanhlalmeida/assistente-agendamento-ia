@@ -160,8 +160,11 @@ def create_app(config_class=Config) -> Flask:
         from app.blueprints.assinaturas import bp as assinaturas_bp
         app.register_blueprint(assinaturas_bp)
         app.logger.info("✅ Blueprint 'assinaturas' registrado com sucesso!")
+    except ImportError as e:
+        app.logger.error(f"❌ ERRO ao importar blueprint 'assinaturas': {e}")
+        app.logger.error("Verifique se o arquivo app/blueprints/assinaturas/__init__.py existe")
     except Exception as e:
-        app.logger.error(f"ERRO ao registar blueprint 'assinaturas': {e}")
+        app.logger.error(f"❌ ERRO ao registar blueprint 'assinaturas': {e}", exc_info=True)
     # ============================================
 
     # Healthcheck
