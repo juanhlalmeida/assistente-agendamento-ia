@@ -5,40 +5,32 @@
 {% block content %}
 <div class="min-h-screen flex flex-col items-center justify-center p-4 -mt-8">
   <div class="max-w-6xl w-full">
-    {# Título #}
     <h1 class="text-4xl md:text-5xl font-bold text-center mb-12 text-gray-900 dark:text-white">
       Escolha seu Plano
     </h1>
 
-    {# Grid de Planos #}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
       {% if planos %}
         {% for plano in planos %}
-          {# Card do Plano #}
           <div class="{% if loop.index == 2 %}bg-primary shadow-glow-primary{% else %}bg-gray-100 dark:bg-gray-900 shadow-lg{% endif %} rounded-lg p-1 relative">
-            {# Efeito de brilho nos cards laterais #}
             {% if loop.index != 2 %}
             <div class="absolute inset-0 bg-primary/40 dark:bg-primary/30 blur-xl rounded-lg -z-10 animate-pulse duration-3000"></div>
             {% endif %}
             
             <div class="relative bg-gray-100 dark:bg-gray-900 rounded-lg h-full flex flex-col">
-              {# Header do Card #}
               <div class="bg-primary text-gray-900 dark:text-black font-bold text-2xl p-6 rounded-t-lg text-center">
                 {{ plano.nome }}
               </div>
 
-              {# Corpo do Card #}
               <div class="p-8 flex-grow">
-                {# Preço #}
                 <div class="text-center mb-6">
                   <p class="text-4xl font-bold text-gray-900 dark:text-white">
-                    R$ {{ "%.2f"|format(plano.preco) }}
+                    R$ {{ "%.2f"|format(plano.valor if plano.valor is defined else plano.preco if plano.preco is defined else 0) }}
                     <span class="text-lg font-medium text-gray-500 dark:text-gray-400">/mês</span>
                   </p>
                   <p class="text-gray-600 dark:text-gray-400 mt-2">{{ plano.descricao }}</p>
                 </div>
 
-                {# Benefícios #}
                 <ul class="space-y-4">
                   {% if plano.limite_profissionais %}
                   <li class="flex items-center">
@@ -74,7 +66,6 @@
                   </li>
                 </ul>
 
-                {# Botão de Assinatura #}
                 <form method="POST" action="{{ url_for('assinaturas.assinar', plano_id=plano.id) }}" class="mt-8">
                   <button type="submit" 
                           class="w-full bg-primary text-white font-bold py-3 px-6 rounded-full hover:opacity-90 transition-opacity duration-300 shadow-lg shadow-primary/30">
@@ -90,16 +81,19 @@
           </div>
         {% endfor %}
       {% else %}
-        {# Mensagem se não houver planos #}
         <div class="col-span-3 text-center py-12">
           <p class="text-xl text-gray-500 dark:text-gray-400">
             Nenhum plano disponível no momento.
+          </p>
+          <p class="text-sm text-gray-400 mt-2">
+            <a href="{{ url_for('dashboard.index') }}" class="text-primary hover:underline">
+              ← Voltar ao Dashboard
+            </a>
           </p>
         </div>
       {% endif %}
     </div>
 
-    {# Status da Assinatura Atual #}
     {% if barbearia and barbearia.assinatura_ativa %}
     <div class="max-w-md mx-auto bg-green-500/10 border-2 border-green-500 rounded-xl p-4 mb-8">
       <div class="flex items-center gap-3">
@@ -116,7 +110,6 @@
     </div>
     {% endif %}
 
-    {# Botão Voltar #}
     <div class="max-w-md mx-auto text-center">
       <a href="{{ url_for('dashboard.index') }}" 
          class="text-primary hover:text-primary/80 transition-colors font-medium">
@@ -126,7 +119,6 @@
   </div>
 </div>
 
-{# Estilos adicionais #}
 <style>
   @keyframes pulse {
     0%, 100% { opacity: 0.4; }
