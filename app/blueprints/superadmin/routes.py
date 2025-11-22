@@ -1,10 +1,11 @@
 # app/blueprints/superadmin/routes.py
-# (CÓDIGO COMPLETO E CORRIGIDO)
+# (CÓDIGO COMPLETO E CORRIGIDO COM SINCRONIZAÇÃO)
 
 import logging
 from functools import wraps
+from datetime import datetime, timedelta
 from flask import Blueprint, render_template, redirect, url_for, flash, current_app, abort, request
-from app.models.tables import Barbearia, User # type: ignore
+from app.models.tables import Barbearia, User
 from app.extensions import db
 from flask_login import login_required, current_user 
 from werkzeug.security import generate_password_hash
@@ -60,7 +61,6 @@ def nova_barbearia():
 
         erros = []
         if not nome_fantasia: erros.append("O Nome Fantasia é obrigatório.")
-        # ... (outras validações)
             
         if telefone_whatsapp and Barbearia.query.filter_by(telefone_whatsapp=telefone_whatsapp).first():
             erros.append(f"O telefone {telefone_whatsapp} já está em uso por outra barbearia.")
@@ -73,11 +73,20 @@ def nova_barbearia():
             return render_template('superadmin/novo.html', form_data=request.form)
 
         try:
+            # ✅ SINCRONIZAR: Converter status_assinatura para assinatura_ativa
+            assinatura_ativa = (status_assinatura == 'ativa')
+            assinatura_expira_em = None
+            
+            if assinatura_ativa:
+                # Se estiver ativa, definir expiração daqui a 30 dias
+                assinatura_expira_em = datetime.now() + timedelta(days=30)
+            
             nova_barbearia = Barbearia(
                 nome_fantasia=nome_fantasia,
                 telefone_whatsapp=telefone_whatsapp,
                 status_assinatura=status_assinatura,
-                # Salva os campos da Meta no construtor
+                assinatura_ativa=assinatura_ativa,  # ✅ SINCRONIZADO
+                assinatura_expira_em=assinatura_expira_em,  # ✅ SINCRONIZADO
                 meta_phone_number_id=meta_phone_number_id,
                 meta_access_token=meta_access_token
             )
@@ -125,7 +134,6 @@ def editar_barbearia(barbearia_id):
 
         erros = []
         if not nome_fantasia: erros.append("O Nome Fantasia é obrigatório.")
-        # ... (outras validações)
             
         if telefone_whatsapp:
             existente = Barbearia.query.filter(
@@ -145,11 +153,19 @@ def editar_barbearia(barbearia_id):
             barbearia.telefone_whatsapp = telefone_whatsapp
             barbearia.status_assinatura = status_assinatura
             
-            # --- ESTA É A CORREÇÃO QUE FALTA ---
-            # O teu código antigo não tinha estas duas linhas:
+            # ✅ SINCRONIZAR: Atualizar assinatura_ativa baseado em status_assinatura
+            if status_assinatura == 'ativa':
+                barbearia.assinatura_ativa = True
+                # Se estava inativa e agora ficou ativa, definir expiração
+                if not barbearia.assinatura_expira_em or barbearia.assinatura_expira_em < datetime.now():
+                    barbearia.assinatura_expira_em = datetime.now() + timedelta(days=30)
+            else:
+                barbearia.assinatura_ativa = False
+                if status_assinatura == 'inativa':
+                    barbearia.assinatura_expira_em = None
+            
             barbearia.meta_phone_number_id = meta_phone_number_id
             barbearia.meta_access_token = meta_access_token
-            # -----------------------------------
             
             db.session.commit() 
             
@@ -167,7 +183,6 @@ def editar_barbearia(barbearia_id):
         'nome_fantasia': barbearia.nome_fantasia,
         'telefone_whatsapp': barbearia.telefone_whatsapp,
         'status_assinatura': barbearia.status_assinatura,
-        # Estas linhas são necessárias para preencher o formulário na página de edição
         'meta_phone_number_id': barbearia.meta_phone_number_id,
         'meta_access_token': barbearia.meta_access_token
     }
