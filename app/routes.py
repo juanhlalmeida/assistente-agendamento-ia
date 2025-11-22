@@ -406,7 +406,9 @@ def webhook_twilio():
         logging.error(f"Erro no webhook do Twilio: {e}")
         return "Erro interno", 500
 
-# --- ROTA DO WEBHOOK DA META (Corrigida) ---
+# ============================================
+# ✨ ROTA DO WEBHOOK DA META - ATUALIZADA
+# ============================================
 @bp.route('/meta-webhook', methods=['GET', 'POST'])
 def webhook_meta():
     """
@@ -443,7 +445,9 @@ def webhook_meta():
                     mensagem_recebida = message_data['text']['body']
                     remetente = message_data['from']  # Formato: "55..."
                     
-                    # --- LÓGICA DE ROTEAMENTO (Preservada) ---
+                    # ============================================
+                    # ✨ LÓGICA DE ROTEAMENTO + BLOQUEIO DE ASSINATURA
+                    # ============================================
                     phone_number_id = data['entry'][0]['changes'][0]['value']['metadata']['phone_number_id']
                     barbearia = Barbearia.query.filter_by(meta_phone_number_id=phone_number_id).first()
                     
@@ -451,25 +455,33 @@ def webhook_meta():
                         logging.error(f"CRÍTICO: Nenhuma barbearia encontrada para phone_number_id {phone_number_id}. Ignorando mensagem.")
                         return jsonify({"status": "ignored"}), 200
                     
+                    # ✅ BLOQUEIO 1: Verifica se assinatura está ativa
+                    if not barbearia.assinatura_ativa:
+                        logging.warning(f"🚫 Barbearia '{barbearia.nome_fantasia}' (ID: {barbearia.id}) com assinatura INATIVA. Ignorando mensagem do WhatsApp.")
+                        return jsonify({"status": "subscription_inactive"}), 200
+                    
+                    # ✅ BLOQUEIO 2: Verifica se assinatura expirou
+                    if barbearia.assinatura_expira_em and barbearia.assinatura_expira_em < datetime.now():
+                        logging.warning(f"🚫 Barbearia '{barbearia.nome_fantasia}' (ID: {barbearia.id}) com assinatura EXPIRADA em {barbearia.assinatura_expira_em}. Ignorando mensagem.")
+                        return jsonify({"status": "subscription_expired"}), 200
+                    
+                    # ✅ (OPCIONAL) Mantém verificação do status_assinatura antigo (por compatibilidade)
                     if barbearia.status_assinatura != 'ativa':
-                        logging.warning(f"Mensagem recebida para barbearia '{barbearia.nome_fantasia}' com assinatura '{barbearia.status_assinatura}'. Ignorando.")
+                        logging.warning(f"Mensagem recebida para barbearia '{barbearia.nome_fantasia}' com status_assinatura '{barbearia.status_assinatura}'. Ignorando.")
                         return jsonify({"status": "ignored"}), 200
                     
-                    logging.info(f"Mensagem recebida da Meta de {remetente} para a Barbearia: {barbearia.nome_fantasia}")
+                    logging.info(f"✅ Mensagem autorizada para Barbearia: {barbearia.nome_fantasia} (assinatura ativa até {barbearia.assinatura_expira_em})")
+                    # ============================================
                     
-                    # --- CORREÇÃO DA IA (Chamando a função correta) ---
+                    # --- PROCESSAMENTO DA IA ---
                     resposta_ia = ai_service.processar_ia_gemini(
                         user_message=mensagem_recebida,
                         barbearia_id=barbearia.id,
                         cliente_whatsapp=remetente
                     )
-                    # -----------------------------------------------
                     
                     if resposta_ia:
-                        # --- CORREÇÃO DO ENVIO ---
-                        # (Passa o objeto 'barbearia' para a função de envio)
                         enviar_mensagem_whatsapp_meta(remetente, resposta_ia, barbearia)
-                        # -----------------------
                     
                     return jsonify({"status": "success"}), 200
             
