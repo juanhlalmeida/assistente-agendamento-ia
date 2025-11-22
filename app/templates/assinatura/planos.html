@@ -1,56 +1,144 @@
-
 {% extends "base.html" %}
 
+{% block title %}Escolha seu Plano{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
-    <h1 class="mb-4">Escolha seu Plano</h1>
-    
-    <div class="row">
+<div class="min-h-screen flex flex-col items-center justify-center p-4 -mt-8">
+  <div class="max-w-6xl w-full">
+    {# Título #}
+    <h1 class="text-4xl md:text-5xl font-bold text-center mb-12 text-gray-900 dark:text-white">
+      Escolha seu Plano
+    </h1>
+
+    {# Grid de Planos #}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+      {% if planos %}
         {% for plano in planos %}
-        <div class="col-md-4 mb-4">
-            <div class="card h-100 shadow">
-                <div class="card-header bg-primary text-white text-center">
-                    <h3 class="mb-0">{{ plano.nome }}</h3>
+          {# Card do Plano #}
+          <div class="{% if loop.index == 2 %}bg-primary shadow-glow-primary{% else %}bg-gray-100 dark:bg-gray-900 shadow-lg{% endif %} rounded-lg p-1 relative">
+            {# Efeito de brilho nos cards laterais #}
+            {% if loop.index != 2 %}
+            <div class="absolute inset-0 bg-primary/40 dark:bg-primary/30 blur-xl rounded-lg -z-10 animate-pulse duration-3000"></div>
+            {% endif %}
+            
+            <div class="relative bg-gray-100 dark:bg-gray-900 rounded-lg h-full flex flex-col">
+              {# Header do Card #}
+              <div class="bg-primary text-gray-900 dark:text-black font-bold text-2xl p-6 rounded-t-lg text-center">
+                {{ plano.nome }}
+              </div>
+
+              {# Corpo do Card #}
+              <div class="p-8 flex-grow">
+                {# Preço #}
+                <div class="text-center mb-6">
+                  <p class="text-4xl font-bold text-gray-900 dark:text-white">
+                    R$ {{ "%.2f"|format(plano.preco) }}
+                    <span class="text-lg font-medium text-gray-500 dark:text-gray-400">/mês</span>
+                  </p>
+                  <p class="text-gray-600 dark:text-gray-400 mt-2">{{ plano.descricao }}</p>
                 </div>
-                <div class="card-body d-flex flex-column">
-                    <h2 class="text-center text-primary mb-3">
-                        R$ {{ "%.2f"|format(plano.preco_mensal) }}<small class="text-muted">/mês</small>
-                    </h2>
-                    <p class="text-muted text-center mb-4">{{ plano.descricao }}</p>
-                    
-                    <ul class="list-unstyled mb-4">
-                        <li class="mb-2">✅ Até {{ plano.max_profissionais }} profissionais</li>
-                        <li class="mb-2">✅ Até {{ plano.max_servicos }} serviços</li>
-                        {% if plano.tem_ia %}
-                        <li class="mb-2">✅ Assistente IA Luana</li>
-                        {% endif %}
-                        <li class="mb-2">✅ WhatsApp integrado</li>
-                        <li class="mb-2">✅ Agenda completa</li>
-                    </ul>
-                    
-                    <form method="POST" action="{{ url_for('assinaturas.assinar', plano_id=plano.id) }}" class="mt-auto">
-                        <div class="mb-3">
-                            <label class="form-label">Email para pagamento:</label>
-                            <input type="email" name="email" class="form-control" 
-                                   value="{{ current_user.email }}" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary btn-lg w-100">
-                            Assinar Agora
-                        </button>
-                    </form>
-                </div>
+
+                {# Benefícios #}
+                <ul class="space-y-4">
+                  {% if plano.limite_profissionais %}
+                  <li class="flex items-center">
+                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <span class="ml-3 text-gray-700 dark:text-gray-300">
+                      Até {{ plano.limite_profissionais }} profissionais
+                    </span>
+                  </li>
+                  {% endif %}
+                  
+                  {% if plano.limite_servicos %}
+                  <li class="flex items-center">
+                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <span class="ml-3 text-gray-700 dark:text-gray-300">
+                      Até {{ plano.limite_servicos }} serviços
+                    </span>
+                  </li>
+                  {% endif %}
+
+                  <li class="flex items-center">
+                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <span class="ml-3 text-gray-700 dark:text-gray-300">Assistente IA Luana</span>
+                  </li>
+                  
+                  <li class="flex items-center">
+                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <span class="ml-3 text-gray-700 dark:text-gray-300">WhatsApp integrado</span>
+                  </li>
+                  
+                  <li class="flex items-center">
+                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <span class="ml-3 text-gray-700 dark:text-gray-300">Agenda completa</span>
+                  </li>
+                </ul>
+
+                {# Botão de Assinatura #}
+                <form method="POST" action="{{ url_for('assinaturas.assinar', plano_id=plano.id) }}" class="mt-8">
+                  <button type="submit" 
+                          class="w-full bg-primary text-white font-bold py-3 px-6 rounded-full hover:opacity-90 transition-opacity duration-300 shadow-lg shadow-primary/30">
+                    {% if barbearia and barbearia.assinatura_ativa %}
+                      Mudar para este Plano
+                    {% else %}
+                      Assinar Agora
+                    {% endif %}
+                  </button>
+                </form>
+              </div>
             </div>
-        </div>
+          </div>
         {% endfor %}
+      {% else %}
+        {# Mensagem se não houver planos #}
+        <div class="col-span-3 text-center py-12">
+          <p class="text-xl text-gray-500 dark:text-gray-400">
+            Nenhum plano disponível no momento.
+          </p>
+        </div>
+      {% endif %}
     </div>
-    
-    {% if barbearia.assinatura_ativa %}
-    <div class="alert alert-success mt-4">
-        <strong>✅ Sua assinatura está ativa!</strong>
-        {% if barbearia.assinatura_expira_em %}
-        <br>Válida até: {{ barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}
-        {% endif %}
+
+    {# Status da Assinatura Atual #}
+    {% if barbearia and barbearia.assinatura_ativa %}
+    <div class="max-w-md mx-auto bg-green-500/10 border-2 border-green-500 rounded-xl p-4 mb-8">
+      <div class="flex items-center gap-3">
+        <span class="material-icons-outlined text-3xl text-green-500">check_circle</span>
+        <div>
+          <h3 class="text-lg font-bold text-green-500">Assinatura Ativa</h3>
+          {% if barbearia.assinatura_expira_em %}
+          <p class="text-sm text-gray-600 dark:text-gray-400">
+            Válida até: {{ barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}
+          </p>
+          {% endif %}
+        </div>
+      </div>
     </div>
     {% endif %}
+
+    {# Botão Voltar #}
+    <div class="max-w-md mx-auto text-center">
+      <a href="{{ url_for('dashboard.index') }}" 
+         class="text-primary hover:text-primary/80 transition-colors font-medium">
+        ← Voltar ao Dashboard
+      </a>
+    </div>
+  </div>
 </div>
+
+{# Estilos adicionais #}
+<style>
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.6; }
+  }
+  
+  .animate-pulse {
+    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .shadow-glow-primary {
+    box-shadow: 0 0 15px 0 rgba(0, 191, 255, 0.4), 0 0 20px 0 rgba(0, 191, 255, 0.3);
+  }
+</style>
 {% endblock %}
