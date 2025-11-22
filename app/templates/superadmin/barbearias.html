@@ -71,12 +71,27 @@
               <td class="p-4 font-semibold text-text-primary-dark">{{ barbearia.nome_fantasia }}</td>
               <td class="p-4 text-text-primary-dark">{{ barbearia.telefone_whatsapp }}</td>
               <td class="p-4">
-                {% set status_color = 'bg-gray-500 text-gray-100' %}
-                {% if barbearia.status_assinatura == 'ativa' %}{% set status_color = 'bg-green-500 text-white' %}{% endif %}
-                {% if barbearia.status_assinatura == 'inativa' or barbearia.status_assinatura == 'pendente' %}{% set status_color = 'bg-yellow-500 text-black' %}{% endif %}
-                 <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ status_color }}">
-                    {{ barbearia.status_assinatura | capitalize }}
-                 </span>
+                {# ✅ MELHORADO: Usa assinatura_ativa como fonte primária #}
+                {% if barbearia.assinatura_ativa %}
+                  <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500 text-white">
+                    Ativa
+                  </span>
+                  {% if barbearia.assinatura_expira_em %}
+                  <p class="text-xs text-text-secondary-dark mt-1">
+                    Expira: {{ barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}
+                  </p>
+                  {% endif %}
+                {% else %}
+                  {% if barbearia.status_assinatura == 'pendente' %}
+                    <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500 text-black">
+                      Pendente
+                    </span>
+                  {% else %}
+                    <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500 text-white">
+                      Inativa
+                    </span>
+                  {% endif %}
+                {% endif %}
               </td>
               <td class="p-4 text-center">
                 {# Botão Editar #}
@@ -85,8 +100,7 @@
                   <span class="material-symbols-outlined">edit</span>
                 </a>
                 
-                {# --- 🚀 NOVO FORMULÁRIO: APAGAR BARBEARIA --- #}
-                {# O botão só aparece se NÃO for a Barbearia ID 1 #}
+                {# Botão Apagar (desabilitado para ID 1) #}
                 {% if barbearia.id != 1 %}
                   <form action="{{ url_for('superadmin.apagar_barbearia', barbearia_id=barbearia.id) }}" 
                         method="post" class="inline" 
@@ -96,12 +110,10 @@
                     </button>
                   </form>
                 {% else %}
-                  {# Mostra um ícone desabilitado para a Barbearia 1 #}
                   <span class="p-2 text-gray-700 cursor-not-allowed" title="Não é possível apagar a barbearia principal">
                      <span class="material-symbols-outlined">delete_forever</span>
                   </span>
                 {% endif %}
-                {# ------------------------------------------- #}
               </td>
             </tr>
           {% else %} 
