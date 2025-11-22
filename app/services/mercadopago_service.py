@@ -20,8 +20,13 @@ class MercadoPagoService:
     def criar_assinatura(self, barbearia, plano, email_pagador):
         """Cria assinatura recorrente no Mercado Pago"""
         try:
+            # Data de início (hoje) e fim (1 ano)
             data_inicio = datetime.now()
             data_fim = data_inicio + timedelta(days=365)
+            
+            # Formatar datas no padrão ISO 8601 com timezone UTC (exigido pelo MP)
+            start_date_str = data_inicio.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
+            end_date_str = data_fim.strftime("%Y-%m-%dT%H:%M:%S.000-00:00")
             
             preapproval_data = {
                 "reason": f"Assinatura {plano.nome} - {barbearia.nome_fantasia}",
@@ -30,8 +35,8 @@ class MercadoPagoService:
                     "frequency_type": "months",
                     "transaction_amount": plano.preco_mensal,
                     "currency_id": "BRL",
-                    "start_date": start_date_str,  # ✅ CORRETO
-                    "end_date": end_date_str        # ✅ CORRETO
+                    "start_date": start_date_str,
+                    "end_date": end_date_str
                 },
                 "back_url": f"{os.getenv('BASE_URL')}/assinatura/retorno",
                 "payer_email": email_pagador,
