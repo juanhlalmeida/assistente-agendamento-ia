@@ -30,8 +30,8 @@ class MercadoPagoService:
                     "frequency_type": "months",
                     "transaction_amount": plano.preco_mensal,
                     "currency_id": "BRL",
-                    "start_date": data_inicio.isoformat(),
-                    "end_date": data_fim.isoformat()
+                    "start_date": start_date_str,  # ✅ CORRETO
+                    "end_date": end_date_str        # ✅ CORRETO
                 },
                 "back_url": f"{os.getenv('BASE_URL')}/assinatura/retorno",
                 "payer_email": email_pagador,
