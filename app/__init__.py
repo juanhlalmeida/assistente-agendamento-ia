@@ -154,17 +154,30 @@ def create_app(config_class=Config) -> Flask:
          app.logger.error(f"ERRO ao registar blueprint 'dashboard': {e}")
 
     # ============================================
-    # ✨ ADIÇÃO: BLUEPRINT DE ASSINATURAS
+    # ✨ BLUEPRINT DE ASSINATURAS (COM LOGS DE DEBUG)
     # ============================================
+    logging.info("🔍 [ASSINATURAS] Iniciando processo de registro...")
+    
     try:
+        logging.info("🔍 [ASSINATURAS] Tentando importar módulo app.blueprints.assinaturas...")
         from app.blueprints.assinaturas import bp as assinaturas_bp
+        logging.info(f"🔍 [ASSINATURAS] Import realizado! Objeto blueprint: {assinaturas_bp}")
+        logging.info(f"🔍 [ASSINATURAS] Nome do blueprint: {assinaturas_bp.name}")
+        logging.info(f"🔍 [ASSINATURAS] URL prefix: {assinaturas_bp.url_prefix}")
+        
+        logging.info("🔍 [ASSINATURAS] Registrando blueprint no Flask app...")
         app.register_blueprint(assinaturas_bp)
-        app.logger.info("✅ Blueprint 'assinaturas' registrado com sucesso!")
+        
+        logging.info("✅ [ASSINATURAS] Blueprint registrado com SUCESSO!")
+        
     except ImportError as e:
-        app.logger.error(f"❌ ERRO ao importar blueprint 'assinaturas': {e}")
-        app.logger.error("Verifique se o arquivo app/blueprints/assinaturas/__init__.py existe")
+        logging.error(f"❌ [ASSINATURAS] ERRO ImportError: {e}", exc_info=True)
+        logging.error("❌ [ASSINATURAS] Verifique se app/blueprints/assinaturas/__init__.py existe")
+    except AttributeError as e:
+        logging.error(f"❌ [ASSINATURAS] ERRO AttributeError: {e}", exc_info=True)
+        logging.error("❌ [ASSINATURAS] Verifique se o blueprint 'bp' está definido corretamente em __init__.py")
     except Exception as e:
-        app.logger.error(f"❌ ERRO ao registar blueprint 'assinaturas': {e}", exc_info=True)
+        logging.error(f"❌ [ASSINATURAS] ERRO Exception genérica: {e}", exc_info=True)
     # ============================================
 
     # Healthcheck
