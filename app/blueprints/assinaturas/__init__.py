@@ -1,15 +1,15 @@
 # app/blueprints/assinaturas/__init__.py
 """
-Blueprint de assinaturas e pagamentos
+Blueprint de Assinaturas e Pagamentos via Mercado Pago
 """
 from flask import Blueprint
 
+# Criar o blueprint
 bp = Blueprint(
     'assinaturas',
     __name__,
-    url_prefix='/assinatura',
-    template_folder='../../templates/assinatura'
+    url_prefix='/assinatura'
 )
 
-# Importa as rotas depois de criar o blueprint
+# Importar as rotas DEPOIS de criar o blueprint
 from app.blueprints.assinaturas import routes
