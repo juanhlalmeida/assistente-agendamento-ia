@@ -1,3 +1,6 @@
+from app.blueprints.assinaturas import bp
+
+
 def processar_atualizacao_assinatura(preapproval_id):
     """Atualiza status da assinatura e ATIVA a barbearia automaticamente"""
     try:
