@@ -4,7 +4,8 @@
 
 {% block head %}
 {{ super() }}
-<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+<!-- Material Icons usando CDN do Google -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Icons+Outlined" rel="stylesheet">
 {% endblock %}
 
 {% block content %}
@@ -39,7 +40,10 @@
                 <ul class="space-y-4">
                   {% if plano.max_profissionais %}
                   <li class="flex items-center">
-                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <!-- ✅ Usando SVG ao invés de fonte de ícone -->
+                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
                     <span class="ml-3 text-gray-700 dark:text-gray-300">
                       Até {{ plano.max_profissionais }} profissionais
                     </span>
@@ -48,7 +52,9 @@
                   
                   {% if plano.max_servicos %}
                   <li class="flex items-center">
-                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
                     <span class="ml-3 text-gray-700 dark:text-gray-300">
                       Até {{ plano.max_servicos }} serviços
                     </span>
@@ -57,18 +63,24 @@
 
                   {% if plano.tem_ia %}
                   <li class="flex items-center">
-                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
                     <span class="ml-3 text-gray-700 dark:text-gray-300">Assistente IA Luana</span>
                   </li>
                   {% endif %}
                   
                   <li class="flex items-center">
-                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
                     <span class="ml-3 text-gray-700 dark:text-gray-300">WhatsApp integrado</span>
                   </li>
                   
                   <li class="flex items-center">
-                    <span class="material-icons-outlined text-primary text-xl">check_circle</span>
+                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                    </svg>
                     <span class="ml-3 text-gray-700 dark:text-gray-300">Agenda completa</span>
                   </li>
                 </ul>
@@ -104,7 +116,9 @@
     {% if barbearia and barbearia.assinatura_ativa %}
     <div class="max-w-md mx-auto bg-green-500/10 border-2 border-green-500 rounded-xl p-4 mb-8">
       <div class="flex items-center gap-3">
-        <span class="material-icons-outlined text-3xl text-green-500">check_circle</span>
+        <svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+        </svg>
         <div>
           <h3 class="text-lg font-bold text-green-500">Assinatura Ativa</h3>
           {% if barbearia.assinatura_expira_em %}
@@ -127,24 +141,6 @@
 </div>
 
 <style>
-  /* Classe para Material Icons Outlined */
-  .material-icons-outlined {
-    font-family: 'Material Icons Outlined';
-    font-weight: normal;
-    font-style: normal;
-    font-size: 24px;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    display: inline-block;
-    white-space: nowrap;
-    word-wrap: normal;
-    direction: ltr;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
-  }
-
   @keyframes pulse {
     0%, 100% { opacity: 0.4; }
     50% { opacity: 0.6; }
