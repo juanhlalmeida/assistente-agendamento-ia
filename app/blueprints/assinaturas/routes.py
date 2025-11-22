@@ -1,45 +1,114 @@
-from app.blueprints.assinaturas import bp
+# app/blueprints/assinaturas/routes.py
+import logging
+from flask import render_template, request, redirect, url_for, flash, jsonify
+from flask_login import login_required, current_user
+from datetime import datetime, timedelta
 
+from app.blueprints.assinaturas import bp
+from app.models.tables import Plano, Assinatura, Pagamento, Barbearia
+from app.extensions import db
+from app.services.mercadopago_service import mercadopago_service
+
+logging.basicConfig(level=logging.INFO)
+
+@bp.route('/planos')
+@login_required
+def listar_planos():
+    """Lista todos os planos disponíveis"""
+    try:
+        planos = Plano.query.filter_by(ativo=True).all()
+        return render_template('assinatura/planos.html', planos=planos)
+    except Exception as e:
+        logging.error(f"Erro ao listar planos: {e}", exc_info=True)
+        flash('Erro ao carregar planos de assinatura.', 'danger')
+        return redirect(url_for('dashboard.index'))
+
+@bp.route('/assinar/<int:plano_id>', methods=['POST'])
+@login_required
+def assinar(plano_id):
+    """Inicia processo de assinatura"""
+    try:
+        plano = Plano.query.get_or_404(plano_id)
+        barbearia = current_user.barbearia
+        
+        if not barbearia:
+            flash('Erro: Usuário sem barbearia associada.', 'danger')
+            return redirect(url_for('assinaturas.listar_planos'))
+        
+        resultado = mercadopago_service.criar_assinatura(
+            barbearia=barbearia,
+            plano=plano,
+            email_pagador=current_user.email
+        )
+        
+        if resultado["success"]:
+            nova_assinatura = Assinatura(
+                barbearia_id=barbearia.id,
+                plano_id=plano.id,
+                mp_preapproval_id=resultado["preapproval_id"],
+                status='pending'
+            )
+            db.session.add(nova_assinatura)
+            db.session.commit()
+            
+            init_point = resultado.get("sandbox_init_point") or resultado.get("init_point")
+            return redirect(init_point)
+        else:
+            logging.error(f"Erro ao criar assinatura: {resultado.get('error')}")
+            flash('Erro ao processar assinatura. Tente novamente.', 'danger')
+            return redirect(url_for('assinaturas.listar_planos'))
+            
+    except Exception as e:
+        logging.error(f"Erro no processo de assinatura: {e}", exc_info=True)
+        flash('Erro ao processar assinatura.', 'danger')
+        return redirect(url_for('assinaturas.listar_planos'))
+
+@bp.route('/retorno')
+@login_required
+def retorno():
+    """Página de retorno após pagamento"""
+    status = request.args.get('status')
+    return render_template('assinatura/retorno.html', status=status)
+
+@bp.route('/webhook', methods=['POST'])
+def webhook():
+    """Recebe notificações do Mercado Pago"""
+    try:
+        data = request.get_json()
+        logging.info(f"Webhook recebido: {data}")
+        
+        if data.get('type') == 'subscription_preapproval':
+            preapproval_id = data['data']['id']
+            processar_atualizacao_assinatura(preapproval_id)
+        
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        logging.error(f"Erro no webhook: {e}", exc_info=True)
+        return jsonify({"status": "error"}), 500
 
 def processar_atualizacao_assinatura(preapproval_id):
-    """Atualiza status da assinatura e ATIVA a barbearia automaticamente"""
+    """Atualiza status da assinatura"""
     try:
-        # Consultar no Mercado Pago
         resultado = mercadopago_service.consultar_assinatura(preapproval_id)
         
         if resultado["success"]:
             mp_data = resultado["data"]
-            
-            # Buscar assinatura no banco
             assinatura = Assinatura.query.filter_by(mp_preapproval_id=preapproval_id).first()
             
             if assinatura:
-                # Atualizar status
                 assinatura.status = mp_data.get('status', 'pending')
                 assinatura.mp_payer_id = mp_data.get('payer_id')
                 
-                # ✅ AUTOMAÇÃO: Se status = authorized, ATIVA A BARBEARIA
                 if assinatura.status == 'authorized':
                     assinatura.barbearia.assinatura_ativa = True
-                    
-                    # Calcula data de expiração (1 mês a partir de agora)
-                    if 'next_payment_date' in mp_data:
-                        assinatura.barbearia.assinatura_expira_em = datetime.fromisoformat(
-                            mp_data['next_payment_date']
-                        )
-                    else:
-                        # Se não tiver, calcula 30 dias
-                        assinatura.barbearia.assinatura_expira_em = datetime.now() + timedelta(days=30)
-                    
-                    logging.info(f"🎉 BARBEARIA {assinatura.barbearia.id} ATIVADA AUTOMATICAMENTE!")
+                    assinatura.barbearia.assinatura_expira_em = datetime.now() + timedelta(days=30)
+                    logging.info(f"🎉 BARBEARIA {assinatura.barbearia.id} ATIVADA!")
                 
-                # ❌ AUTOMAÇÃO: Se cancelado/pausado, DESATIVA
                 elif assinatura.status in ['cancelled', 'paused']:
                     assinatura.barbearia.assinatura_ativa = False
-                    logging.warning(f"⚠️ Barbearia {assinatura.barbearia.id} DESATIVADA (status: {assinatura.status})")
+                    logging.warning(f"⚠️ Barbearia {assinatura.barbearia.id} DESATIVADA")
                 
                 db.session.commit()
-                logging.info(f"✅ Assinatura {preapproval_id} atualizada para: {assinatura.status}")
                 
     except Exception as e:
         logging.error(f"Erro ao processar assinatura: {e}", exc_info=True)
