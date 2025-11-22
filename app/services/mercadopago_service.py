@@ -114,3 +114,5 @@ class MercadoPagoService:
 
 # Instância global
 mercadopago_service = MercadoPagoService()
+
+#TESTE
