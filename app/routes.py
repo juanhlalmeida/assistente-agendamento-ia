@@ -17,6 +17,17 @@ from app.extensions import db
 
 # Importa sanitize_msisdn
 from app.whatsapp_client import WhatsAppClient, sanitize_msisdn
+
+# --- TENTATIVA DE IMPORTAR TWILIO (OPCIONAL) ---
+# Se a biblioteca não existir (foi removida do requirements), o código não quebra.
+try:
+    from twilio.rest import Client as TwilioClient
+    TWILIO_AVAILABLE = True
+except ImportError:
+    TWILIO_AVAILABLE = False
+    logging.warning("Biblioteca 'twilio' não encontrada. Funcionalidades Twilio desativadas.")
+# -----------------------------------------------
+
 from app.services import ai_service  
 from app.services.audio_service import AudioService # <-- NOVO: Serviço de Áudio
 
@@ -54,10 +65,15 @@ def dev_route_required():
 
 META_VERIFY_TOKEN = os.getenv('META_VERIFY_TOKEN')
 
-# --- FUNÇÃO DE ENVIO DO TWILIO (Preservada) ---
+# --- FUNÇÃO DE ENVIO DO TWILIO (OPCIONAL/LEGADO) ---
 def enviar_mensagem_whatsapp_twilio(destinatario, mensagem):
+    if not TWILIO_AVAILABLE:
+        logging.error("Tentativa de enviar via Twilio falhou: Biblioteca não instalada.")
+        return False
+
     try:
-        client = WhatsAppClient()
+        # Assume que WhatsAppClient já lida com a instância interna ou usa a lib direta
+        client = WhatsAppClient() 
         api_res = client.send_text(destinatario, mensagem)
         if api_res.get("status") not in ('queued', 'sent', 'delivered', 'accepted'):
             logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
@@ -68,7 +84,7 @@ def enviar_mensagem_whatsapp_twilio(destinatario, mensagem):
         logging.error(f"Erro ao enviar mensagem via Twilio: {e}")
         return False
 
-# --- FUNÇÃO DE ENVIO DA META (Preservada) ---
+# --- FUNÇÃO DE ENVIO DA META (PRINCIPAL) ---
 def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: Barbearia):
     """
     Envia uma mensagem de texto para o destinatário usando a API do WhatsApp (Meta).
@@ -374,11 +390,14 @@ def editar_agendamento(agendamento_id):
     return render_template('editar_agendamento.html',
                            agendamento=ag, profissionais=profissionais, servicos=servicos)
 
-# --- ROTA DO TWILIO (Preservada) ---
+# --- ROTA DO TWILIO (PRESERVADA COM PROTEÇÃO) ---
 @bp.route('/webhook', methods=['POST'])
 def webhook_twilio():
+    if not TWILIO_AVAILABLE:
+        logging.warning("Webhook Twilio chamado, mas biblioteca não instalada.")
+        return 'Twilio Disabled', 200
+
     data = request.values
-    
     try:
         mensagem_recebida = data.get('Body')
         remetente = data.get('From')
