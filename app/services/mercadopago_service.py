@@ -18,101 +18,90 @@ class MercadoPagoService:
         self.sdk = mercadopago.SDK(access_token)
         logging.info("✅ MercadoPago SDK inicializado")
     
-    def criar_assinatura(self, barbearia, plano, email_pagador):
-        """Cria assinatura recorrente no Mercado Pago"""
+    def criar_pagamento(self, barbearia, plano, email_pagador):
+        """Cria pagamento único (não recorrente) no Mercado Pago"""
         try:
-            logging.info(f"📝 Criando assinatura para {barbearia.nome_fantasia} - Plano: {plano.nome}")
+            logging.info(f"📝 Criando pagamento para {barbearia.nome_fantasia} - Plano: {plano.nome}")
             
-            # Data de início (hoje) e fim (1 ano)
-            data_inicio = datetime.now()
-            data_fim = data_inicio + timedelta(days=365)
-            
-            # ✅ CORRIGIDO: Formato ISO 8601 com timezone UTC correto
-            start_date_str = data_inicio.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-            end_date_str = data_fim.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-            
-            logging.info(f"📅 Data início: {start_date_str}")
-            logging.info(f"📅 Data fim: {end_date_str}")
-            logging.info(f"💰 Valor: R$ {plano.preco_mensal}")
-            
-            preapproval_data = {
-                "reason": f"Assinatura {plano.nome} - {barbearia.nome_fantasia}",
-                "auto_recurring": {
-                    "frequency": 1,
-                    "frequency_type": "months",
-                    "transaction_amount": float(plano.preco_mensal),  # ✅ Garantir float
-                    "currency_id": "BRL",
-                    "start_date": start_date_str,
-                    "end_date": end_date_str
+            # ✅ NOVO: Preference para pagamento único
+            preference_data = {
+                "items": [
+                    {
+                        "title": f"Assinatura {plano.nome} - {barbearia.nome_fantasia}",
+                        "description": f"{plano.descricao} - Válida por 30 dias",
+                        "quantity": 1,
+                        "currency_id": "BRL",
+                        "unit_price": float(plano.preco_mensal)
+                    }
+                ],
+                "payer": {
+                    "email": email_pagador
                 },
-                "back_url": f"{os.getenv('BASE_URL', 'https://assistente-agendamento-ia.onrender.com')}/assinatura/retorno",
-                "payer_email": email_pagador,
-                "status": "pending"
+                "back_urls": {
+                    "success": f"{os.getenv('BASE_URL', 'https://assistente-agendamento-ia.onrender.com')}/assinatura/retorno?status=success",
+                    "failure": f"{os.getenv('BASE_URL', 'https://assistente-agendamento-ia.onrender.com')}/assinatura/retorno?status=failure",
+                    "pending": f"{os.getenv('BASE_URL', 'https://assistente-agendamento-ia.onrender.com')}/assinatura/retorno?status=pending"
+                },
+                "auto_return": "approved",
+                "external_reference": f"barbearia_{barbearia.id}_plano_{plano.id}",
+                "notification_url": f"{os.getenv('BASE_URL', 'https://assistente-agendamento-ia.onrender.com')}/assinatura/webhook",
+                "statement_descriptor": f"Assinatura {plano.nome}",
+                "expires": False,
+                "payment_methods": {
+                    "excluded_payment_types": [],
+                    "installments": 1  # ✅ Apenas 1x (mensal)
+                }
             }
             
-            logging.info(f"📤 Enviando dados para Mercado Pago: {preapproval_data}")
+            logging.info(f"📤 Enviando dados para Mercado Pago")
             
-            result = self.sdk.preapproval().create(preapproval_data)
+            result = self.sdk.preference().create(preference_data)
             
             logging.info(f"📥 Resposta do Mercado Pago: Status {result['status']}")
             
             if result["status"] == 201:
-                logging.info(f"✅ Assinatura criada com sucesso!")
+                logging.info(f"✅ Pagamento criado com sucesso!")
                 logging.info(f"   ID: {result['response']['id']}")
-                logging.info(f"   Init Point: {result['response'].get('init_point')}")
-                logging.info(f"   Sandbox Init Point: {result['response'].get('sandbox_init_point')}")
+                
+                # ✅ Retorna init_point correto baseado no ambiente
+                if os.getenv('MERCADOPAGO_ACCESS_TOKEN', '').startswith('TEST-'):
+                    init_point = result['response'].get('sandbox_init_point', result['response']['init_point'])
+                else:
+                    init_point = result['response']['init_point']
+                
+                logging.info(f"   Init Point: {init_point}")
                 
                 return {
                     "success": True,
-                    "preapproval_id": result["response"]["id"],
-                    "init_point": result["response"]["init_point"],
-                    "sandbox_init_point": result["response"].get("sandbox_init_point")
+                    "preference_id": result["response"]["id"],
+                    "init_point": init_point
                 }
             else:
-                logging.error(f"❌ Erro ao criar assinatura!")
+                logging.error(f"❌ Erro ao criar pagamento!")
                 logging.error(f"   Status: {result['status']}")
                 logging.error(f"   Response: {result.get('response')}")
                 return {"success": False, "error": result}
                 
         except Exception as e:
-            logging.error(f"❌ ERRO CRÍTICO no MercadoPagoService.criar_assinatura: {e}", exc_info=True)
+            logging.error(f"❌ ERRO CRÍTICO no MercadoPagoService.criar_pagamento: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
     
-    def consultar_assinatura(self, preapproval_id):
-        """Consulta status da assinatura"""
+    def consultar_pagamento(self, payment_id):
+        """Consulta status do pagamento"""
         try:
-            logging.info(f"🔍 Consultando assinatura: {preapproval_id}")
-            result = self.sdk.preapproval().get(preapproval_id)
+            logging.info(f"🔍 Consultando pagamento: {payment_id}")
+            result = self.sdk.payment().get(payment_id)
             
             if result["status"] == 200:
-                logging.info(f"✅ Assinatura encontrada: Status {result['response'].get('status')}")
+                logging.info(f"✅ Pagamento encontrado: Status {result['response'].get('status')}")
                 return {"success": True, "data": result["response"]}
             else:
-                logging.error(f"❌ Erro ao consultar assinatura: {result}")
+                logging.error(f"❌ Erro ao consultar pagamento: {result}")
                 return {"success": False, "error": result}
                 
         except Exception as e:
-            logging.error(f"❌ Erro ao consultar assinatura: {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
-    
-    def cancelar_assinatura(self, preapproval_id):
-        """Cancela assinatura"""
-        try:
-            logging.info(f"🚫 Cancelando assinatura: {preapproval_id}")
-            result = self.sdk.preapproval().update(preapproval_id, {"status": "cancelled"})
-            
-            if result["status"] == 200:
-                logging.info(f"✅ Assinatura cancelada com sucesso: {preapproval_id}")
-                return {"success": True}
-            else:
-                logging.error(f"❌ Erro ao cancelar assinatura: {result}")
-                return {"success": False, "error": result}
-                
-        except Exception as e:
-            logging.error(f"❌ Erro ao cancelar assinatura: {e}", exc_info=True)
+            logging.error(f"❌ Erro ao consultar pagamento: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
 # Instância global
 mercadopago_service = MercadoPagoService()
-
-#TESTE
