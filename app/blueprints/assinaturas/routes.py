@@ -41,11 +41,7 @@ def assinar(plano_id):
             flash('Erro: Usuário sem barbearia associada.', 'danger')
             return redirect(url_for('assinaturas.listar_planos'))
         
-        resultado = mercadopago_service.criar_assinatura(
-            barbearia=barbearia,
-            plano=plano,
-            email_pagador=current_user.email
-        )
+        resultado = mercadopago_service.criar_pagamento(barbearia, plano, current_user.email)
         
         if resultado["success"]:
             nova_assinatura = Assinatura(
