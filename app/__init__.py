@@ -154,13 +154,13 @@ def create_app(config_class=Config) -> Flask:
          app.logger.error(f"ERRO ao registar blueprint 'dashboard': {e}")
 
     # ============================================
-    # ✨ BLUEPRINT DE ASSINATURAS (COM LOGS DE DEBUG)
+    # ✨ BLUEPRINT DE ASSINATURAS (CORRIGIDO!)
     # ============================================
     logging.info("🔍 [ASSINATURAS] Iniciando processo de registro...")
     
     try:
-        logging.info("🔍 [ASSINATURAS] Tentando importar módulo app.blueprints.assinaturas...")
-        from app.blueprints.assinaturas import bp as assinaturas_bp
+        logging.info("🔍 [ASSINATURAS] Tentando importar módulo app.blueprints.assinaturas.routes...")
+        from app.blueprints.assinaturas.routes import bp as assinaturas_bp  # ✅ CORRIGIDO!
         logging.info(f"🔍 [ASSINATURAS] Import realizado! Objeto blueprint: {assinaturas_bp}")
         logging.info(f"🔍 [ASSINATURAS] Nome do blueprint: {assinaturas_bp.name}")
         logging.info(f"🔍 [ASSINATURAS] URL prefix: {assinaturas_bp.url_prefix}")
@@ -172,10 +172,10 @@ def create_app(config_class=Config) -> Flask:
         
     except ImportError as e:
         logging.error(f"❌ [ASSINATURAS] ERRO ImportError: {e}", exc_info=True)
-        logging.error("❌ [ASSINATURAS] Verifique se app/blueprints/assinaturas/__init__.py existe")
+        logging.error("❌ [ASSINATURAS] Verifique se app/blueprints/assinaturas/routes.py existe")
     except AttributeError as e:
         logging.error(f"❌ [ASSINATURAS] ERRO AttributeError: {e}", exc_info=True)
-        logging.error("❌ [ASSINATURAS] Verifique se o blueprint 'bp' está definido corretamente em __init__.py")
+        logging.error("❌ [ASSINATURAS] Verifique se o blueprint 'bp' está definido em routes.py")
     except Exception as e:
         logging.error(f"❌ [ASSINATURAS] ERRO Exception genérica: {e}", exc_info=True)
     # ============================================
