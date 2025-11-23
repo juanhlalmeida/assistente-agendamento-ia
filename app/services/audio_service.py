@@ -1,4 +1,6 @@
 # app/services/audio_service.py
+# (MODELO CORRIGIDO PARA: gemini-2.5-flash)
+
 import os
 import requests
 import tempfile
@@ -37,7 +39,6 @@ class AudioService:
             conteudo_audio = self._baixar_binario_midia(url_download, access_token)
             
             # 3. Salvar temporariamente em disco
-            # delete=False é obrigatório para compatibilidade
             with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as temp_file:
                 temp_file.write(conteudo_audio)
                 caminho_arquivo = temp_file.name
@@ -56,16 +57,16 @@ class AudioService:
                 raise ValueError("Gemini falhou ao processar o arquivo de áudio.")
 
             # 5. Gerar resposta
-            # Usamos o Flash pois é rápido e barato para áudio
-            model = genai.GenerativeModel("gemini-1.5-flash") 
+            # ✅ CORRIGIDO: Usando exatamente o modelo que você pediu
+            model_name = "gemini-2.5-flash"
+            model = genai.GenerativeModel(model_name) 
             
             prompt_sistema = """
-            Você é uma assistente de Barbearia eficiente e simpática.
-            Ouça o áudio do cliente.
-            Se ele quiser agendar: extraia intenção, data, hora, serviço e profissional.
-            Se for dúvida: responda sucintamente.
-            Responda APENAS em texto, como se fosse uma resposta de WhatsApp.
-            NÃO invente horários. Se não tiver certeza, pergunte.
+            Você é a Luana, assistente da Barbearia.
+            Ouça o áudio do cliente com atenção.
+            Identifique: Intenção (Agendar, Cancelar, Dúvida), Data, Hora, Serviço e Profissional se houver.
+            Responda em texto, de forma curta e cordial, como se estivesse no WhatsApp.
+            NÃO invente horários. Se o cliente perguntar disponibilidade, diga que vai verificar.
             """
             
             resposta = model.generate_content([prompt_sistema, arquivo_remoto_gemini])
@@ -73,7 +74,7 @@ class AudioService:
 
         except Exception as e:
             logger.error(f"Erro no processamento de áudio: {e}")
-            return "Desculpe, tive um problema técnico para ouvir seu áudio. Pode digitar por favor?"
+            return "Desculpe, não consegui ouvir seu áudio direito. Pode escrever ou tentar mandar de novo?"
 
         finally:
             # 6. Limpeza de Recursos (CRÍTICO)
