@@ -5,7 +5,7 @@ import os
 import logging
 import json
 import requests
-import threading  # <-- NOVO: Necessário para processar áudio em background
+import threading
 import google.generativeai as genai
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
@@ -15,21 +15,22 @@ from sqlalchemy.orm import joinedload
 from app.models.tables import Agendamento, Profissional, Servico, User, Barbearia
 from app.extensions import db
 
-# Importa sanitize_msisdn
-from app.whatsapp_client import WhatsAppClient, sanitize_msisdn
-
-# --- TENTATIVA DE IMPORTAR TWILIO (OPCIONAL) ---
-# Se a biblioteca não existir (foi removida do requirements), o código não quebra.
+# ============================================
+# ✅ IMPORTAÇÕES OPCIONAIS DO TWILIO
+# ============================================
 try:
-    from twilio.rest import Client as TwilioClient
+    from app.whatsapp_client import WhatsAppClient, sanitize_msisdn
     TWILIO_AVAILABLE = True
-except ImportError:
+    logging.info("✅ Twilio/WhatsAppClient disponível")
+except ImportError as e:
     TWILIO_AVAILABLE = False
-    logging.warning("Biblioteca 'twilio' não encontrada. Funcionalidades Twilio desativadas.")
-# -----------------------------------------------
+    WhatsAppClient = None
+    sanitize_msisdn = None
+    logging.warning(f"⚠️ Twilio/WhatsAppClient não disponível: {e}. Webhook Twilio desabilitado.")
+# ============================================
 
 from app.services import ai_service  
-from app.services.audio_service import AudioService # <-- NOVO: Serviço de Áudio
+from app.services.audio_service import AudioService
 
 # Importação da função unificada de cálculo de horários
 from app.utils import calcular_horarios_disponiveis
@@ -49,7 +50,6 @@ audio_service = AudioService()
 # ============================================
 # 🔒 PROTEÇÃO DE SEGURANÇA PARA PRODUÇÃO
 # ============================================
-# Desabilita rotas perigosas em produção automaticamente
 ENABLE_DEV_ROUTES = os.getenv('ENABLE_DEV_ROUTES', 'false').lower() == 'true'
 
 def dev_route_required():
@@ -67,21 +67,23 @@ META_VERIFY_TOKEN = os.getenv('META_VERIFY_TOKEN')
 
 # --- FUNÇÃO DE ENVIO DO TWILIO (OPCIONAL/LEGADO) ---
 def enviar_mensagem_whatsapp_twilio(destinatario, mensagem):
+    """
+    Envia mensagem via Twilio (apenas se biblioteca estiver disponível)
+    """
     if not TWILIO_AVAILABLE:
-        logging.error("Tentativa de enviar via Twilio falhou: Biblioteca não instalada.")
+        logging.error("❌ Tentativa de enviar via Twilio falhou: Biblioteca não instalada.")
         return False
 
     try:
-        # Assume que WhatsAppClient já lida com a instância interna ou usa a lib direta
         client = WhatsAppClient() 
         api_res = client.send_text(destinatario, mensagem)
         if api_res.get("status") not in ('queued', 'sent', 'delivered', 'accepted'):
-            logging.error("Falha no envio da resposta da IA via Twilio: %s", api_res)
+            logging.error(f"Falha no envio via Twilio: {api_res}")
             return False
-        logging.info(f"Mensagem enviada para {destinatario} via Twilio.")
+        logging.info(f"✅ Mensagem enviada para {destinatario} via Twilio.")
         return True
     except Exception as e:
-        logging.error(f"Erro ao enviar mensagem via Twilio: {e}")
+        logging.error(f"❌ Erro ao enviar mensagem via Twilio: {e}")
         return False
 
 # --- FUNÇÃO DE ENVIO DA META (PRINCIPAL) ---
@@ -112,10 +114,10 @@ def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: B
     try:
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
-        logging.info(f"Mensagem enviada para {destinatario} via Meta: {response.json()}")
+        logging.info(f"✅ Mensagem enviada para {destinatario} via Meta: {response.json()}")
         return True
     except requests.exceptions.RequestException as e:
-        logging.error(f"Erro ao enviar mensagem via Meta: {e}")
+        logging.error(f"❌ Erro ao enviar mensagem via Meta: {e}")
         return False
 
 # --- NOVO: HELPER PARA PROCESSAMENTO DE ÁUDIO EM THREAD ---
@@ -132,7 +134,6 @@ def processar_audio_background(audio_id, wa_id, access_token, phone_number_id):
         
         if resposta_texto:
             # 2. Envia a resposta de volta para o usuário
-            # Precisamos reimplementar o envio aqui pois estamos fora do contexto da 'barbearia' objeto
             url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
             headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
             payload = {
@@ -142,13 +143,13 @@ def processar_audio_background(audio_id, wa_id, access_token, phone_number_id):
                 "text": {"body": resposta_texto}
             }
             requests.post(url, headers=headers, json=payload)
-            logging.info(f"🧵 Resposta do áudio enviada com sucesso para {wa_id}")
+            logging.info(f"✅ 🧵 Resposta do áudio enviada com sucesso para {wa_id}")
             
     except Exception as e:
         logging.error(f"❌ Erro crítico na thread de áudio: {e}")
 
 # -------------------------------------------------------------
-# --- FUNÇÕES DE AUTENTICAÇÃO (Preservadas) ---
+# --- FUNÇÕES DE AUTENTICAÇÃO ---
 
 @bp.route('/', methods=['GET', 'POST'])
 def login():
@@ -187,7 +188,7 @@ def logout():
     flash('Você saiu do sistema.', 'info')
     return redirect(url_for('main.login'))
 
-# --- FUNÇÕES DO PAINEL WEB (Preservadas) ---
+# --- FUNÇÕES DO PAINEL WEB ---
 
 def _range_do_dia(dia_dt: datetime):
     inicio = datetime.combine(dia_dt.date(), time.min)
@@ -393,9 +394,12 @@ def editar_agendamento(agendamento_id):
 # --- ROTA DO TWILIO (PRESERVADA COM PROTEÇÃO) ---
 @bp.route('/webhook', methods=['POST'])
 def webhook_twilio():
+    """
+    Webhook do Twilio (apenas funciona se biblioteca estiver instalada)
+    """
     if not TWILIO_AVAILABLE:
-        logging.warning("Webhook Twilio chamado, mas biblioteca não instalada.")
-        return 'Twilio Disabled', 200
+        logging.warning("⚠️ Webhook Twilio chamado, mas biblioteca não instalada.")
+        return jsonify({"status": "twilio_disabled"}), 200
 
     data = request.values
     try:
@@ -424,11 +428,11 @@ def webhook_twilio():
         return "Mensagem processada", 200
     
     except Exception as e:
-        logging.error(f"Erro no webhook do Twilio: {e}")
+        logging.error(f"❌ Erro no webhook do Twilio: {e}")
         return "Erro interno", 500
 
 # ============================================
-# ✨ ROTA DO WEBHOOK DA META - ATUALIZADA
+# ✨ ROTA DO WEBHOOK DA META
 # ============================================
 @bp.route('/meta-webhook', methods=['GET', 'POST'])
 def webhook_meta():
@@ -441,10 +445,10 @@ def webhook_meta():
         challenge = request.args.get('hub.challenge')
         
         if mode == 'subscribe' and token == META_VERIFY_TOKEN:
-            logging.info("Webhook da Meta verificado com sucesso!")
+            logging.info("✅ Webhook da Meta verificado com sucesso!")
             return challenge, 200
         else:
-            logging.warning(f"Falha na verificação do Webhook. Token: {token}")
+            logging.warning(f"⚠️ Falha na verificação do Webhook. Token: {token}")
             return "Falha na verificação", 403
     
     elif request.method == 'POST':
@@ -468,7 +472,7 @@ def webhook_meta():
                 barbearia = Barbearia.query.filter_by(meta_phone_number_id=phone_number_id).first()
                 
                 if not barbearia:
-                    logging.error(f"Nenhuma barbearia encontrada para o ID {phone_number_id}")
+                    logging.error(f"❌ Nenhuma barbearia encontrada para o ID {phone_number_id}")
                     return jsonify({"status": "ignored"}), 200
                 
                 # Bloqueios de Assinatura
@@ -496,13 +500,12 @@ def webhook_meta():
                     if resposta_ia:
                         enviar_mensagem_whatsapp_meta(remetente, resposta_ia, barbearia)
                 
-                # CASO 2: MENSAGEM DE ÁUDIO (NOVA IMPLEMENTAÇÃO)
+                # CASO 2: MENSAGEM DE ÁUDIO
                 elif msg_type == 'audio':
                     audio_id = message_data['audio']['id']
                     logging.info(f"🎤 Áudio detectado. ID: {audio_id}. Iniciando thread de processamento.")
                     
-                    # Dispara thread para não bloquear o webhook (evita timeout da Meta)
-                    # Passamos os tokens como strings simples
+                    # Dispara thread para não bloquear o webhook
                     thread = threading.Thread(
                         target=processar_audio_background,
                         args=(
@@ -514,9 +517,9 @@ def webhook_meta():
                     )
                     thread.start()
 
-                # OUTROS TIPOS (Ignora por enquanto)
+                # OUTROS TIPOS (Ignora)
                 else:
-                    logging.info(f"Tipo de mensagem não suportado: {msg_type}")
+                    logging.info(f"ℹ️ Tipo de mensagem não suportado: {msg_type}")
 
                 return jsonify({"status": "success"}), 200
             
@@ -524,7 +527,7 @@ def webhook_meta():
                 return jsonify({"status": "ignored"}), 200
         
         except Exception as e:
-            logging.error(f"Erro ao processar payload da Meta: {e}", exc_info=True)
+            logging.error(f"❌ Erro ao processar payload da Meta: {e}", exc_info=True)
             return jsonify({"status": "error"}), 500
     
     else:
