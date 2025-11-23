@@ -1,8 +1,11 @@
 # app/routes.py
-# (CÓDIGO COMPLETO E BLINDADO PARA PRODUÇÃO)
+# (CÓDIGO COMPLETO COM SUPORTE A ÁUDIO - BLINDADO PARA PRODUÇÃO)
 
 import os
 import logging
+import json
+import requests
+import threading  # <-- NOVO: Necessário para processar áudio em background
 import google.generativeai as genai
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
@@ -12,24 +15,25 @@ from sqlalchemy.orm import joinedload
 from app.models.tables import Agendamento, Profissional, Servico, User, Barbearia
 from app.extensions import db
 
-# Importa sanitize_msisdn (assumindo que está em whatsapp_client)
+# Importa sanitize_msisdn
 from app.whatsapp_client import WhatsAppClient, sanitize_msisdn
-from app.services import ai_service  # <-- IMPORTAÇÃO CORRETA DA IA
+from app.services import ai_service  
+from app.services.audio_service import AudioService # <-- NOVO: Serviço de Áudio
 
-# 🚀 IMPORTAÇÃO DA NOVA FUNÇÃO UNIFICADA DE CÁLCULO DE HORÁRIOS
+# Importação da função unificada de cálculo de horários
 from app.utils import calcular_horarios_disponiveis
 from app.commands import reset_database_logic
 
 # Importações do flask_login
 from flask_login import login_required, current_user, login_user, logout_user
 
-import requests  # <-- Adicionámos 'requests'
-import json  # <-- Adicionámos 'json'
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Define o blueprint principal
 bp = Blueprint('main', __name__)
+
+# Instancia o serviço de áudio globalmente
+audio_service = AudioService()
 
 # ============================================
 # 🔒 PROTEÇÃO DE SEGURANÇA PARA PRODUÇÃO
@@ -41,22 +45,17 @@ def dev_route_required():
     """
     Verifica se as rotas de desenvolvimento estão habilitadas.
     Em produção (Render), ENABLE_DEV_ROUTES não existe, então retorna 404.
-    Isso "esconde" as rotas perigosas de hackers.
     """
     if not ENABLE_DEV_ROUTES:
         logging.warning("Tentativa de acesso a rota de desenvolvimento em produção bloqueada")
-        abort(404)  # Retorna 404 (Not Found) para esconder a rota
+        abort(404)
 
 # ============================================
 
-# --- ADIÇÃO: Carregar Token de Verificação da Meta ---
 META_VERIFY_TOKEN = os.getenv('META_VERIFY_TOKEN')
 
 # --- FUNÇÃO DE ENVIO DO TWILIO (Preservada) ---
 def enviar_mensagem_whatsapp_twilio(destinatario, mensagem):
-    """
-    Envia uma mensagem de texto para o destinatário usando a API do Twilio.
-    """
     try:
         client = WhatsAppClient()
         api_res = client.send_text(destinatario, mensagem)
@@ -69,23 +68,19 @@ def enviar_mensagem_whatsapp_twilio(destinatario, mensagem):
         logging.error(f"Erro ao enviar mensagem via Twilio: {e}")
         return False
 
-# --- CORREÇÃO CRÍTICA: FUNÇÃO DE ENVIO DA META ---
-# (Agora lê os tokens DA BARBEARIA, e não do 'os.getenv')
+# --- FUNÇÃO DE ENVIO DA META (Preservada) ---
 def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: Barbearia):
     """
     Envia uma mensagem de texto para o destinatário usando a API do WhatsApp (Meta).
-    Lê as credenciais diretamente da barbearia (do banco de dados).
+    Lê as credenciais diretamente da barbearia.
     """
-    # 1. Lê os tokens do objeto 'barbearia' que veio do banco de dados
     access_token = barbearia.meta_access_token
     phone_number_id = barbearia.meta_phone_number_id
     
-    # 2. Verifica se os tokens existem no banco de dados
     if not access_token or not phone_number_id:
-        logging.error(f"Erro: Barbearia ID {barbearia.id} está sem META_ACCESS_TOKEN ou META_PHONE_NUMBER_ID no banco de dados.")
+        logging.error(f"Erro: Barbearia ID {barbearia.id} está sem META_ACCESS_TOKEN ou META_PHONE_NUMBER_ID.")
         return False
     
-    # 3. Garante o formato do número
     if destinatario.startswith('whatsapp:'):
         destinatario = destinatario.replace('whatsapp:', '')
     
@@ -104,10 +99,37 @@ def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: B
         logging.info(f"Mensagem enviada para {destinatario} via Meta: {response.json()}")
         return True
     except requests.exceptions.RequestException as e:
-        # Se o erro for 401 ou 403, o token no banco de dados está errado/expirado
-        logging.error(f"Erro ao enviar mensagem via Meta (Token expirado?): {e}")
-        logging.error(f"Response Body: {e.response.text if e.response else 'Sem resposta'}")
+        logging.error(f"Erro ao enviar mensagem via Meta: {e}")
         return False
+
+# --- NOVO: HELPER PARA PROCESSAMENTO DE ÁUDIO EM THREAD ---
+def processar_audio_background(audio_id, wa_id, access_token, phone_number_id):
+    """
+    Processa o áudio em background e envia a resposta, evitando timeout do webhook.
+    Recebe tokens como string para não depender de sessão de banco dentro da thread.
+    """
+    try:
+        logging.info(f"🧵 Thread iniciada para processar áudio ID: {audio_id}")
+        
+        # 1. Processa áudio (baixa da Meta, envia pro Gemini, pega texto)
+        resposta_texto = audio_service.processar_audio(audio_id, access_token)
+        
+        if resposta_texto:
+            # 2. Envia a resposta de volta para o usuário
+            # Precisamos reimplementar o envio aqui pois estamos fora do contexto da 'barbearia' objeto
+            url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
+            headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": wa_id,
+                "type": "text",
+                "text": {"body": resposta_texto}
+            }
+            requests.post(url, headers=headers, json=payload)
+            logging.info(f"🧵 Resposta do áudio enviada com sucesso para {wa_id}")
+            
+    except Exception as e:
+        logging.error(f"❌ Erro crítico na thread de áudio: {e}")
 
 # -------------------------------------------------------------
 # --- FUNÇÕES DE AUTENTICAÇÃO (Preservadas) ---
@@ -125,17 +147,12 @@ def login():
         user = User.query.filter_by(email=email).first()
         if user:
             current_app.logger.info(f"Usuário encontrado no banco: {user.email} (ID: {user.id})")
-            current_app.logger.info("Verificando senha...")
-            
             if user.check_password(password):
                 current_app.logger.info(f"Senha CORRETA para {user.email}. Realizando login.")
                 login_user(user, remember=request.form.get('remember-me') is not None)
-                current_app.logger.info(f"Função login_user executada. Usuário {user.email} deve estar na sessão.")
-                
                 next_page = request.args.get('next')
                 if not next_page or not next_page.startswith('/'):
                     next_page = url_for('dashboard.index')
-                
                 flash('Login realizado com sucesso!', 'success')
                 return redirect(next_page)
             else:
@@ -184,12 +201,12 @@ def agenda():
         try:
             profissional = Profissional.query.filter_by(id=profissional_id, barbearia_id=barbearia_id_logada).first()
             if not profissional:
-                flash('Profissional inválido ou não pertence à sua barbearia.', 'danger')
+                flash('Profissional inválido.', 'danger')
                 raise ValueError("Profissional inválido.")
             
             servico = Servico.query.filter_by(id=servico_id, barbearia_id=barbearia_id_logada).first()
             if not servico:
-                flash('Serviço inválido ou não pertence à sua barbearia.', 'danger')
+                flash('Serviço inválido.', 'danger')
                 raise ValueError("Serviço inválido.")
             
             novo_inicio = datetime.strptime(data_hora_str, '%Y-%m-%dT%H:%M').replace(tzinfo=None)
@@ -244,7 +261,7 @@ def agenda():
         
         return redirect(url_for('main.agenda', data=redirect_date_str, profissional_id=prof_id_redirect))
     
-    # --- Lógica GET (Preservada) ---
+    # --- Lógica GET ---
     data_sel_str = request.args.get('data', date.today().strftime('%Y-%m-%d'))
     profissional_sel_id = request.args.get('profissional_id')
     
@@ -301,7 +318,7 @@ def agenda():
 @login_required
 def excluir_agendamento(agendamento_id):
     barbearia_id_logada = current_user.barbearia_id
-    ag = Agendamento.query.filter_by(id=agendamento_id, barbearia_id=barbearia_id_logada).first_or_404("Agendamento não encontrado ou não pertence à sua barbearia.")
+    ag = Agendamento.query.filter_by(id=agendamento_id, barbearia_id=barbearia_id_logada).first_or_404()
     
     data_redirect = ag.data_hora.strftime('%Y-%m-%d')
     prof_redirect = ag.profissional_id
@@ -320,7 +337,7 @@ def excluir_agendamento(agendamento_id):
 @login_required
 def editar_agendamento(agendamento_id):
     barbearia_id_logada = current_user.barbearia_id
-    ag = Agendamento.query.filter_by(id=agendamento_id, barbearia_id=barbearia_id_logada).first_or_404("Agendamento não encontrado ou não pertence à sua barbearia.")
+    ag = Agendamento.query.filter_by(id=agendamento_id, barbearia_id=barbearia_id_logada).first_or_404()
     
     if request.method == 'POST':
         try:
@@ -331,8 +348,8 @@ def editar_agendamento(agendamento_id):
             serv = Servico.query.filter_by(id=novo_servico_id, barbearia_id=barbearia_id_logada).first()
             
             if not prof or not serv:
-                flash('Profissional ou Serviço inválido para esta barbearia.', 'danger')
-                raise ValueError("Profissional ou Serviço inválido.")
+                flash('Profissional ou Serviço inválido.', 'danger')
+                raise ValueError("Dados inválidos.")
             
             ag.nome_cliente = request.form.get('nome_cliente')
             ag.telefone_cliente = request.form.get('telefone_cliente')
@@ -346,8 +363,6 @@ def editar_agendamento(agendamento_id):
                                     data=ag.data_hora.strftime('%Y-%m-%d'),
                                     profissional_id=ag.profissional_id))
         
-        except ValueError as ve:
-            pass
         except Exception as e:
             db.session.rollback()
             flash(f'Erro ao atualizar agendamento: {str(e)}', 'danger')
@@ -363,7 +378,6 @@ def editar_agendamento(agendamento_id):
 @bp.route('/webhook', methods=['POST'])
 def webhook_twilio():
     data = request.values
-    logging.info("PAYLOAD RECEBIDO DA TWILIO: %s", data)
     
     try:
         mensagem_recebida = data.get('Body')
@@ -371,32 +385,20 @@ def webhook_twilio():
         to_number_raw = data.get('To')
         
         if not remetente or not mensagem_recebida or not to_number_raw:
-            logging.warning("Webhook da Twilio recebido sem 'From', 'Body' ou 'To'.")
             return 'OK', 200
         
         barbearia_phone = sanitize_msisdn(to_number_raw)
         barbearia = Barbearia.query.filter_by(telefone_whatsapp=barbearia_phone).first()
         
-        if not barbearia:
-            logging.error(f"CRÍTICO: Nenhuma barbearia encontrada para o número {barbearia_phone}. Ignorando mensagem.")
+        if not barbearia or barbearia.status_assinatura != 'ativa':
             return 'OK', 200
         
-        if barbearia.status_assinatura != 'ativa':
-            logging.warning(f"Mensagem recebida para barbearia '{barbearia.nome_fantasia}' com assinatura '{barbearia.status_assinatura}'. Ignorando.")
-            return 'OK', 200
-        
-        barbearia_id = barbearia.id
-        logging.info(f"Mensagem roteada para Barbearia ID: {barbearia_id} ({barbearia.nome_fantasia})")
-        print(f"Mensagem recebida do Twilio de {remetente}: {mensagem_recebida}")
-        
-        # --- CORREÇÃO DA IA (Chamando a função correta) ---
+        # --- IA (TEXTO) ---
         resposta_ia = ai_service.processar_ia_gemini(
             user_message=mensagem_recebida,
             barbearia_id=barbearia.id,
             cliente_whatsapp=remetente
         )
-        # -----------------------------------------------
-        
         if resposta_ia:
             enviar_mensagem_whatsapp_twilio(remetente, resposta_ia)
         
@@ -412,10 +414,9 @@ def webhook_twilio():
 @bp.route('/meta-webhook', methods=['GET', 'POST'])
 def webhook_meta():
     """
-    Webhook para verificação e recebimento de mensagens da Meta.
+    Webhook para verificação e recebimento de mensagens da Meta (Texto e Áudio).
     """
     if request.method == 'GET':
-        # --- VERIFICAÇÃO DO WEBHOOK (Preservado) ---
         mode = request.args.get('hub.mode')
         token = request.args.get('hub.verify_token')
         challenge = request.args.get('hub.challenge')
@@ -424,56 +425,49 @@ def webhook_meta():
             logging.info("Webhook da Meta verificado com sucesso!")
             return challenge, 200
         else:
-            logging.warning(f"Falha na verificação do Webhook da Meta. Token recebido: {token}")
+            logging.warning(f"Falha na verificação do Webhook. Token: {token}")
             return "Falha na verificação", 403
     
     elif request.method == 'POST':
-        # --- RECEBIMENTO DE MENSAGENS ---
         data = request.get_json()
-        logging.info(f"Payload recebido da Meta: {json.dumps(data, indent=2)}")
         
         try:
-            # Verifica se é uma mensagem de texto (Preservado)
             if (data.get('object') == 'whatsapp_business_account' and
                 data.get('entry') and data['entry'][0].get('changes') and
                 data['entry'][0]['changes'][0].get('value') and
                 data['entry'][0]['changes'][0]['value'].get('messages')):
                 
-                message_data = data['entry'][0]['changes'][0]['value']['messages'][0]
+                value = data['entry'][0]['changes'][0]['value']
+                message_data = value['messages'][0]
                 
-                if message_data.get('type') == 'text':
+                # Identificação básica
+                phone_number_id = value['metadata']['phone_number_id']
+                remetente = message_data['from']
+                msg_type = message_data.get('type')
+                
+                # Busca Barbearia
+                barbearia = Barbearia.query.filter_by(meta_phone_number_id=phone_number_id).first()
+                
+                if not barbearia:
+                    logging.error(f"Nenhuma barbearia encontrada para o ID {phone_number_id}")
+                    return jsonify({"status": "ignored"}), 200
+                
+                # Bloqueios de Assinatura
+                if not barbearia.assinatura_ativa:
+                    return jsonify({"status": "subscription_inactive"}), 200
+                if barbearia.assinatura_expira_em and barbearia.assinatura_expira_em < datetime.now():
+                    return jsonify({"status": "subscription_expired"}), 200
+                
+                logging.info(f"✅ Mensagem ({msg_type}) autorizada para Barbearia: {barbearia.nome_fantasia}")
+                
+                # ============================================
+                # 🎤 ROTEAMENTO DE TIPO DE MENSAGEM
+                # ============================================
+                
+                # CASO 1: MENSAGEM DE TEXTO
+                if msg_type == 'text':
                     mensagem_recebida = message_data['text']['body']
-                    remetente = message_data['from']  # Formato: "55..."
                     
-                    # ============================================
-                    # ✨ LÓGICA DE ROTEAMENTO + BLOQUEIO DE ASSINATURA
-                    # ============================================
-                    phone_number_id = data['entry'][0]['changes'][0]['value']['metadata']['phone_number_id']
-                    barbearia = Barbearia.query.filter_by(meta_phone_number_id=phone_number_id).first()
-                    
-                    if not barbearia:
-                        logging.error(f"CRÍTICO: Nenhuma barbearia encontrada para phone_number_id {phone_number_id}. Ignorando mensagem.")
-                        return jsonify({"status": "ignored"}), 200
-                    
-                    # ✅ BLOQUEIO 1: Verifica se assinatura está ativa
-                    if not barbearia.assinatura_ativa:
-                        logging.warning(f"🚫 Barbearia '{barbearia.nome_fantasia}' (ID: {barbearia.id}) com assinatura INATIVA. Ignorando mensagem do WhatsApp.")
-                        return jsonify({"status": "subscription_inactive"}), 200
-                    
-                    # ✅ BLOQUEIO 2: Verifica se assinatura expirou
-                    if barbearia.assinatura_expira_em and barbearia.assinatura_expira_em < datetime.now():
-                        logging.warning(f"🚫 Barbearia '{barbearia.nome_fantasia}' (ID: {barbearia.id}) com assinatura EXPIRADA em {barbearia.assinatura_expira_em}. Ignorando mensagem.")
-                        return jsonify({"status": "subscription_expired"}), 200
-                    
-                    # ✅ (OPCIONAL) Mantém verificação do status_assinatura antigo (por compatibilidade)
-                    if barbearia.status_assinatura != 'ativa':
-                        logging.warning(f"Mensagem recebida para barbearia '{barbearia.nome_fantasia}' com status_assinatura '{barbearia.status_assinatura}'. Ignorando.")
-                        return jsonify({"status": "ignored"}), 200
-                    
-                    logging.info(f"✅ Mensagem autorizada para Barbearia: {barbearia.nome_fantasia} (assinatura ativa até {barbearia.assinatura_expira_em})")
-                    # ============================================
-                    
-                    # --- PROCESSAMENTO DA IA ---
                     resposta_ia = ai_service.processar_ia_gemini(
                         user_message=mensagem_recebida,
                         barbearia_id=barbearia.id,
@@ -482,12 +476,32 @@ def webhook_meta():
                     
                     if resposta_ia:
                         enviar_mensagem_whatsapp_meta(remetente, resposta_ia, barbearia)
+                
+                # CASO 2: MENSAGEM DE ÁUDIO (NOVA IMPLEMENTAÇÃO)
+                elif msg_type == 'audio':
+                    audio_id = message_data['audio']['id']
+                    logging.info(f"🎤 Áudio detectado. ID: {audio_id}. Iniciando thread de processamento.")
                     
-                    return jsonify({"status": "success"}), 200
+                    # Dispara thread para não bloquear o webhook (evita timeout da Meta)
+                    # Passamos os tokens como strings simples
+                    thread = threading.Thread(
+                        target=processar_audio_background,
+                        args=(
+                            audio_id, 
+                            remetente, 
+                            barbearia.meta_access_token, 
+                            barbearia.meta_phone_number_id
+                        )
+                    )
+                    thread.start()
+
+                # OUTROS TIPOS (Ignora por enquanto)
+                else:
+                    logging.info(f"Tipo de mensagem não suportado: {msg_type}")
+
+                return jsonify({"status": "success"}), 200
             
             else:
-                # Isto é normal, são os recibos de "sent", "delivered", "read"
-                logging.info("Payload da Meta recebido, mas não é uma mensagem de texto (provavelmente um status). Ignorando.")
                 return jsonify({"status": "ignored"}), 200
         
         except Exception as e:
@@ -503,14 +517,8 @@ def webhook_meta():
 
 @bp.route('/admin/reset-database/<secret_key>')
 def reset_database(secret_key):
-    """
-    🔒 ROTA PERIGOSA - Apaga TODO o banco de dados.
-    BLOQUEADA automaticamente em produção (Render).
-    """
-    # ✅ PRIMEIRA COISA: Verifica se está em produção
-    dev_route_required()  # Se estiver em produção, retorna 404 aqui e para
+    dev_route_required()
     
-    # Resto do código CONTINUA IGUAL (só roda em desenvolvimento local)
     expected_key = os.getenv('RESET_DB_KEY')
     if not expected_key or secret_key != expected_key:
         abort(404)
@@ -518,22 +526,14 @@ def reset_database(secret_key):
     try:
         logging.info("Iniciando o reset do banco de dados via rota segura...")
         reset_database_logic()
-        logging.info("Banco de dados recriado com sucesso.")
-        return "Banco de dados recriado com sucesso! Pode tentar fazer login agora.", 200
+        return "Banco de dados recriado com sucesso!", 200
     except Exception as e:
-        logging.error("Erro ao recriar o banco de dados: %s", e, exc_info=True)
-        return f"Ocorreu um erro ao recriar o banco de dados: {str(e)}", 500
+        return f"Ocorreu um erro: {str(e)}", 500
 
 @bp.route('/admin/criar-primeiro-usuario/<secret_key>')
 def criar_primeiro_usuario(secret_key):
-    """
-    🔒 ROTA PERIGOSA - Cria usuário admin sem validação.
-    BLOQUEADA automaticamente em produção (Render).
-    """
-    # ✅ PRIMEIRA COISA: Verifica se está em produção
-    dev_route_required()  # Se estiver em produção, retorna 404 aqui e para
+    dev_route_required()
     
-    # Resto do código CONTINUA IGUAL (só roda em desenvolvimento local)
     expected_key = os.getenv('ADMIN_KEY')
     if not expected_key or secret_key != expected_key:
         abort(404)
@@ -547,17 +547,14 @@ def criar_primeiro_usuario(secret_key):
         senha_admin = "admin123"
         barbearia_teste = Barbearia.query.get(1)
         if not barbearia_teste:
-            return "Erro: Nenhuma barbearia encontrada no banco para associar o usuário.", 500
+            return "Erro: Nenhuma barbearia encontrada.", 500
         
         u = User(email=email_admin, nome='Admin Criado Via Rota', role='admin', barbearia_id=barbearia_teste.id)
         u.set_password(senha_admin)
         db.session.add(u)
         db.session.commit()
         
-        msg = f"Usuário '{email_admin}' (Senha: '{senha_admin}') foi criado com sucesso para a Barbearia ID {barbearia_teste.id}!"
-        current_app.logger.info(msg)
-        return msg
+        return f"Usuário '{email_admin}' criado com sucesso!", 200
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Erro ao criar usuário admin via rota: {e}")
         return f"Ocorreu um erro: {e}", 500
