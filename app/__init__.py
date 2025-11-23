@@ -1,33 +1,27 @@
 # app/__init__.py
-# (CÓDIGO COMPLETO E CORRIGIDO - Preserva a sua lógica original + Assinaturas)
+# (CÓDIGO COMPLETO E CORRIGIDO)
 from __future__ import annotations
 
 import os
 import logging 
 from flask import Flask
 from config import Config
-# --- CORREÇÃO: Importa 'db' e 'cache' do extensions ---
 from app.extensions import db, cache
-# ----------------------------------------------------
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask import current_app 
 from app.blueprints.superadmin.routes import bp as superadmin_bp
 from werkzeug.security import generate_password_hash 
 
-# --- INSTÂNCIAS GLOBAIS (Preservadas do seu código original) ---
 login_manager = LoginManager()
 login_manager.login_view = 'main.login' 
 login_manager.login_message = 'Por favor, faça login para aceder a esta página.'
 login_manager.login_message_category = 'info' 
 
 migrate = Migrate()
-# ---------------------------
 
-# --- USER LOADER ---
 @login_manager.user_loader
 def load_user(user_id):
-    # (O seu código original do user_loader está 100% preservado aqui)
     current_app.logger.info(f"Tentando carregar usuário com ID da sessão: {user_id}")
     try:
         user_id_int = int(user_id) 
@@ -49,15 +43,8 @@ def load_user(user_id):
     except Exception as e:
         current_app.logger.error(f"Erro EXCEPCIONAL ao tentar carregar usuário ID {user_id_int}: {e}", exc_info=True)
         return None
-# --- FIM DO USER LOADER ---
 
-# --- FUNÇÃO HELPER PARA CRIAR O SUPER ADMIN ---
-# (Preservado 100% - é seguro)
 def _create_super_admin(app: Flask):
-    """
-    Função interna para criar o super admin ao iniciar,
-    se as variáveis de ambiente estiverem definidas e o usuário não existir.
-    """
     with app.app_context():
         admin_email = os.getenv('SUPER_ADMIN_EMAIL')
         admin_pass = os.getenv('SUPER_ADMIN_PASSWORD')
@@ -72,8 +59,8 @@ def _create_super_admin(app: Flask):
             logging.info(f"Criando novo super admin para {admin_email}...")
             new_super_admin = User(
                 email=admin_email,
-                nome="Super Admin", # Nome Padrão
-                role="super_admin" # Garante que a role é 'super_admin'
+                nome="Super Admin",
+                role="super_admin"
             )
             new_super_admin.set_password(admin_pass) 
             db.session.add(new_super_admin)
@@ -82,27 +69,22 @@ def _create_super_admin(app: Flask):
         except Exception as e:
             db.session.rollback()
             logging.error(f"ERRO CRÍTICO ao tentar criar super admin: {e}", exc_info=True)
-# --------------------------------------------------
 
 def create_app(config_class=Config) -> Flask:
     Config.init_app()
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_class)
 
-    # --- CORREÇÃO DA URL DO BANCO DE DADOS (PARA O RENDER PAGO) ---
     database_url = os.environ.get('DATABASE_URL')
     if database_url is None:
         raise ValueError("DATABASE_URL não está definida no ambiente!")
 
-    # 1. Troca 'postgres://' por 'postgresql://' (preferência do SQLAlchemy)
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
-    # 2. Força o 'sslmode=require' (Necessário para o banco PAGO do Render)
     if "postgresql://" in database_url and "sslmode=" not in database_url:
          database_url = database_url + "?sslmode=require"
     
-    # 3. Remove 'channel_binding' (que era do Neon, se por acaso ainda estiver na variável)
     if 'channel_binding' in database_url:
         base_url, params = database_url.split('?', 1) if '?' in database_url else (database_url, '')
         params_list = [p for p in params.split('&') if not p.startswith('channel_binding=')]
@@ -110,88 +92,108 @@ def create_app(config_class=Config) -> Flask:
         
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False 
-    # ----------------------------------------
 
-    # --- INICIALIZAÇÃO DAS EXTENSÕES ---
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
     cache.init_app(app)
-    # ---------------------------------
 
-    # --- REGISTO DOS BLUEPRINTS ---
-    # (O seu código original 100% preservado aqui)
+    # ============================================
+    # 🔍 REGISTRO DE BLUEPRINTS COM LOGS DETALHADOS
+    # ============================================
+    
+    print("\n" + "=" * 60)
+    print("🔍 INICIANDO REGISTRO DE BLUEPRINTS")
+    print("=" * 60 + "\n")
+
+    # BLUEPRINT: MAIN
     try:
-        from app.routes import bp as main_routes_bp 
-        app.register_blueprint(main_routes_bp) 
+        print("🔍 [MAIN] Importando app.routes...")
+        from app.routes import bp as main_routes_bp
+        print(f"✅ [MAIN] Import OK! Nome: {main_routes_bp.name}")
+        app.register_blueprint(main_routes_bp)
+        print("✅ [MAIN] Registrado com SUCESSO!\n")
     except Exception as e:
-         app.logger.error(f"ERRO ao registar blueprint 'main': {e}")
+        print(f"❌ [MAIN] ERRO: {e}\n")
+        logging.error(f"ERRO blueprint main: {e}", exc_info=True)
          
+    # BLUEPRINT: SERVICOS
     try:
-        from app.blueprints.servicos.routes import bp as servicos_bp 
-        app.register_blueprint(servicos_bp) 
+        print("🔍 [SERVICOS] Importando...")
+        from app.blueprints.servicos.routes import bp as servicos_bp
+        print(f"✅ [SERVICOS] Import OK! Nome: {servicos_bp.name}")
+        app.register_blueprint(servicos_bp)
+        print("✅ [SERVICOS] Registrado com SUCESSO!\n")
     except Exception as e:
-         app.logger.error(f"ERRO ao registar blueprint 'servicos': {e}")
+        print(f"❌ [SERVICOS] ERRO: {e}\n")
+        logging.error(f"ERRO blueprint servicos: {e}", exc_info=True)
 
+    # BLUEPRINT: PROFISSIONAIS
     try:
-        from app.blueprints.profissionais.routes import bp as profissionais_bp 
-        app.register_blueprint(profissionais_bp) 
+        print("🔍 [PROFISSIONAIS] Importando...")
+        from app.blueprints.profissionais.routes import bp as profissionais_bp
+        print(f"✅ [PROFISSIONAIS] Import OK! Nome: {profissionais_bp.name}")
+        app.register_blueprint(profissionais_bp)
+        print("✅ [PROFISSIONAIS] Registrado com SUCESSO!\n")
     except Exception as e:
-         app.logger.error(f"ERRO ao registar blueprint 'profissionais': {e}")
+        print(f"❌ [PROFISSIONAIS] ERRO: {e}\n")
+        logging.error(f"ERRO blueprint profissionais: {e}", exc_info=True)
     
+    # BLUEPRINT: CLIENTES
     try:
-        from app.blueprints.clientes.routes import bp as clientes_bp 
-        app.register_blueprint(clientes_bp) 
+        print("🔍 [CLIENTES] Importando...")
+        from app.blueprints.clientes.routes import bp as clientes_bp
+        print(f"✅ [CLIENTES] Import OK! Nome: {clientes_bp.name}")
+        app.register_blueprint(clientes_bp)
+        print("✅ [CLIENTES] Registrado com SUCESSO!\n")
     except Exception as e:
-         app.logger.error(f"ERRO ao registar blueprint 'clientes': {e}")     
+        print(f"❌ [CLIENTES] ERRO: {e}\n")
+        logging.error(f"ERRO blueprint clientes: {e}", exc_info=True)
 
-    app.register_blueprint(superadmin_bp) 
-    
+    # BLUEPRINT: SUPERADMIN
     try:
-        from app.blueprints.dashboard.routes import bp as dashboard_bp 
-        app.register_blueprint(dashboard_bp) 
+        print("🔍 [SUPERADMIN] Registrando...")
+        app.register_blueprint(superadmin_bp)
+        print("✅ [SUPERADMIN] Registrado com SUCESSO!\n")
     except Exception as e:
-         app.logger.error(f"ERRO ao registar blueprint 'dashboard': {e}")
-
-    # ============================================
-    # ✨ BLUEPRINT DE ASSINATURAS (CORRIGIDO!)
-    # ============================================
-    logging.info("🔍 [ASSINATURAS] Iniciando processo de registro...")
+        print(f"❌ [SUPERADMIN] ERRO: {e}\n")
+        logging.error(f"ERRO blueprint superadmin: {e}", exc_info=True)
     
+    # BLUEPRINT: DASHBOARD
     try:
-        logging.info("🔍 [ASSINATURAS] Tentando importar módulo app.blueprints.assinaturas.routes...")
-        from app.blueprints.assinaturas.routes import bp as assinaturas_bp  # ✅ CORRIGIDO!
-        logging.info(f"🔍 [ASSINATURAS] Import realizado! Objeto blueprint: {assinaturas_bp}")
-        logging.info(f"🔍 [ASSINATURAS] Nome do blueprint: {assinaturas_bp.name}")
-        logging.info(f"🔍 [ASSINATURAS] URL prefix: {assinaturas_bp.url_prefix}")
-        
-        logging.info("🔍 [ASSINATURAS] Registrando blueprint no Flask app...")
+        print("🔍 [DASHBOARD] Importando...")
+        from app.blueprints.dashboard.routes import bp as dashboard_bp
+        print(f"✅ [DASHBOARD] Import OK! Nome: {dashboard_bp.name}")
+        app.register_blueprint(dashboard_bp)
+        print("✅ [DASHBOARD] Registrado com SUCESSO!\n")
+    except Exception as e:
+        print(f"❌ [DASHBOARD] ERRO: {e}\n")
+        logging.error(f"ERRO blueprint dashboard: {e}", exc_info=True)
+
+    # BLUEPRINT: ASSINATURAS
+    try:
+        print("🔍 [ASSINATURAS] Importando...")
+        from app.blueprints.assinaturas.routes import bp as assinaturas_bp
+        print(f"✅ [ASSINATURAS] Import OK! Nome: {assinaturas_bp.name}")
+        print(f"   URL Prefix: {assinaturas_bp.url_prefix}")
         app.register_blueprint(assinaturas_bp)
-        
-        logging.info("✅ [ASSINATURAS] Blueprint registrado com SUCESSO!")
-        
-    except ImportError as e:
-        logging.error(f"❌ [ASSINATURAS] ERRO ImportError: {e}", exc_info=True)
-        logging.error("❌ [ASSINATURAS] Verifique se app/blueprints/assinaturas/routes.py existe")
-    except AttributeError as e:
-        logging.error(f"❌ [ASSINATURAS] ERRO AttributeError: {e}", exc_info=True)
-        logging.error("❌ [ASSINATURAS] Verifique se o blueprint 'bp' está definido em routes.py")
+        print("✅ [ASSINATURAS] Registrado com SUCESSO!\n")
     except Exception as e:
-        logging.error(f"❌ [ASSINATURAS] ERRO Exception genérica: {e}", exc_info=True)
-    # ============================================
+        print(f"❌ [ASSINATURAS] ERRO: {e}\n")
+        logging.error(f"ERRO blueprint assinaturas: {e}", exc_info=True)
+
+    print("=" * 60)
+    print("✅ REGISTRO DE BLUEPRINTS FINALIZADO")
+    print("=" * 60 + "\n")
 
     # Healthcheck
     @app.get("/health")
     def health():
         return {"status": "ok"}, 200
 
-    # --- IMPORTAR MODELOS ---
     with app.app_context():
         from app.models import tables
-    # --------------------------
 
-    # --- CHAMA AS FUNÇÕES DE INICIALIZAÇÃO ---
     _create_super_admin(app)
-    # ---------------------------------------
     
     return app
