@@ -6,7 +6,7 @@ import logging
 import json  #
 import google.generativeai as genai
 import re
-from google.api_core.exceptions import NotFound 
+from google.api_core.exceptions import NotFound, ResourceExhausted
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
@@ -28,7 +28,6 @@ BR_TZ = pytz.timezone('America/Sao_Paulo')
 from app.models.tables import Agendamento, Profissional, Servico, Barbearia  # type: ignore
 from app.extensions import db
 import time 
-from google.api_core.exceptions import ResourceExhausted 
 
 from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponiveis_util
 
@@ -548,7 +547,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         cache.set(cache_key, new_serialized_history)
         logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
        
-        # ✅ MUDANÇA 4: Logging de uso de tokens
+        # ✅ MUDANÇA 4: Logging de uso de tokens E CORREÇÃO DO INDEX ERROR
         final_response_text = "Desculpe, não entendi. Pode repetir?"
         
         if response.candidates and response.candidates[0].content.parts:
