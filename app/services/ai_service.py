@@ -549,8 +549,25 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
        
         # ✅ MUDANÇA 4: Logging de uso de tokens
-        final_response_text = response.candidates[0].content.parts[0].text
+        final_response_text = "Desculpe, não entendi. Pode repetir?"
         
+        if response.candidates and response.candidates[0].content.parts:
+            # Tenta pegar o texto da primeira parte
+            part = response.candidates[0].content.parts[0]
+            if part.text:
+                final_response_text = part.text
+            else:
+                # Se não tiver texto (caso raro onde só chamou função e parou),
+                # força uma resposta padrão ou tenta pegar da próxima parte
+                logging.warning("IA retornou conteúdo sem texto (provavelmente apenas FunctionCall).")
+                # Tenta rodar mais uma vez se ficou mudo
+                try:
+                    response = chat_session.send_message("Responda ao usuário com base no que você acabou de processar.")
+                    if response.candidates and response.candidates[0].content.parts:
+                         final_response_text = response.candidates[0].content.parts[0].text
+                except:
+                    final_response_text = "Aqui estão as informações solicitadas."
+
         # Monitoramento de tokens (se disponível)
         try:
             if hasattr(response, 'usage_metadata'):
