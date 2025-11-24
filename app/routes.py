@@ -1,12 +1,11 @@
 # app/routes.py
-# (CÓDIGO COMPLETO COM SUPORTE A ÁUDIO - BLINDADO PARA PRODUÇÃO)
+# (CÓDIGO COMPLETO: META ATIVO + TWILIO OPCIONAL + MARCAR LIDO + ÁUDIO COM MEMÓRIA)
 
 import os
 import logging
 import json
 import requests
 import threading
-import google.generativeai as genai
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
 from sqlalchemy.orm import joinedload
@@ -120,20 +119,42 @@ def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: B
         logging.error(f"❌ Erro ao enviar mensagem via Meta: {e}")
         return False
 
-# --- NOVO: HELPER PARA PROCESSAMENTO DE ÁUDIO EM THREAD ---
-def processar_audio_background(audio_id, wa_id, access_token, phone_number_id):
+# --- NOVO: FUNÇÃO MARCAR COMO LIDO ---
+def marcar_como_lido(message_id: str, barbearia: Barbearia):
     """
-    Processa o áudio em background e envia a resposta, evitando timeout do webhook.
-    Recebe tokens como string para não depender de sessão de banco dentro da thread.
+    Marca a mensagem recebida como lida (tiques azuis) para dar feedback ao usuário.
+    """
+    if not message_id: return
+    
+    url = f"https://graph.facebook.com/v19.0/{barbearia.meta_phone_number_id}/messages"
+    headers = {
+        "Authorization": f"Bearer {barbearia.meta_access_token}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "messaging_product": "whatsapp",
+        "status": "read",
+        "message_id": message_id
+    }
+    try:
+        requests.post(url, headers=headers, json=payload)
+    except Exception as e:
+        logging.error(f"Erro ao marcar como lido: {e}")
+
+# --- HELPER PARA PROCESSAMENTO DE ÁUDIO EM THREAD ---
+def processar_audio_background(audio_id, wa_id, access_token, phone_number_id, barbearia_id):
+    """
+    Processa o áudio em background e envia a resposta.
+    Agora recebe 'barbearia_id' para acessar a memória da conversa.
     """
     try:
         logging.info(f"🧵 Thread iniciada para processar áudio ID: {audio_id}")
         
-        # 1. Processa áudio (baixa da Meta, envia pro Gemini, pega texto)
-        resposta_texto = audio_service.processar_audio(audio_id, access_token)
+        # Chama o serviço passando os dados necessários (inclusive ID da barbearia para o Redis)
+        resposta_texto = audio_service.processar_audio(audio_id, access_token, wa_id, barbearia_id)
         
         if resposta_texto:
-            # 2. Envia a resposta de volta para o usuário
+            # Envia resposta
             url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
             headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
             payload = {
@@ -475,6 +496,11 @@ def webhook_meta():
                     logging.error(f"❌ Nenhuma barbearia encontrada para o ID {phone_number_id}")
                     return jsonify({"status": "ignored"}), 200
                 
+                # --- MARCAR COMO LIDO (VISUALIZAÇÃO AZUL) ---
+                message_id = message_data.get('id')
+                if message_id:
+                    threading.Thread(target=marcar_como_lido, args=(message_id, barbearia)).start()
+                
                 # Bloqueios de Assinatura
                 if not barbearia.assinatura_ativa:
                     return jsonify({"status": "subscription_inactive"}), 200
@@ -506,13 +532,15 @@ def webhook_meta():
                     logging.info(f"🎤 Áudio detectado. ID: {audio_id}. Iniciando thread de processamento.")
                     
                     # Dispara thread para não bloquear o webhook
+                    # Passamos 'barbearia.id' no final para manter memória da conversa
                     thread = threading.Thread(
                         target=processar_audio_background,
                         args=(
                             audio_id, 
                             remetente, 
                             barbearia.meta_access_token, 
-                            barbearia.meta_phone_number_id
+                            barbearia.meta_phone_number_id,
+                            barbearia.id # <-- Parâmetro NOVO para memória
                         )
                     )
                     thread.start()
