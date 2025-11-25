@@ -1,5 +1,5 @@
 # app/services/ai_service.py
-# (CÓDIGO COMPLETO E OTIMIZADO PARA ECONOMIA DE TOKENS)
+# (CÓDIGO COMPLETO E OTIMIZADO - COM FUZZY MATCHING IMPLEMENTADO)
 
 import os
 import logging
@@ -31,9 +31,13 @@ import time
 
 from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponiveis_util
 
+# --- NOVA IMPLEMENTAÇÃO: BIBLIOTECA DE COMPARAÇÃO DE TEXTO (PLANO B) ---
+from thefuzz import process 
+# -------------------------------------------------------------
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- PROMPT OTIMIZADO (COM PROTOCOLO ANTI-ALUCINAÇÃO INSERIDO) ---
+# --- PROMPT OTIMIZADO (COM INTELIGÊNCIA DE TRADUÇÃO E REGRAS UNIFICADAS) ---
 SYSTEM_INSTRUCTION_TEMPLATE = """
 PERSONA: Luana, assistente da {barbearia_nome}.
 OBJETIVO: Agendamentos. Foco 100%.
@@ -69,10 +73,31 @@ REGRAS:
 7. Nome do cliente: perguntar antes de criar_agendamento
 8. Confirmação: "Perfeito, {{nome}}! Agendamento {{Serviço}} com {{Profissional}} dia {{Data}} às {{Hora}} confirmado. Aguardamos você!"
 9. Preços variáveis: repetir "(a partir de)" se retornado
-
-CANCELAMENTO: Se pedir cancelamento, use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
+CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 """
 # ---------------------------------------
+
+# ============================================
+# 🧠 FUNÇÃO AUXILIAR DO PLANO B (FUZZY MATCH)
+# ============================================
+def encontrar_melhor_match(termo_busca, lista_opcoes, cutoff=60):
+    """
+    Procura o item mais parecido na lista.
+    Ex: termo="barba" -> lista=["Corte", "Barba Terapia"] -> Retorna "Barba Terapia"
+    cutoff=60 significa que precisa ter pelo menos 60% de semelhança.
+    """
+    if not termo_busca or not lista_opcoes:
+        return None
+    
+    # Retorna (melhor_match, score)
+    melhor, score = process.extractOne(termo_busca, lista_opcoes)
+    
+    if score >= cutoff:
+        logging.info(f"🔍 Fuzzy Match: '{termo_busca}' identificado como '{melhor}' (Score: {score})")
+        return melhor
+    
+    logging.warning(f"⚠️ Fuzzy Match falhou para '{termo_busca}'. Melhor: '{melhor}' (Score: {score} < {cutoff})")
+    return None
 
 # ==============================================================================
 # 2. FILTRO DE SPAM (PRESERVADO)
@@ -129,7 +154,7 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # ---------------------------------------------------------------------
-# FUNÇÕES TOOLS (Preservadas 100% + 1 Nova)
+# FUNÇÕES TOOLS (MODIFICADAS COM FUZZY MATCH)
 # ---------------------------------------------------------------------
 
 def listar_profissionais(barbearia_id: int) -> str:
@@ -175,12 +200,17 @@ def listar_servicos(barbearia_id: int) -> str:
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
     try:
         with current_app.app_context():
-            profissional = Profissional.query.filter_by(
-                barbearia_id=barbearia_id, 
-                nome=profissional_nome
-            ).first()
-            if not profissional:
-                return "Profissional não encontrado. Por favor, verifique o nome."
+            # --- PLANO B: BUSCA INTELIGENTE DE PROFISSIONAL ---
+            todos_profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
+            nomes_profs = [p.nome for p in todos_profs]
+            
+            nome_correto = encontrar_melhor_match(profissional_nome, nomes_profs)
+            
+            if not nome_correto:
+                return f"Profissional '{profissional_nome}' não encontrado. Opções: {', '.join(nomes_profs)}."
+            
+            profissional = next((p for p in todos_profs if p.nome == nome_correto), None)
+            # --------------------------------------------------
            
             agora_br = datetime.now(BR_TZ)
            
@@ -198,7 +228,7 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
             horarios_dt_list = calcular_horarios_disponiveis_util(profissional, dia_dt)
             horarios_str_list = [h.strftime('%H:%M') for h in horarios_dt_list]
             dia_formatado = dia_dt.strftime('%d/%m/%Y') 
-            return f"Horários disponíveis para {profissional_nome} em {dia_formatado}: {', '.join(horarios_str_list) or 'Nenhum horário encontrado.'}"
+            return f"Horários disponíveis para {nome_correto} em {dia_formatado}: {', '.join(horarios_str_list) or 'Nenhum horário encontrado.'}"
     except Exception as e:
         current_app.logger.error(f"Erro no wrapper 'calcular_horarios_disponiveis': {e}", exc_info=True)
         return "Desculpe, ocorreu um erro ao verificar os horários."
@@ -206,13 +236,25 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
     try:
         with current_app.app_context():
-            profissional = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=profissional_nome).first()
-            if not profissional:
-                return "Profissional não encontrado."
-            servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome=servico_nome).first()
-            if not servico:
+            # --- PLANO B: BUSCA INTELIGENTE DE PROFISSIONAL ---
+            todos_profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
+            nome_prof_match = encontrar_melhor_match(profissional_nome, [p.nome for p in todos_profs])
+            
+            if not nome_prof_match:
+                return f"Profissional '{profissional_nome}' não encontrado."
+            
+            profissional = next(p for p in todos_profs if p.nome == nome_prof_match)
+            
+            # --- PLANO B: BUSCA INTELIGENTE DE SERVIÇO ---
+            todos_servicos = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+            nome_serv_match = encontrar_melhor_match(servico_nome, [s.nome for s in todos_servicos])
+            
+            if not nome_serv_match:
                 logging.warning(f"Tentativa de agendar serviço inexistente: '{servico_nome}'")
-                return f"Serviço '{servico_nome}' não encontrado. Por favor, confirme o nome do serviço."
+                return f"Serviço '{servico_nome}' não encontrado. Por favor, confirme o nome do serviço na lista: {', '.join([s.nome for s in todos_servicos])}."
+            
+            servico = next(s for s in todos_servicos if s.nome == nome_serv_match)
+            # ---------------------------------------------
                
             data_hora_dt = datetime.strptime(data_hora, '%Y-%m-%d %H:%M').replace(tzinfo=None) 
             novo_fim = data_hora_dt + timedelta(minutes=servico.duracao)
@@ -246,7 +288,7 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
             db.session.add(novo_agendamento)
             db.session.commit()
             data_hora_formatada = data_hora_dt.strftime('%d/%m/%Y às %H:%M')
-            return f"Agendamento criado com sucesso para {nome_cliente} em {data_hora_formatada} com {profissional_nome} para {servico_nome}."
+            return f"Agendamento criado com sucesso para {nome_cliente} em {data_hora_formatada} com {profissional.nome} para {servico.nome}."
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Erro na ferramenta 'criar_agendamento': {e}", exc_info=True)
@@ -558,7 +600,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         cache.set(cache_key, new_serialized_history)
         logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
        
-        # ✅ MUDANÇA 4: Logging de uso de tokens E CORREÇÃO DO INDEX ERROR
+        # ✅ MUDANÇA 4: Logging de uso de tokens
         final_response_text = "Desculpe, não entendi. Pode repetir?"
         
         if response.candidates and response.candidates[0].content.parts:
