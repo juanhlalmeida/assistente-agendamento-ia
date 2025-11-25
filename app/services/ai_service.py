@@ -1,12 +1,15 @@
 # app/services/ai_service.py
-# (CÓDIGO COMPLETO E OTIMIZADO - COM FUZZY MATCHING IMPLEMENTADO)
+# (CÓDIGO COMPLETO E OTIMIZADO - COM FUZZY MATCHING E PROTEÇÃO MALFORMED CALL)
 
 import os
 import logging
-import json  #
+import json
 import google.generativeai as genai
 import re
 from google.api_core.exceptions import NotFound, ResourceExhausted
+# --- IMPORTAÇÃO NECESSÁRIA PARA CAPTURAR O ERRO MALFORMED ---
+from google.generativeai.types import generation_types 
+# ------------------------------------------------------------
 from datetime import datetime, timedelta
 from flask import current_app
 from sqlalchemy.orm import joinedload
@@ -16,16 +19,16 @@ from datetime import time as dt_time
 # Importa o cache das extensões
 from app.extensions import cache 
 # Importa os tipos de dados do Gemini para serialização
-from google.generativeai.protos import Content  # <-- ESTA É A CORREÇÃO
+from google.generativeai.protos import Content 
 # (Usamos 'protos' como no seu código original para FunctionCall/Response)
-from google.generativeai import protos  #
+from google.generativeai import protos 
 # --- FIM DA IMPLEMENTAÇÃO ---
 
 # --- ALTERAÇÃO 1: Importar GenerationConfig para controlar a temperatura ---
 from google.generativeai.types import FunctionDeclaration, Tool, GenerationConfig
 import pytz
 BR_TZ = pytz.timezone('America/Sao_Paulo') 
-from app.models.tables import Agendamento, Profissional, Servico, Barbearia  # type: ignore
+from app.models.tables import Agendamento, Profissional, Servico, Barbearia 
 from app.extensions import db
 import time 
 
@@ -62,6 +65,7 @@ REGRAS DE EXECUÇÃO (ACTION-ORIENTED):
 1. NÃO ENROLE: Se o cliente mandou áudio com [Serviço, Dia, Hora], chame as ferramentas IMEDIATAMENTE.
 2. Falta o Profissional? -> Pergunte "Tem preferência por barbeiro?" ou assuma "Qualquer um" se ele disser que tanto faz.
 3. CONFIRMAÇÃO: "Agendamento confirmado!" somente após a ferramenta retornar sucesso.
+
 REGRAS:
 1. Saudar UMA VEZ (primeira msg)
 2. Objetivo: preencher [serviço], [profissional], [data], [hora]
@@ -540,14 +544,18 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
       
         logging.info(f"Enviando mensagem para a IA: {user_message}")
        
+        # --- PROTEÇÃO CONTRA ERRO MALFORMED (Tente enviar, capture se der erro) ---
         try:
             response = chat_session.send_message(user_message)
-        except ResourceExhausted as e:
-            logging.warning(f"Quota do Gemini excedida: {e}")
-            return "Puxa, parece que atingi meu limite de processamento por agora. 😕 Por favor, tente novamente em um minuto."
+        except generation_types.StopCandidateException as e:
+            logging.error(f"Erro Malformed Call: {e}")
+            # Tenta recuperar pedindo para a IA repetir sem chamar função ou de forma mais simples
+            return "Desculpe, tive um problema técnico ao processar seu pedido. Pode repetir por favor?"
         except Exception as e:
+            # Outros erros (ex: ResourceExhausted, etc.)
             logging.error(f"Erro ao enviar mensagem para a IA: {e}", exc_info=True)
             return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
+        # ------------------------------------------------------
       
         # Lógica de Ferramentas
         while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
@@ -575,15 +583,21 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                      kwargs['telefone_cliente'] = cliente_whatsapp
                
                 tool_response = function_to_call(**kwargs)
-               
-                response = chat_session.send_message(
-                    protos.Part(
-                        function_response=protos.FunctionResponse(
-                            name=function_name,
-                            response={"result": tool_response}
+                
+                # --- PROTEÇÃO NO RETORNO DA TOOL TAMBÉM ---
+                try:
+                    response = chat_session.send_message(
+                        protos.Part(
+                            function_response=protos.FunctionResponse(
+                                name=function_name,
+                                response={"result": tool_response}
+                            )
                         )
                     )
-                )
+                except generation_types.StopCandidateException:
+                    logging.error("Erro Malformed Call no retorno da tool")
+                    return "Tive um erro ao confirmar o agendamento. Por favor, tente novamente."
+                # -------------------------------------------
             else:
                 logging.error(f"Erro: IA tentou chamar uma ferramenta desconhecida: {function_name}")
                 response = chat_session.send_message(
@@ -600,7 +614,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         cache.set(cache_key, new_serialized_history)
         logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
        
-        # ✅ MUDANÇA 4: Logging de uso de tokens
+        # ✅ MUDANÇA 4: Logging de uso de tokens E CORREÇÃO DO INDEX ERROR
         final_response_text = "Desculpe, não entendi. Pode repetir?"
         
         if response.candidates and response.candidates[0].content.parts:
