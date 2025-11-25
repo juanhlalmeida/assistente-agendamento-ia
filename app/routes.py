@@ -1,5 +1,5 @@
 # app/routes.py
-# (CÓDIGO COMPLETO: META ATIVO + TWILIO OPCIONAL + MARCAR LIDO + ÁUDIO COM MEMÓRIA)
+# (CÓDIGO COMPLETO: META ATIVO + TWILIO OPCIONAL + MARCAR LIDO + ÁUDIO COM MEMÓRIA E CONTEXTO)
 
 import os
 import logging
@@ -142,32 +142,34 @@ def marcar_como_lido(message_id: str, barbearia: Barbearia):
         logging.error(f"Erro ao marcar como lido: {e}")
 
 # --- HELPER PARA PROCESSAMENTO DE ÁUDIO EM THREAD ---
-def processar_audio_background(audio_id, wa_id, access_token, phone_number_id, barbearia_id):
+def processar_audio_background(audio_id, wa_id, access_token, phone_number_id, barbearia_id, app_instance): # <-- Recebe app_instance
     """
     Processa o áudio em background e envia a resposta.
-    Agora recebe 'barbearia_id' para acessar a memória da conversa.
+    IMPORTANTE: Usa 'app_instance.app_context()' para permitir acesso ao banco de dados na thread.
     """
-    try:
-        logging.info(f"🧵 Thread iniciada para processar áudio ID: {audio_id}")
-        
-        # Chama o serviço passando os dados necessários (inclusive ID da barbearia para o Redis)
-        resposta_texto = audio_service.processar_audio(audio_id, access_token, wa_id, barbearia_id)
-        
-        if resposta_texto:
-            # Envia resposta
-            url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
-            headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-            payload = {
-                "messaging_product": "whatsapp",
-                "to": wa_id,
-                "type": "text",
-                "text": {"body": resposta_texto}
-            }
-            requests.post(url, headers=headers, json=payload)
-            logging.info(f"✅ 🧵 Resposta do áudio enviada com sucesso para {wa_id}")
+    # Cria o contexto manualmente usando a instância do app passada
+    with app_instance.app_context():
+        try:
+            logging.info(f"🧵 Thread áudio iniciada: {audio_id}")
             
-    except Exception as e:
-        logging.error(f"❌ Erro crítico na thread de áudio: {e}")
+            # Passa a instância do app para o serviço (embora o contexto já esteja ativo aqui, o serviço pode precisar)
+            resposta_texto = audio_service.processar_audio(audio_id, access_token, wa_id, barbearia_id, app_instance)
+            
+            if resposta_texto:
+                # Envia resposta
+                url = f"https://graph.facebook.com/v19.0/{phone_number_id}/messages"
+                headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+                payload = {
+                    "messaging_product": "whatsapp",
+                    "to": wa_id,
+                    "type": "text",
+                    "text": {"body": resposta_texto}
+                }
+                requests.post(url, headers=headers, json=payload)
+                logging.info(f"✅ 🧵 Resposta do áudio enviada com sucesso para {wa_id}")
+                
+        except Exception as e:
+            logging.error(f"❌ Erro crítico na thread de áudio: {e}")
 
 # -------------------------------------------------------------
 # --- FUNÇÕES DE AUTENTICAÇÃO ---
@@ -499,6 +501,7 @@ def webhook_meta():
                 # --- MARCAR COMO LIDO (VISUALIZAÇÃO AZUL) ---
                 message_id = message_data.get('id')
                 if message_id:
+                    # Dispara em thread para não atrasar
                     threading.Thread(target=marcar_como_lido, args=(message_id, barbearia)).start()
                 
                 # Bloqueios de Assinatura
@@ -531,8 +534,10 @@ def webhook_meta():
                     audio_id = message_data['audio']['id']
                     logging.info(f"🎤 Áudio detectado. ID: {audio_id}. Iniciando thread de processamento.")
                     
+                    # Captura o app real para passar para a thread
+                    app_real = current_app._get_current_object()
+                    
                     # Dispara thread para não bloquear o webhook
-                    # Passamos 'barbearia.id' no final para manter memória da conversa
                     thread = threading.Thread(
                         target=processar_audio_background,
                         args=(
@@ -540,7 +545,8 @@ def webhook_meta():
                             remetente, 
                             barbearia.meta_access_token, 
                             barbearia.meta_phone_number_id,
-                            barbearia.id # <-- Parâmetro NOVO para memória
+                            barbearia.id,
+                            app_real # <-- Passa o app real com contexto
                         )
                     )
                     thread.start()
