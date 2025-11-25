@@ -1,5 +1,5 @@
 # app/services/audio_service.py
-# (CÓDIGO CORRIGIDO - COM CONTEXTO DE APLICAÇÃO PARA THREADS)
+# (CÓDIGO CORRIGIDO: USA A CHAVE 'GEMINI_API_KEY' CORRETA)
 
 import os
 import requests
@@ -50,7 +50,7 @@ FLUXO OBRIGATÓRIO:
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 """
 
-# --- FERRAMENTAS (AGORA PREPARADAS PARA RODAR SEM CONTEXTO SE NECESSÁRIO, MAS O CONTEXTO SERÁ PASSADO) ---
+# --- FERRAMENTAS ---
 
 def encontrar_melhor_match(termo, lista, cutoff=60):
     if not termo or not lista: return None
@@ -58,7 +58,6 @@ def encontrar_melhor_match(termo, lista, cutoff=60):
     return melhor if score >= cutoff else None
 
 def listar_profissionais(barbearia_id: int) -> str:
-    # O contexto será garantido na chamada
     profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
     if not profs: return "Nenhum profissional."
     return f"Profissionais: {', '.join([p.nome for p in profs])}."
@@ -120,20 +119,23 @@ tools_list = Tool(function_declarations=[
 
 class AudioService:
     def __init__(self):
-        self.google_api_key = os.getenv('GOOGLE_API_KEY')
-        if not self.google_api_key: logger.error("GOOGLE_API_KEY ausente!")
-        genai.configure(api_key=self.google_api_key)
+        # 🔥 CORREÇÃO AQUI: Usar 'GEMINI_API_KEY' que é a que existe no Render
+        self.google_api_key = os.getenv('GEMINI_API_KEY') 
+        
+        if not self.google_api_key: 
+            logger.error("GEMINI_API_KEY ausente! Áudio não funcionará.")
+        else:
+            genai.configure(api_key=self.google_api_key)
 
     def processar_audio(self, audio_id, access_token, wa_id, barbearia_id, app):
         """
-        Processa áudio.
-        IMPORTANTE: Recebe o objeto 'app' para criar o contexto de banco de dados.
+        Processa áudio, mantém memória e EXECUTA TOOLS.
         """
         caminho_arquivo = None
         arquivo_remoto = None
         cache_key = f"chat_history_{wa_id}:{barbearia_id}"
         
-        # 🔥 AQUI ESTÁ A CORREÇÃO: Todo o processamento que usa banco roda dentro do contexto
+        # Contexto para o Banco de Dados
         with app.app_context():
             try:
                 # 1. Download e Upload do Áudio
@@ -161,7 +163,7 @@ class AudioService:
                     )
                     history = [Content(role='user', parts=[protos.Part(text=prompt)]), Content(role='model', parts=[protos.Part(text="Olá!")])]
 
-                # 3. Modelo com Tools
+                # 3. Inicializar Modelo
                 model = genai.GenerativeModel(
                     "gemini-2.5-flash", 
                     tools=[tools_list], 
@@ -175,7 +177,7 @@ class AudioService:
                     arquivo_remoto
                 ])
                 
-                # 5. Loop de Ferramentas (COM ACESSO AO BANCO AGORA GARANTIDO)
+                # 5. Loop de Ferramentas
                 while response.candidates and response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
                     fc = response.candidates[0].content.parts[0].function_call
                     fname = fc.name
