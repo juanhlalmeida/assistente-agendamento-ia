@@ -8,7 +8,7 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   
-  <title>{% block title %}Meu Salão{% endblock %}</title>
+  <title>{% block title %}Painel de Controle{% endblock %}</title>
 
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   
@@ -17,18 +17,32 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
 
+  {# ================================================================= #}
+  {# 🧠 LÓGICA DE DETECÇÃO DE NICHO (BARBEARIA vs LASH)              #}
+  {# ================================================================= #}
+  {% set is_lash = False %}
+  {% if current_user.is_authenticated and current_user.barbearia %}
+      {% set nome_negocio = current_user.barbearia.nome_fantasia.lower() %}
+      {% if 'lash' in nome_negocio or 'cílios' in nome_negocio or 'sobrancelha' in nome_negocio or 'studio' in nome_negocio or 'estética' in nome_negocio or 'beauty' in nome_negocio %}
+          {% set is_lash = True %}
+      {% endif %}
+  {% endif %}
+
   <script>
     tailwind.config = {
       darkMode: "class",
       theme: {
         extend: {
           colors: {
-            "primary": "#00A6FB", /* Cor padrão (Azul) caso não tenha nada no banco */
+            "primary": "var(--theme-color)", /* ✨ AGORA É DINÂMICO */
             "background-light": "#f6f7f8",
             "background-dark": "#121212",
             "surface-dark": "#1E1E1E",
             "text-primary-dark": "#FFFFFF",
             "text-secondary-dark": "#A0A0A0",
+            /* Cores Específicas Lash */
+            "lash-pink": "#EC4899",
+            "lash-purple": "#A855F7",
           },
           fontFamily: {
             "display": ["Inter", "sans-serif"]
@@ -42,29 +56,32 @@
     .material-symbols-outlined {
       font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
     }
-  </style>
 
-  {# --- LÓGICA DE COR DINÂMICA (CAMALEÃO) --- #}
-  {# Se o usuário tem uma cor definida no banco, sobrescrevemos o azul padrão #}
-  {% if current_user.is_authenticated and current_user.barbearia.cor_primaria %}
-  <style>
-      :root {
-          --theme-color: {{ current_user.barbearia.cor_primaria }};
-      }
-      /* Força a cor primária do Tailwind a usar a cor do banco */
-      .bg-primary {
-          background-color: var(--theme-color) !important;
-      }
-      .text-primary {
-          color: var(--theme-color) !important;
-      }
-      /* Degradê bonito na sidebar */
-      aside {
-          border-right: 1px solid #333;
-      }
+    /* ========================================= */
+    /* 🎨 DEFINIÇÃO DE CORES (CSS VARIABLES)     */
+    /* ========================================= */
+    :root {
+        /* Lógica: 
+           1. Se tiver cor no banco, usa ela.
+           2. Se for Lash, usa Rosa (#EC4899).
+           3. Se não, usa Azul Padrão (#00A6FB).
+        */
+        {% if current_user.is_authenticated and current_user.barbearia.cor_primaria %}
+            --theme-color: {{ current_user.barbearia.cor_primaria }};
+        {% elif is_lash %}
+            --theme-color: #EC4899; /* Pink-500 do Tailwind */
+        {% else %}
+            --theme-color: #00A6FB; /* Azul Padrão */
+        {% endif %}
+    }
+
+    /* Força classes utilitárias a usarem a variável */
+    .bg-primary { background-color: var(--theme-color) !important; }
+    .text-primary { color: var(--theme-color) !important; }
+    .border-primary { border-color: var(--theme-color) !important; }
+    
+    aside { border-right: 1px solid #333; }
   </style>
-  {% endif %}
-  {# ----------------------------------------- #}
   
 </head>
 <body class="bg-background-dark font-display text-text-primary-dark">
@@ -74,9 +91,10 @@
       
       <aside class="flex flex-col gap-y-8 p-6 bg-surface-dark w-72 flex-shrink-0 h-screen sticky top-0 overflow-y-auto">
         <div class="flex items-center gap-4">
-          <div class="bg-primary aspect-square rounded-lg size-12 flex items-center justify-center transition-colors duration-300">
+          <div class="bg-primary aspect-square rounded-lg size-12 flex items-center justify-center transition-colors duration-300 shadow-lg shadow-primary/20">
             <span class="material-symbols-outlined text-white text-3xl">
-                {% if current_user.is_authenticated and '👁️' in (current_user.barbearia.emojis_sistema or '') %}
+                {# Ícone muda conforme o nicho #}
+                {% if is_lash %}
                     visibility
                 {% else %}
                     content_cut
@@ -87,7 +105,7 @@
             {% if current_user.is_authenticated %}
                 {{ current_user.barbearia.nome_fantasia }}
             {% else %}
-                Meu Salão
+                Meu Negócio
             {% endif %}
           </h1>
         </div>
@@ -95,35 +113,35 @@
         <nav class="flex flex-col gap-3 flex-1">
           
           {# Link Agendamentos #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
              href="{{ url_for('main.agenda') }}">
             <span class="material-symbols-outlined">calendar_today</span>
             <p class="text-base">Agendamentos</p>
           </a>
           
           {# Link Dashboard #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('dashboard.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}"
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('dashboard.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}"
              href="{{ url_for('dashboard.index') }}">
             <span class="material-symbols-outlined">dashboard</span>
             <p class="text-base">Dashboard</p>
           </a>
           
           {# Link Profissionais #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
              href="{{ url_for('profissionais.index') }}"> 
             <span class="material-symbols-outlined">group</span>
             <p class="text-base">Profissionais</p>
           </a>
 
           {# Link Serviços #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
              href="{{ url_for('servicos.index') }}"> 
             <span class="material-symbols-outlined">cut</span>
             <p class="text-base">Serviços</p>
           </a>
 
           {# Link Clientes #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('clientes.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('clientes.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
              href="{{ url_for('clientes.index') }}"> 
             <span class="material-symbols-outlined">person_search</span>
             <p class="text-base">Clientes</p>
@@ -136,7 +154,7 @@
           {% if current_user.is_authenticated %}
           <div class="flex items-center justify-between p-3 rounded-xl bg-background-dark/50 border border-white/5">
             <div class="flex items-center gap-3 overflow-hidden">
-              <div class="bg-primary aspect-square rounded-full size-10 flex flex-shrink-0 items-center justify-center text-white font-bold text-lg">
+              <div class="bg-primary aspect-square rounded-full size-10 flex flex-shrink-0 items-center justify-center text-white font-bold text-lg shadow-md shadow-primary/20">
                 {{ (current_user.nome[0] if current_user.nome else 'U') | upper }}
               </div>
               <div class="flex flex-col min-w-0">
