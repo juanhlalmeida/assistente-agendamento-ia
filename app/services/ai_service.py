@@ -1,5 +1,5 @@
 # app/services/ai_service.py
-# (CÓDIGO COMPLETO E OTIMIZADO - COM FUZZY MATCHING E PROTEÇÃO MALFORMED CALL)
+# (CÓDIGO COMPLETO E OTIMIZADO - COM FUZZY MATCHING, PROTEÇÃO MALFORMED CALL E LÓGICA MULTI-TENANCY)
 
 import os
 import logging
@@ -40,12 +40,13 @@ from thefuzz import process
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- PROMPT OTIMIZADO (COM INTELIGÊNCIA DE TRADUÇÃO E REGRAS UNIFICADAS) ---
+# --- PROMPT OTIMIZADO (AGORA COM PLACEHOLDER PARA A PERSONA DINÂMICA) ---
+# Alteramos o início para {header_persona} para aceitar Lash ou Barbearia
 SYSTEM_INSTRUCTION_TEMPLATE = """
-PERSONA: Luana, assistente da {barbearia_nome}.
+{header_persona}
+
 OBJETIVO: Agendamentos. Foco 100%.
-TOM: Simpática, breve, objetiva, descontraida, emojis (✂️✨😉👍).
-ID_CLIENTE: {cliente_whatsapp} | BARBEARIA_ID: {barbearia_id}
+ID_CLIENTE: {cliente_whatsapp} | ID_LOJA: {barbearia_id}
 HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
 
 🚨 REGRA DE OURO - INTEGRIDADE DO SISTEMA (LEIA COM ATENÇÃO):
@@ -56,23 +57,23 @@ VOCÊ É PROIBIDA DE DIZER "AGENDADO" OU "CONFIRMADO" SE NÃO TIVER CHAMADO A FE
 
 🚨 PROTOCOLO DE SEGURANÇA & ANTI-ALUCINAÇÃO (PRIORIDADE MÁXIMA):
 1. RECUSA DE TÓPICOS: Se o usuário pedir QUALQUER COISA que não seja agendamento (ex: hino, piada, receita, política, futebol, tecnologia, letra de música), você DEVE recusar imediatamente:
-   "Desculpe, eu sou a Luana da {barbearia_nome} e só cuido dos agendamentos. 😊 Quer marcar um horário?"
+   "Desculpe, eu sou a assistente virtual e só cuido dos agendamentos. 😊 Quer marcar um horário?"
    NÃO cante, NÃO explique, NÃO dê opiniões. Apenas recuse.
 2. REALIDADE DOS HORÁRIOS: Você está PROIBIDA de inventar horários. Se a ferramenta 'calcular_horarios_disponiveis' retornar vazio ou "Nenhum horário", diga ao cliente que não há vagas. NUNCA suponha que há um horário livre sem confirmação da ferramenta.
 
 🧠 INTELIGÊNCIA DE SERVIÇOS (TRADUÇÃO):
    O banco de dados exige nomes exatos, mas o cliente fala de forma natural.
-   SEU DEVER É TRADUZIR O PEDIDO PARA O NOME OFICIAL:
-   - O cliente disse "fazer a barba"? -> Chame `listar_servicos`. Se existir "Barba Terapia" ou "Barba Completa", USE ESSE NOME na ferramenta `criar_agendamento`. Não trave por detalhes.
-   - O cliente disse "cortar o cabelo"? -> Associe ao "Corte Social" ou similar que estiver na lista.
-   - Dúvida real (ex: existe "Corte Social" E "Corte Navalhado")? -> Aí sim, pergunte a preferência.
+   SEU DEVER É TRADUZIR O PEDIDO PARA O NOME OFICIAL USANDO O BOM SENSO:
+   - Cliente pediu "barba"? -> Associe a "Barba Terapia" ou "Barba Simples".
+   - Cliente pediu "cílios"? -> Associe a "Volume Brasileiro" ou "Fio a Fio".
+   - Cliente pediu "sobrancelha"? -> Associe a "Design de Sobrancelha".
 
 REGRAS DE EXECUÇÃO (ACTION-ORIENTED):
 1. NÃO ENROLE: Se o cliente mandou áudio com [Serviço, Dia, Hora], chame as ferramentas IMEDIATAMENTE.
-2. Falta o Profissional? -> Pergunte "Tem preferência por barbeiro?" ou assuma "Qualquer um" se ele disser que tanto faz.
+2. Falta o Profissional? -> Pergunte a preferência ou assuma "Qualquer um" se ele disser que tanto faz.
 3. CONFIRMAÇÃO: "Agendamento confirmado!" somente após a ferramenta retornar sucesso.
 
-REGRAS:
+REGRAS GERAIS:
 1. Saudar UMA VEZ (primeira msg)
 2. Objetivo: preencher [serviço], [profissional], [data], [hora]
 3. Use APENAS nomes exatos das ferramentas (listar_profissionais/listar_servicos)
@@ -173,7 +174,7 @@ def listar_profissionais(barbearia_id: int) -> str:
             profissionais = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
             if not profissionais:
                 logging.warning(f"Ferramenta 'listar_profissionais' (barbearia_id: {barbearia_id}): Nenhum profissional cadastrado.")
-                return "Nenhum profissional cadastrado para esta barbearia no momento."
+                return "Nenhum profissional cadastrado para esta loja no momento."
             nomes = [p.nome for p in profissionais]
             return f"Profissionais disponíveis: {', '.join(nomes)}."
     except Exception as e:
@@ -187,13 +188,14 @@ def listar_servicos(barbearia_id: int) -> str:
             servicos = Servico.query.filter_by(barbearia_id=barbearia_id).order_by(Servico.nome).all()
             if not servicos:
                 logging.warning(f"Ferramenta 'listar_servicos' (barbearia_id: {barbearia_id}): Nenhum serviço cadastrado.")
-                return "Nenhum serviço cadastrado para esta barbearia."
+                return "Nenhum serviço cadastrado para esta loja."
             
             lista_formatada = []
             servicos_a_partir_de = [
                 "Platinado", "Luzes", "Coloração", "Pigmentação", 
                 "Selagem", "Escova Progressiva", "Relaxamento", 
-                "Alisamento", "Hidratação", "Reconstrução"
+                "Alisamento", "Hidratação", "Reconstrução",
+                "Volume Brasileiro", "Volume Russo", "Mega Volume" # Adicionados serviços Lash
             ]
             
             for s in servicos:
@@ -221,9 +223,9 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
             
             profissional = next((p for p in todos_profs if p.nome == nome_correto), None)
             # --------------------------------------------------
-           
+            
             agora_br = datetime.now(BR_TZ)
-           
+            
             if dia.lower() == 'hoje':
                 dia_dt = agora_br
             elif dia.lower() == 'amanhã':
@@ -265,7 +267,7 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
             
             servico = next(s for s in todos_servicos if s.nome == nome_serv_match)
             # ---------------------------------------------
-               
+                
             data_hora_dt = datetime.strptime(data_hora, '%Y-%m-%d %H:%M').replace(tzinfo=None) 
             novo_fim = data_hora_dt + timedelta(minutes=servico.duracao)
             inicio_dia = data_hora_dt.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -334,9 +336,9 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
             for ag in agendamentos_para_cancelar:
                 nomes_servicos.append(f"{ag.servico.nome} às {ag.data_hora.strftime('%H:%M')}")
                 db.session.delete(ag)
-           
+            
             db.session.commit()
-           
+            
             msg_sucesso = f"Cancelamento concluído! O(s) seu(s) agendamento(s) para {dia_dt.strftime('%d/%m/%Y')} ({', '.join(nomes_servicos)}) foi(ram) cancelado(s)."
             logging.info(msg_sucesso)
             return msg_sucesso
@@ -450,10 +452,10 @@ def serialize_history(history: list[Content]) -> str:
                 part_dict['function_call'] = protos.FunctionCall.to_dict(part.function_call)
             elif part.function_response:
                 part_dict['function_response'] = protos.FunctionResponse.to_dict(part.function_response)
-           
+            
             if part_dict:
                 serial_parts.append(part_dict)
-       
+        
         serializable_list.append({
             'role': content.role,
             'parts': serial_parts
@@ -484,7 +486,7 @@ def deserialize_history(json_string: str) -> list[Content]:
             elif 'function_response' in part_data:
                 fr = protos.FunctionResponse(part_data['function_response'])
                 deserial_parts.append(protos.Part(function_response=fr))
-       
+        
         history_list.append(Content(role=item.get('role'), parts=deserial_parts))
     return history_list
 
@@ -497,48 +499,60 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
     if not model:
         logging.error("Modelo Gemini não inicializado. Abortando.")
         return "Desculpe, meu cérebro (IA) está offline no momento. Tente novamente mais tarde."
-   
+    
     cache_key = f"chat_history_{cliente_whatsapp}:{barbearia_id}"
-   
+    
     try:
         barbearia = Barbearia.query.get(barbearia_id)
         if not barbearia:
             logging.error(f"Barbearia ID {barbearia_id} não encontrada no processar_ia_gemini.")
-            return "Desculpe, não consegui identificar para qual barbearia você está ligando."
-       
+            return "Desculpe, não consegui identificar para qual loja você está ligando."
+        
         # Carregar histórico do cache
         logging.info(f"Carregando histórico do cache para a chave: {cache_key}")
         serialized_history = cache.get(cache_key)
         history_to_load = deserialize_history(serialized_history)
-       
+        
         # ✅ MUDANÇA 3: Logging para monitorar Redis
         if serialized_history:
             logging.info(f"✅ Histórico recuperado do Redis. Tamanho: {len(serialized_history)} chars")
         else:
             logging.warning("⚠️ Redis vazio - nova sessão iniciada")
-       
+        
         agora_br = datetime.now(BR_TZ)
         data_hoje_str = agora_br.strftime('%Y-%m-%d')
         data_amanha_str = (agora_br + timedelta(days=1)).strftime('%Y-%m-%d')
-       
-        # --- IMPLEMENTAÇÃO DA LÓGICA DE EMOJIS (ADICIONADA AQUI) ---
-        emojis = getattr(barbearia, 'emojis_sistema', '✂️✨😉👍') or '✂️✨😉👍'
-        # ---------------------------------------------------------
+        
+        # --- LÓGICA MULTI-TENANCY (BARBEARIA VS LASH) ---
+        nome_lower = barbearia.nome_fantasia.lower()
+        eh_lash = any(x in nome_lower for x in ['lash', 'cílios', 'sobrancelha', 'estética', 'beauty', 'studio'])
+
+        if eh_lash:
+            # Configuração para Studio Lash
+            header_persona = f"""
+            PERSONA: Assistente Virtual do {barbearia.nome_fantasia} (Studio de Beleza/Lash).
+            TOM: Feminino, delicado, acolhedor, chique. Use: 'Querida', 'Amiga', 'Amores'.
+            EMOJIS OBRIGATÓRIOS: 🦋 ✨ 💖 💅 👁️
+            """
+        else:
+            # Configuração para Barbearia (Padrão)
+            header_persona = f"""
+            PERSONA: Assistente da {barbearia.nome_fantasia} (Barbearia).
+            TOM: Brother, prático, gente boa. Use: 'Cara', 'Mano', 'Campeão'.
+            EMOJIS OBRIGATÓRIOS: ✂️ 💈 👊 🔥
+            """
+        # -----------------------------------------------
 
         system_prompt = SYSTEM_INSTRUCTION_TEMPLATE.format(
-            barbearia_nome=barbearia.nome_fantasia,
+            header_persona=header_persona,
             cliente_whatsapp=cliente_whatsapp,
             barbearia_id=barbearia_id,
             data_de_hoje=data_hoje_str,
             data_de_amanha=data_amanha_str
         )
         
-        # --- INJEÇÃO DA VARIÁVEL DE EMOJIS NO PROMPT ---
-        system_prompt += f"\n\nIMPORTANTE: USE SEMPRE ESTES EMOJIS NAS SUAS RESPOSTAS: {emojis}"
-        # -----------------------------------------------
-       
         is_new_chat = not history_to_load
-       
+        
         if is_new_chat:
             logging.info(f"Iniciando NOVO histórico de chat para o cliente {cliente_whatsapp}.")
             history_to_load = [
@@ -547,17 +561,17 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                     f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
                 ]}
             ]
-       
+        
         chat_session = model.start_chat(history=history_to_load)
-       
+        
         if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite']:
              new_serialized_history = serialize_history(chat_session.history)
              cache.set(cache_key, new_serialized_history)
              logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
              return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
-      
-        logging.info(f"Enviando mensagem para a IA: {user_message}")
        
+        logging.info(f"Enviando mensagem para a IA: {user_message}")
+        
         # --- PROTEÇÃO CONTRA ERRO MALFORMED (Tente enviar, capture se der erro) ---
         try:
             response = chat_session.send_message(user_message)
@@ -570,16 +584,16 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             logging.error(f"Erro ao enviar mensagem para a IA: {e}", exc_info=True)
             return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
         # ------------------------------------------------------
-      
+       
         # Lógica de Ferramentas
         while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
-          
+           
             function_call = response.candidates[0].content.parts[0].function_call
             function_name = function_call.name
             function_args = function_call.args
-          
-            logging.info(f"IA solicitou a ferramenta '{function_name}' com os argumentos: {dict(function_args)}")
            
+            logging.info(f"IA solicitou a ferramenta '{function_name}' com os argumentos: {dict(function_args)}")
+            
             tool_map = {
                 "listar_profissionais": listar_profissionais,
                 "listar_servicos": listar_servicos,
@@ -587,17 +601,17 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 "criar_agendamento": criar_agendamento,
                 "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
             }
-           
+            
             if function_name in tool_map:
                 function_to_call = tool_map[function_name]
                 kwargs = dict(function_args)
                 kwargs['barbearia_id'] = barbearia_id
-               
+                
                 if function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
-                     kwargs['telefone_cliente'] = cliente_whatsapp
-               
+                      kwargs['telefone_cliente'] = cliente_whatsapp
+                
                 tool_response = function_to_call(**kwargs)
-               
+                
                 # --- PROTEÇÃO NO RETORNO DA TOOL TAMBÉM ---
                 try:
                     response = chat_session.send_message(
@@ -622,12 +636,12 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                         )
                     )
                 )
-       
+        
         # Salvar histórico no cache
         new_serialized_history = serialize_history(chat_session.history)
         cache.set(cache_key, new_serialized_history)
         logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
-       
+        
         # ✅ MUDANÇA 4: Logging de uso de tokens E CORREÇÃO DO INDEX ERROR
         final_response_text = "Desculpe, não entendi. Pode repetir?"
         
@@ -659,7 +673,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         
         logging.info(f"Resposta final da IA: {final_response_text}")
         return final_response_text
-       
+        
     except Exception as e:
         logging.error(f"Erro GRANDE ao processar com IA: {e}", exc_info=True)
         return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
