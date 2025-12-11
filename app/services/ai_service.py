@@ -510,6 +510,30 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         logging.info(f"Carregando histórico do cache para a chave: {cache_key}")
         serialized_history = cache.get(cache_key)
         history_to_load = deserialize_history(serialized_history)
+
+       emojis = getattr(barbearia, 'emojis_sistema', '✂️✨😉👍') or '✂️✨😉👍'
+
+        if not hist:
+            agora = datetime.now(BR_TZ)
+            sys_prompt = SYSTEM_INSTRUCTION_TEMPLATE.format(
+                barbearia_nome=barbearia.nome_fantasia, 
+                cliente_whatsapp=cliente_whatsapp, 
+                barbearia_id=barbearia_id,
+                data_de_hoje=agora.strftime('%Y-%m-%d'), 
+                data_de_amanha=(agora + timedelta(days=1)).strftime('%Y-%m-%d')
+            )
+            # INJEÇÃO DOS EMOJIS NO PROMPT
+            sys_prompt += f"\n\nIMPORTANTE: USE SEMPRE ESTES EMOJIS: {emojis}"
+            
+            hist = [Content(role='user', parts=[protos.Part(text=sys_prompt)]), 
+                    Content(role='model', parts=[protos.Part(text=f"Olá! Sou a Luana da {barbearia.nome_fantasia}.")])]
+        # ----------------------------------------------------
+        
+        chat = model.start_chat(history=hist)
+        
+        if len(hist) <= 2 and user_message.lower().strip() in ['oi', 'ola', 'olá']:
+             cache.set(cache_key, serialize_history(chat.history))
+             return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar?"
         
         # ✅ MUDANÇA 3: Logging para monitorar Redis
         if serialized_history:
