@@ -3,6 +3,18 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
+
+  {# ================================================================= #}
+  {# 🧠 REUTILIZANDO LÓGICA DE DETECÇÃO (SEGURANÇA REDUNDANTE)       #}
+  {# ================================================================= #}
+  {% set is_lash = False %}
+  {% if current_user.barbearia %}
+      {% set nome_negocio = current_user.barbearia.nome_fantasia.lower() %}
+      {% if 'lash' in nome_negocio or 'cílios' in nome_negocio or 'sobrancelha' in nome_negocio or 'studio' in nome_negocio or 'estética' in nome_negocio %}
+          {% set is_lash = True %}
+      {% endif %}
+  {% endif %}
+
   {# Mensagens Flash #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -20,28 +32,55 @@
   {% if current_user.barbearia %}
   <div class="mb-6">
     {% if current_user.barbearia.assinatura_ativa %}
-      {# Assinatura ATIVA #}
-      <div class="bg-green-500/10 border-2 border-green-500 rounded-xl p-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <span class="material-symbols-outlined text-3xl text-green-500">check_circle</span>
-            <div>
-              <h3 class="text-lg font-bold text-green-500">Assinatura Ativa</h3>
-              {% if current_user.barbearia.assinatura_expira_em %}
-              <p class="text-sm text-text-secondary-dark">
-                Válida até: <strong class="text-text-primary-dark">{{ current_user.barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}</strong>
-              </p>
-              {% endif %}
+      
+      {% if is_lash %}
+          {# --- VERSÃO LASH (ROSA/ROXO) --- #}
+          <div class="bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/30 rounded-xl p-4 shadow-lg shadow-pink-500/5">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <div class="bg-pink-500/20 p-2 rounded-full text-pink-500">
+                    <span class="material-symbols-outlined text-3xl">verified</span>
+                </div>
+                <div>
+                  <h3 class="text-lg font-bold text-pink-100">Studio Ativo & Online ✨</h3>
+                  {% if current_user.barbearia.assinatura_expira_em %}
+                  <p class="text-sm text-pink-200/70">
+                    Válido até: <strong class="text-pink-100">{{ current_user.barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}</strong>
+                  </p>
+                  {% endif %}
+                </div>
+              </div>
+              <a href="{{ url_for('assinaturas.planos') }}" class="hidden md:block px-4 py-2 bg-pink-500 text-white rounded-full text-sm font-medium hover:bg-pink-600 transition-colors shadow-md shadow-pink-500/20">
+                 Ver Meu Plano 💖
+              </a>
             </div>
           </div>
-          <a href="{{ url_for('assinaturas.planos') }}"
-             class="px-4 py-2 bg-green-500/20 text-green-500 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium">
-            Ver Planos
-          </a>
-        </div>
-      </div>
+      {% else %}
+          {# --- VERSÃO BARBEARIA (VERDE PADRÃO) --- #}
+          <div class="bg-green-500/10 border-2 border-green-500 rounded-xl p-4">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-3xl text-green-500">check_circle</span>
+                <div>
+                  <h3 class="text-lg font-bold text-green-500">Assinatura Ativa</h3>
+                  {% if current_user.barbearia.assinatura_expira_em %}
+                  <p class="text-sm text-text-secondary-dark">
+                    Válida até: <strong class="text-text-primary-dark">{{ current_user.barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}</strong>
+                  </p>
+                  {% endif %}
+                </div>
+              </div>
+              <a href="{{ url_for('assinaturas.planos') }}"
+                 class="px-4 py-2 bg-green-500/20 text-green-500 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium">
+                Ver Planos
+              </a>
+            </div>
+          </div>
+      {% endif %}
+
     {% else %}
-      {# Assinatura INATIVA #}
+      
+      {# Assinatura INATIVA (Comum para ambos, mas cores adaptadas) #}
       <div class="bg-yellow-500/10 border-2 border-yellow-500 rounded-xl p-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
@@ -59,85 +98,96 @@
           </a>
         </div>
       </div>
+
     {% endif %}
   </div>
   {% endif %}
-  {# ============================================ #}
-  {# FIM: Badge de Status da Assinatura          #}
-  {# ============================================ #}
 
   {# Cabeçalho com Data #}
   <div class="mb-8">
-    <h1 class="text-3xl font-bold text-text-primary-dark mb-1">Dashboard</h1>
+    <h1 class="text-3xl font-bold text-text-primary-dark mb-1">
+        {% if is_lash %}Olá, Lash Designer 🦋{% else %}Dashboard{% endif %}
+    </h1>
     <p class="text-text-secondary-dark">{{ data_hoje }}</p>
   </div>
 
   {# Grid de Cards de Resumo #}
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
     {# Card: Agendamentos Hoje #}
-    <div class="bg-surface-dark rounded-xl shadow-lg p-6 flex items-center justify-between">
+    <div class="bg-surface-dark rounded-xl shadow-lg p-6 flex items-center justify-between border border-white/5 hover:border-primary/50 transition-colors group">
       <div>
         <p class="text-sm font-medium text-text-secondary-dark mb-1">Agendamentos Hoje</p>
         <p class="text-3xl font-bold text-text-primary-dark">{{ agendamentos_hoje }}</p>
       </div>
-      <span class="material-symbols-outlined text-4xl text-primary">calendar_today</span>
+      <div class="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
+          <span class="material-symbols-outlined text-4xl text-primary">calendar_today</span>
+      </div>
     </div>
 
     {# Card: Total de Clientes #}
-    <div class="bg-surface-dark rounded-xl shadow-lg p-6 flex items-center justify-between">
+    <div class="bg-surface-dark rounded-xl shadow-lg p-6 flex items-center justify-between border border-white/5 hover:border-primary/50 transition-colors group">
       <div>
         <p class="text-sm font-medium text-text-secondary-dark mb-1">Total de Clientes</p>
         <p class="text-3xl font-bold text-text-primary-dark">{{ total_clientes }}</p>
       </div>
-      <span class="material-symbols-outlined text-4xl text-primary">group</span>
+      <div class="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
+          <span class="material-symbols-outlined text-4xl text-primary">group</span>
+      </div>
     </div>
 
     {# Card: Em Atendimento #}
-    <div class="bg-surface-dark rounded-xl shadow-lg p-6 flex items-center justify-between">
+    <div class="bg-surface-dark rounded-xl shadow-lg p-6 flex items-center justify-between border border-white/5 hover:border-primary/50 transition-colors group">
       <div>
         <p class="text-sm font-medium text-text-secondary-dark mb-1">Em Atendimento</p>
         <p class="text-3xl font-bold text-text-primary-dark">0</p> 
       </div>
-      <span class="material-symbols-outlined text-4xl text-primary">schedule</span>
+      <div class="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
+          <span class="material-symbols-outlined text-4xl text-primary">schedule</span>
+      </div>
     </div>
   </div>
 
   {# Seção: Próximos Agendamentos #}
-  <div class="bg-surface-dark rounded-xl shadow-lg p-6">
+  <div class="bg-surface-dark rounded-xl shadow-lg p-6 border border-white/5">
     <h2 class="text-xl font-bold text-text-primary-dark mb-4 flex items-center gap-2">
-      <span class="material-symbols-outlined">update</span>
+      <span class="material-symbols-outlined text-primary">update</span>
       Próximos Agendamentos (Hoje)
     </h2>
     
     <div class="flex flex-col gap-4">
       {% if proximos_agendamentos %}
         {% for ag in proximos_agendamentos %}
-          <div class="bg-background-dark p-4 rounded-lg flex items-center gap-4 hover:bg-white/5 transition-colors">
-            <div class="flex-shrink-0 bg-primary aspect-square rounded-full size-10 flex items-center justify-center">
-              <span class="text-white font-bold text-xl">{{ (ag.nome_cliente[0] if ag.nome_cliente else '?') | upper }}</span>
+          <div class="bg-background-dark p-4 rounded-lg flex items-center gap-4 hover:bg-white/5 transition-colors border border-transparent hover:border-primary/20">
+            <div class="flex-shrink-0 bg-primary/20 text-primary aspect-square rounded-full size-12 flex items-center justify-center font-bold text-xl">
+              {{ (ag.nome_cliente[0] if ag.nome_cliente else '?') | upper }}
             </div>
-            <div class="flex-grow grid grid-cols-3 gap-4 items-center text-sm">
+            <div class="flex-grow grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 items-center text-sm">
               <div>
                 <p class="font-semibold text-text-primary-dark">{{ ag.nome_cliente }}</p>
-                <p class="text-text-secondary-dark">{{ ag.telefone_cliente }}</p>
-              </div>
-              <div>
-                <p class="text-text-primary-dark">{{ ag.servico.nome if ag.servico else 'Serviço Indefinido' }}</p>
-                <p class="text-text-secondary-dark">Prof: {{ ag.profissional.nome if ag.profissional else 'N/A' }}</p>
-              </div>
-              <div class="text-right">
-                <p class="text-lg font-bold text-primary">
-                    {{ ag.data_hora.strftime('%H:%M') }}
+                <p class="text-text-secondary-dark flex items-center gap-1">
+                   <span class="material-symbols-outlined text-[14px]">call</span> {{ ag.telefone_cliente }}
                 </p>
               </div>
+              <div>
+                <p class="text-text-primary-dark font-medium">{{ ag.servico.nome if ag.servico else 'Serviço Indefinido' }}</p>
+                <p class="text-text-secondary-dark text-xs">Prof: {{ ag.profissional.nome if ag.profissional else 'N/A' }}</p>
+              </div>
+              <div class="md:text-right">
+                <span class="inline-block px-3 py-1 bg-primary/20 text-primary rounded-full font-bold">
+                    {{ ag.data_hora.strftime('%H:%M') }}
+                </span>
+              </div>
             </div>
-             <a href="{{ url_for('main.editar_agendamento', agendamento_id=ag.id) }}" class="p-2 text-text-secondary-dark hover:text-primary rounded-full flex-shrink-0" title="Ver/Editar Agendamento">
+             <a href="{{ url_for('main.editar_agendamento', agendamento_id=ag.id) }}" class="p-2 text-text-secondary-dark hover:text-white hover:bg-primary rounded-lg transition-all flex-shrink-0" title="Ver/Editar">
                <span class="material-symbols-outlined">edit_calendar</span>
              </a>
           </div>
         {% endfor %}
       {% else %}
-        <p class="text-text-secondary-dark text-center py-4">Nenhum agendamento para hoje.</p>
+        <div class="text-center py-8 opacity-60">
+            <span class="material-symbols-outlined text-4xl mb-2">event_busy</span>
+            <p class="text-text-secondary-dark">Nenhum agendamento pendente para hoje.</p>
+        </div>
       {% endif %}
     </div>
   </div>
