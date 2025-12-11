@@ -1,195 +1,183 @@
-{% extends 'base.html' %} 
+<!DOCTYPE html>
+{# 
+  Este é o arquivo 'base.html' COMPLETO e OTIMIZADO.
+  Inclui a lógica de cores dinâmicas (SaaS) e proteção contra erros de rota.
+#}
+<html class="dark" lang="pt-br">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  
+  <title>{% block title %}Painel de Controle{% endblock %}</title>
 
-{% block title %}Dashboard{% endblock %}
-
-{% block content %}
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
 
   {# ================================================================= #}
-  {# 🧠 REUTILIZANDO LÓGICA DE DETECÇÃO (SEGURANÇA REDUNDANTE)       #}
+  {# 🧠 LÓGICA DE DETECÇÃO DE NICHO (BARBEARIA vs LASH)              #}
   {# ================================================================= #}
   {% set is_lash = False %}
-  {% if current_user.barbearia %}
+  {% if current_user.is_authenticated and current_user.barbearia %}
       {% set nome_negocio = current_user.barbearia.nome_fantasia.lower() %}
-      {% if 'lash' in nome_negocio or 'cílios' in nome_negocio or 'sobrancelha' in nome_negocio or 'studio' in nome_negocio or 'estética' in nome_negocio %}
+      {% if 'lash' in nome_negocio or 'cílios' in nome_negocio or 'sobrancelha' in nome_negocio or 'studio' in nome_negocio or 'estética' in nome_negocio or 'beauty' in nome_negocio %}
           {% set is_lash = True %}
       {% endif %}
   {% endif %}
 
-  {# Mensagens Flash #}
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      {% for category, message in messages %}
-        <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-500/10 border border-green-500 text-green-500{% elif category == 'danger' or category == 'error' %}bg-red-500/10 border border-red-500 text-red-500{% elif category == 'warning' %}bg-yellow-500/10 border border-yellow-500 text-yellow-500{% else %}bg-blue-500/10 border border-blue-500 text-blue-500{% endif %}">
-          {{ message }}
-        </div>
-      {% endfor %}
-    {% endif %}
-  {% endwith %}
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "var(--theme-color)", /* ✨ AGORA É DINÂMICO */
+            "background-light": "#f6f7f8",
+            "background-dark": "#121212",
+            "surface-dark": "#1E1E1E",
+            "text-primary-dark": "#FFFFFF",
+            "text-secondary-dark": "#A0A0A0",
+            /* Cores Específicas Lash */
+            "lash-pink": "#EC4899",
+            "lash-purple": "#A855F7",
+          },
+          fontFamily: {
+            "display": ["Inter", "sans-serif"]
+          },
+        },
+      },
+    }
+  </script>
+  
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
+    }
 
-  {# ============================================ #}
-  {# ✨ Badge de Status da Assinatura            #}
-  {# ============================================ #}
-  {% if current_user.barbearia %}
-  <div class="mb-6">
-    {% if current_user.barbearia.assinatura_ativa %}
-      
-      {% if is_lash %}
-          {# --- VERSÃO LASH (ROSA/ROXO) --- #}
-          <div class="bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/30 rounded-xl p-4 shadow-lg shadow-pink-500/5">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-4">
-                <div class="bg-pink-500/20 p-2 rounded-full text-pink-500">
-                    <span class="material-symbols-outlined text-3xl">verified</span>
-                </div>
-                <div>
-                  <h3 class="text-lg font-bold text-pink-100">Studio Ativo & Online ✨</h3>
-                  {% if current_user.barbearia.assinatura_expira_em %}
-                  <p class="text-sm text-pink-200/70">
-                    Válido até: <strong class="text-pink-100">{{ current_user.barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}</strong>
-                  </p>
-                  {% endif %}
-                </div>
-              </div>
-              <a href="{{ url_for('assinaturas.planos') }}" class="hidden md:block px-4 py-2 bg-pink-500 text-white rounded-full text-sm font-medium hover:bg-pink-600 transition-colors shadow-md shadow-pink-500/20">
-                 Ver Meu Plano 💖
-              </a>
-            </div>
-          </div>
-      {% else %}
-          {# --- VERSÃO BARBEARIA (VERDE PADRÃO) --- #}
-          <div class="bg-green-500/10 border-2 border-green-500 rounded-xl p-4">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-3xl text-green-500">check_circle</span>
-                <div>
-                  <h3 class="text-lg font-bold text-green-500">Assinatura Ativa</h3>
-                  {% if current_user.barbearia.assinatura_expira_em %}
-                  <p class="text-sm text-text-secondary-dark">
-                    Válida até: <strong class="text-text-primary-dark">{{ current_user.barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}</strong>
-                  </p>
-                  {% endif %}
-                </div>
-              </div>
-              <a href="{{ url_for('assinaturas.planos') }}"
-                 class="px-4 py-2 bg-green-500/20 text-green-500 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium">
-                Ver Planos
-              </a>
-            </div>
-          </div>
-      {% endif %}
+    /* ========================================= */
+    /* 🎨 DEFINIÇÃO DE CORES (CSS VARIABLES)     */
+    /* ========================================= */
+    :root {
+        /* Lógica: 
+           1. Se tiver cor no banco, usa ela.
+           2. Se for Lash, usa Rosa (#EC4899).
+           3. Se não, usa Azul Padrão (#00A6FB).
+        */
+        {% if current_user.is_authenticated and current_user.barbearia.cor_primaria %}
+            --theme-color: {{ current_user.barbearia.cor_primaria }};
+        {% elif is_lash %}
+            --theme-color: #EC4899; /* Pink-500 do Tailwind */
+        {% else %}
+            --theme-color: #00A6FB; /* Azul Padrão */
+        {% endif %}
+    }
 
-    {% else %}
-      
-      {# Assinatura INATIVA (Comum para ambos, mas cores adaptadas) #}
-      <div class="bg-yellow-500/10 border-2 border-yellow-500 rounded-xl p-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <span class="material-symbols-outlined text-3xl text-yellow-500">warning</span>
-            <div>
-              <h3 class="text-lg font-bold text-yellow-500">Assinatura Inativa</h3>
-              <p class="text-sm text-text-secondary-dark">
-                Ative sua assinatura para usar todas as funcionalidades
-              </p>
-            </div>
-          </div>
-          <a href="{{ url_for('assinaturas.planos') }}" 
-             class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium">
-            ⚡ Ativar Agora
-          </a>
-        </div>
-      </div>
-
-    {% endif %}
-  </div>
-  {% endif %}
-
-  {# Cabeçalho com Data #}
-  <div class="mb-8">
-    <h1 class="text-3xl font-bold text-text-primary-dark mb-1">
-        {% if is_lash %}Olá, Lash Designer 🦋{% else %}Dashboard{% endif %}
-    </h1>
-    <p class="text-text-secondary-dark">{{ data_hoje }}</p>
-  </div>
-
-  {# Grid de Cards de Resumo #}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-    {# Card: Agendamentos Hoje #}
-    <div class="bg-surface-dark rounded-xl shadow-lg p-6 flex items-center justify-between border border-white/5 hover:border-primary/50 transition-colors group">
-      <div>
-        <p class="text-sm font-medium text-text-secondary-dark mb-1">Agendamentos Hoje</p>
-        <p class="text-3xl font-bold text-text-primary-dark">{{ agendamentos_hoje }}</p>
-      </div>
-      <div class="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-          <span class="material-symbols-outlined text-4xl text-primary">calendar_today</span>
-      </div>
-    </div>
-
-    {# Card: Total de Clientes #}
-    <div class="bg-surface-dark rounded-xl shadow-lg p-6 flex items-center justify-between border border-white/5 hover:border-primary/50 transition-colors group">
-      <div>
-        <p class="text-sm font-medium text-text-secondary-dark mb-1">Total de Clientes</p>
-        <p class="text-3xl font-bold text-text-primary-dark">{{ total_clientes }}</p>
-      </div>
-      <div class="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-          <span class="material-symbols-outlined text-4xl text-primary">group</span>
-      </div>
-    </div>
-
-    {# Card: Em Atendimento #}
-    <div class="bg-surface-dark rounded-xl shadow-lg p-6 flex items-center justify-between border border-white/5 hover:border-primary/50 transition-colors group">
-      <div>
-        <p class="text-sm font-medium text-text-secondary-dark mb-1">Em Atendimento</p>
-        <p class="text-3xl font-bold text-text-primary-dark">0</p> 
-      </div>
-      <div class="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-          <span class="material-symbols-outlined text-4xl text-primary">schedule</span>
-      </div>
-    </div>
-  </div>
-
-  {# Seção: Próximos Agendamentos #}
-  <div class="bg-surface-dark rounded-xl shadow-lg p-6 border border-white/5">
-    <h2 class="text-xl font-bold text-text-primary-dark mb-4 flex items-center gap-2">
-      <span class="material-symbols-outlined text-primary">update</span>
-      Próximos Agendamentos (Hoje)
-    </h2>
+    /* Força classes utilitárias a usarem a variável */
+    .bg-primary { background-color: var(--theme-color) !important; }
+    .text-primary { color: var(--theme-color) !important; }
+    .border-primary { border-color: var(--theme-color) !important; }
     
-    <div class="flex flex-col gap-4">
-      {% if proximos_agendamentos %}
-        {% for ag in proximos_agendamentos %}
-          <div class="bg-background-dark p-4 rounded-lg flex items-center gap-4 hover:bg-white/5 transition-colors border border-transparent hover:border-primary/20">
-            <div class="flex-shrink-0 bg-primary/20 text-primary aspect-square rounded-full size-12 flex items-center justify-center font-bold text-xl">
-              {{ (ag.nome_cliente[0] if ag.nome_cliente else '?') | upper }}
-            </div>
-            <div class="flex-grow grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 items-center text-sm">
-              <div>
-                <p class="font-semibold text-text-primary-dark">{{ ag.nome_cliente }}</p>
-                <p class="text-text-secondary-dark flex items-center gap-1">
-                   <span class="material-symbols-outlined text-[14px]">call</span> {{ ag.telefone_cliente }}
-                </p>
-              </div>
-              <div>
-                <p class="text-text-primary-dark font-medium">{{ ag.servico.nome if ag.servico else 'Serviço Indefinido' }}</p>
-                <p class="text-text-secondary-dark text-xs">Prof: {{ ag.profissional.nome if ag.profissional else 'N/A' }}</p>
-              </div>
-              <div class="md:text-right">
-                <span class="inline-block px-3 py-1 bg-primary/20 text-primary rounded-full font-bold">
-                    {{ ag.data_hora.strftime('%H:%M') }}
-                </span>
-              </div>
-            </div>
-             <a href="{{ url_for('main.editar_agendamento', agendamento_id=ag.id) }}" class="p-2 text-text-secondary-dark hover:text-white hover:bg-primary rounded-lg transition-all flex-shrink-0" title="Ver/Editar">
-               <span class="material-symbols-outlined">edit_calendar</span>
-             </a>
+    aside { border-right: 1px solid #333; }
+  </style>
+  
+</head>
+<body class="bg-background-dark font-display text-text-primary-dark">
+  
+  <div class="relative flex h-auto min-h-screen w-full flex-col">
+    <div class="layout-container flex h-full grow flex-row">
+      
+      <aside class="flex flex-col gap-y-8 p-6 bg-surface-dark w-72 flex-shrink-0 h-screen sticky top-0 overflow-y-auto">
+        <div class="flex items-center gap-4">
+          <div class="bg-primary aspect-square rounded-lg size-12 flex items-center justify-center transition-colors duration-300 shadow-lg shadow-primary/20">
+            <span class="material-symbols-outlined text-white text-3xl">
+                {# Ícone muda conforme o nicho #}
+                {% if is_lash %}
+                    visibility
+                {% else %}
+                    content_cut
+                {% endif %}
+            </span>
           </div>
-        {% endfor %}
-      {% else %}
-        <div class="text-center py-8 opacity-60">
-            <span class="material-symbols-outlined text-4xl mb-2">event_busy</span>
-            <p class="text-text-secondary-dark">Nenhum agendamento pendente para hoje.</p>
+          <h1 class="text-text-primary-dark text-xl font-bold">
+            {% if current_user.is_authenticated %}
+                {{ current_user.barbearia.nome_fantasia }}
+            {% else %}
+                Meu Negócio
+            {% endif %}
+          </h1>
         </div>
-      {% endif %}
+        
+        <nav class="flex flex-col gap-3 flex-1">
+          
+          {# Link Agendamentos #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+             href="{{ url_for('main.agenda') }}">
+            <span class="material-symbols-outlined">calendar_today</span>
+            <p class="text-base">Agendamentos</p>
+          </a>
+          
+          {# Link Dashboard #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('dashboard.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}"
+             href="{{ url_for('dashboard.index') }}">
+            <span class="material-symbols-outlined">dashboard</span>
+            <p class="text-base">Dashboard</p>
+          </a>
+          
+          {# Link Profissionais #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+             href="{{ url_for('profissionais.index') }}"> 
+            <span class="material-symbols-outlined">group</span>
+            <p class="text-base">Profissionais</p>
+          </a>
+
+          {# Link Serviços #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+             href="{{ url_for('servicos.index') }}"> 
+            <span class="material-symbols-outlined">cut</span>
+            <p class="text-base">Serviços</p>
+          </a>
+
+          {# Link Clientes #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('clientes.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+             href="{{ url_for('clientes.index') }}"> 
+            <span class="material-symbols-outlined">person_search</span>
+            <p class="text-base">Clientes</p>
+          </a>
+
+        </nav>
+        
+        {# Rodapé do Usuário #}
+        <div class="flex flex-col gap-4 mt-auto">
+          {% if current_user.is_authenticated %}
+          <div class="flex items-center justify-between p-3 rounded-xl bg-background-dark/50 border border-white/5">
+            <div class="flex items-center gap-3 overflow-hidden">
+              <div class="bg-primary aspect-square rounded-full size-10 flex flex-shrink-0 items-center justify-center text-white font-bold text-lg shadow-md shadow-primary/20">
+                {{ (current_user.nome[0] if current_user.nome else 'U') | upper }}
+              </div>
+              <div class="flex flex-col min-w-0">
+                <p class="text-text-primary-dark font-semibold truncate text-sm">{{ current_user.nome or 'Usuário' }}</p>
+                <p class="text-text-secondary-dark text-xs truncate" title="{{ current_user.email }}">{{ current_user.email }}</p>
+              </div>
+            </div>
+            <a href="{{ url_for('main.logout') }}" class="text-text-secondary-dark hover:text-red-400 transition-colors p-1" title="Sair">
+              <span class="material-symbols-outlined text-xl">logout</span>
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </aside>
+      
+      <main class="flex-1 p-8 overflow-y-auto h-screen">
+        {% block content %}{% endblock %}
+      </main>
+
     </div>
   </div>
 
-{% endblock %}
+  {% block scripts %}
+  {% endblock %}
+</body>
+</html>
