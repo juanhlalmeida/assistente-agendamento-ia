@@ -8,7 +8,7 @@ import google.generativeai as genai
 import re
 from google.api_core.exceptions import NotFound, ResourceExhausted
 # --- IMPORTAÇÃO NECESSÁRIA PARA CAPTURAR O ERRO MALFORMED ---
-from google.generativeai.types import generation_types 
+from google.generativeai.types import generation_types
 # ------------------------------------------------------------
 from datetime import datetime, timedelta
 from flask import current_app
@@ -17,25 +17,25 @@ from datetime import time as dt_time
 
 # --- INÍCIO DA IMPLEMENTAÇÃO (Conforme o PDF) ---
 # Importa o cache das extensões
-from app.extensions import cache 
+from app.extensions import cache
 # Importa os tipos de dados do Gemini para serialização
-from google.generativeai.protos import Content 
+from google.generativeai.protos import Content
 # (Usamos 'protos' como no seu código original para FunctionCall/Response)
-from google.generativeai import protos 
+from google.generativeai import protos
 # --- FIM DA IMPLEMENTAÇÃO ---
 
 # --- ALTERAÇÃO 1: Importar GenerationConfig para controlar a temperatura ---
 from google.generativeai.types import FunctionDeclaration, Tool, GenerationConfig
 import pytz
-BR_TZ = pytz.timezone('America/Sao_Paulo') 
-from app.models.tables import Agendamento, Profissional, Servico, Barbearia 
+BR_TZ = pytz.timezone('America/Sao_Paulo')
+from app.models.tables import Agendamento, Profissional, Servico, Barbearia
 from app.extensions import db
-import time 
+import time
 
 from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponiveis_util
 
 # --- NOVA IMPLEMENTAÇÃO: BIBLIOTECA DE COMPARAÇÃO DE TEXTO (PLANO B) ---
-from thefuzz import process 
+from thefuzz import process
 # -------------------------------------------------------------
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -521,8 +521,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         data_hoje_str = agora_br.strftime('%Y-%m-%d')
         data_amanha_str = (agora_br + timedelta(days=1)).strftime('%Y-%m-%d')
        
-        # --- IMPLEMENTAÇÃO DE EMOJIS (Lógica para Personalizar) ---
-        # Tenta pegar do banco, se não tiver ou der erro, usa padrão
+        # --- IMPLEMENTAÇÃO DA LÓGICA DE EMOJIS (ADICIONADA AQUI) ---
         emojis = getattr(barbearia, 'emojis_sistema', '✂️✨😉👍') or '✂️✨😉👍'
         # ---------------------------------------------------------
 
@@ -534,9 +533,9 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             data_de_amanha=data_amanha_str
         )
         
-        # --- INJEÇÃO DOS EMOJIS NO PROMPT ---
-        system_prompt += f"\n\nIMPORTANTE: USE SEMPRE ESTES EMOJIS: {emojis}"
-        # -----------------------------------
+        # --- INJEÇÃO DA VARIÁVEL DE EMOJIS NO PROMPT ---
+        system_prompt += f"\n\nIMPORTANTE: USE SEMPRE ESTES EMOJIS NAS SUAS RESPOSTAS: {emojis}"
+        # -----------------------------------------------
        
         is_new_chat = not history_to_load
        
