@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 {# 
-  Este é o arquivo 'base.html' com o rodapé do usuário restaurado 
-  E a correção para o erro 'current_app is undefined'.
+  Este é o arquivo 'base.html' COMPLETO e OTIMIZADO.
+  Inclui a lógica de cores dinâmicas (SaaS) e proteção contra erros de rota.
 #}
 <html class="dark" lang="pt-br">
 <head>
@@ -15,7 +15,6 @@
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
   <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
 
   <script>
@@ -24,7 +23,7 @@
       theme: {
         extend: {
           colors: {
-            "primary": "#00A6FB",
+            "primary": "#00A6FB", /* Cor padrão (Azul) caso não tenha nada no banco */
             "background-light": "#f6f7f8",
             "background-dark": "#121212",
             "surface-dark": "#1E1E1E",
@@ -34,12 +33,6 @@
           fontFamily: {
             "display": ["Inter", "sans-serif"]
           },
-          borderRadius: {
-            "DEFAULT": "0.5rem",
-            "lg": "0.75rem",
-            "xl": "1rem",
-            "full": "9999px"
-          },
         },
       },
     }
@@ -47,13 +40,31 @@
   
   <style>
     .material-symbols-outlined {
-      font-variation-settings:
-      'FILL' 0,
-      'wght' 400,
-      'GRAD' 0,
-      'opsz' 24
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
     }
   </style>
+
+  {# --- LÓGICA DE COR DINÂMICA (CAMALEÃO) --- #}
+  {# Se o usuário tem uma cor definida no banco, sobrescrevemos o azul padrão #}
+  {% if current_user.is_authenticated and current_user.barbearia.cor_primaria %}
+  <style>
+      :root {
+          --theme-color: {{ current_user.barbearia.cor_primaria }};
+      }
+      /* Força a cor primária do Tailwind a usar a cor do banco */
+      .bg-primary {
+          background-color: var(--theme-color) !important;
+      }
+      .text-primary {
+          color: var(--theme-color) !important;
+      }
+      /* Degradê bonito na sidebar */
+      aside {
+          border-right: 1px solid #333;
+      }
+  </style>
+  {% endif %}
+  {# ----------------------------------------- #}
   
 </head>
 <body class="bg-background-dark font-display text-text-primary-dark">
@@ -61,78 +72,87 @@
   <div class="relative flex h-auto min-h-screen w-full flex-col">
     <div class="layout-container flex h-full grow flex-row">
       
-      <aside class="flex flex-col gap-y-8 p-6 bg-surface-dark w-72 flex-shrink-0">
+      <aside class="flex flex-col gap-y-8 p-6 bg-surface-dark w-72 flex-shrink-0 h-screen sticky top-0 overflow-y-auto">
         <div class="flex items-center gap-4">
-          <div class="bg-primary aspect-square rounded-lg size-12 flex items-center justify-center">
-            <span class="material-symbols-outlined text-white text-3xl">content_cut</span>
+          <div class="bg-primary aspect-square rounded-lg size-12 flex items-center justify-center transition-colors duration-300">
+            <span class="material-symbols-outlined text-white text-3xl">
+                {% if current_user.is_authenticated and '👁️' in (current_user.barbearia.emojis_sistema or '') %}
+                    visibility
+                {% else %}
+                    content_cut
+                {% endif %}
+            </span>
           </div>
-          <h1 class="text-text-primary-dark text-xl font-bold">Meu Salão</h1>
+          <h1 class="text-text-primary-dark text-xl font-bold">
+            {% if current_user.is_authenticated %}
+                {{ current_user.barbearia.nome_fantasia }}
+            {% else %}
+                Meu Salão
+            {% endif %}
+          </h1>
         </div>
         
         <nav class="flex flex-col gap-3 flex-1">
+          
           {# Link Agendamentos #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint.startswith('main.') %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
              href="{{ url_for('main.agenda') }}">
             <span class="material-symbols-outlined">calendar_today</span>
             <p class="text-base">Agendamentos</p>
           </a>
           
-          {# --- NOVO LINK DASHBOARD --- #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint.startswith('dashboard.') %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}"
+          {# Link Dashboard #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('dashboard.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}"
              href="{{ url_for('dashboard.index') }}">
             <span class="material-symbols-outlined">dashboard</span>
             <p class="text-base">Dashboard</p>
           </a>
-          {# --------------------------- #}
           
-          {# Link Clientes (ainda inativo) #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint.startswith('profissionais.') %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          {# Link Profissionais #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
              href="{{ url_for('profissionais.index') }}"> 
             <span class="material-symbols-outlined">group</span>
-            <p class="text-base">Profissionais</p> {# Mudamos o texto para Profissionais #}
+            <p class="text-base">Profissionais</p>
           </a>
 
-          {# --- CORREÇÃO: Link Serviços agora aponta para o blueprint --- #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint.startswith('servicos.') %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          {# Link Serviços #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
              href="{{ url_for('servicos.index') }}"> 
             <span class="material-symbols-outlined">cut</span>
             <p class="text-base">Serviços</p>
           </a>
 
-          {# ----------------------------------------------------------- #}
-          {# --- NOVO LINK CLIENTES --- #}
-          
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg {% if request.endpoint.startswith('clientes.') %}bg-primary text-white font-semibold{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
+          {# Link Clientes #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('clientes.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium{% endif %}" 
              href="{{ url_for('clientes.index') }}"> 
-            <span class="material-symbols-outlined">group</span>
+            <span class="material-symbols-outlined">person_search</span>
             <p class="text-base">Clientes</p>
           </a>
 
-          {# -------------------------- #}
         </nav>
         
-        {# Rodapé restaurado com current_user e logout #}
-        <div class="flex flex-col gap-4">
+        {# Rodapé do Usuário #}
+        <div class="flex flex-col gap-4 mt-auto">
           {% if current_user.is_authenticated %}
-          <div class="flex items-center justify-between p-2 rounded-lg bg-background-dark">
-            <div class="flex items-center gap-3">
-              <div class="bg-primary aspect-square rounded-full size-10 flex items-center justify-center">
-                <span class="text-white font-bold text-xl">{{ (current_user.nome[0] if current_user.nome else 'U') | upper }}</span>
+          <div class="flex items-center justify-between p-3 rounded-xl bg-background-dark/50 border border-white/5">
+            <div class="flex items-center gap-3 overflow-hidden">
+              <div class="bg-primary aspect-square rounded-full size-10 flex flex-shrink-0 items-center justify-center text-white font-bold text-lg">
+                {{ (current_user.nome[0] if current_user.nome else 'U') | upper }}
               </div>
-              <div>
-                <p class="text-text-primary-dark font-semibold">{{ current_user.nome or 'Usuário' }}</p>
-                <p class="text-text-secondary-dark text-sm">{{ current_user.email }}</p>
+              <div class="flex flex-col min-w-0">
+                <p class="text-text-primary-dark font-semibold truncate text-sm">{{ current_user.nome or 'Usuário' }}</p>
+                <p class="text-text-secondary-dark text-xs truncate" title="{{ current_user.email }}">{{ current_user.email }}</p>
               </div>
             </div>
-            <a href="{{ url_for('main.logout') }}" class="text-text-secondary-dark hover:text-white" title="Sair">
-              <span class="material-symbols-outlined">logout</span>
+            <a href="{{ url_for('main.logout') }}" class="text-text-secondary-dark hover:text-red-400 transition-colors p-1" title="Sair">
+              <span class="material-symbols-outlined text-xl">logout</span>
             </a>
           </div>
           {% endif %}
         </div>
       </aside>
       
-      <main class="flex-1 p-8">
+      <main class="flex-1 p-8 overflow-y-auto h-screen">
         {% block content %}{% endblock %}
       </main>
 
