@@ -10,33 +10,30 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # ---------------------------------------------------------------------
 # Esta é a tabela mais importante. Ela representa o SEU cliente (a barbearia).
 # Todos os outros dados serão "etiquetados" com o ID desta tabela.
+
 class Barbearia(db.Model):
+    __tablename__ = 'barbearia'  # Garante que a FK 'barbearia.id' funcione sempre
+    
     id = db.Column(db.Integer, primary_key=True)
     nome_fantasia = db.Column(db.String(100), nullable=False)
     
-    # Campo para controlo de pagamentos
+    # --- CONTROLE DE ASSINATURA ---
+    # Unifiquei os campos de status aqui para não haver duplicidade
     status_assinatura = db.Column(db.String(20), nullable=False, default='inativa')
-
-    # ADICIONE ESTES DOIS:
     assinatura_ativa = db.Column(db.Boolean, default=False)
     assinatura_expira_em = db.Column(db.DateTime)
     
-    # Adicione também este relacionamento:
+    # Relacionamento com a tabela de Assinaturas
     assinaturas = db.relationship('Assinatura', backref='barbearia', lazy=True)
     
     # --- NOVOS CAMPOS PARA API OFICIAL (META) ---
-    
     meta_phone_number_id = db.Column(db.String(50), nullable=True)
     meta_access_token = db.Column(db.Text, nullable=True) # Access tokens
     
-    # Este é o "Número do Robô" (ex: o n.º da Twilio) que esta barbearia usa.
-    # É assim que o webhook saberá de qual barbearia a mensagem veio.
-    # Deve ser único!
+    # Este é o "Número do Robô" (ex: o n.º da Twilio/Meta) que esta barbearia usa.
+    # É assim que o webhook saberá de qual barbearia a mensagem veio. Deve ser único!
     telefone_whatsapp = db.Column(db.String(20), unique=True, nullable=False)
 
-    # Campo para controlo de pagamentos (FASE DE NEGÓCIO)
-    status_assinatura = db.Column(db.String(20), nullable=False, default='inativa')
-    
     # Relações: Define o que "pertence" a esta barbearia
     # O 'cascade="all, delete-orphan"' significa que se uma barbearia for
     # apagada, todos os seus dados (usuários, profissionais, etc.) são
@@ -60,6 +57,8 @@ class Barbearia(db.Model):
 # ---------------------------------------------------------------------
 
 class User(UserMixin, db.Model):
+    __tablename__ = 'user'
+
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), index=True, unique=True, nullable=False) 
     nome = db.Column(db.String(100), nullable=True) 
@@ -85,6 +84,8 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
 class Profissional(db.Model):
+    __tablename__ = 'profissional'
+
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(100), nullable=False)
     
@@ -97,6 +98,8 @@ class Profissional(db.Model):
     agendamentos = db.relationship('Agendamento', backref='profissional', lazy=True)
 
 class Servico(db.Model):
+    __tablename__ = 'servico'
+
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(100), nullable=False)
     duracao = db.Column(db.Integer, nullable=False) # Duração em minutos
@@ -110,6 +113,8 @@ class Servico(db.Model):
     agendamentos = db.relationship('Agendamento', backref='servico', lazy=True)
 
 class Agendamento(db.Model):
+    __tablename__ = 'agendamento'
+
     id = db.Column(db.Integer, primary_key=True)
     data_hora = db.Column(db.DateTime, nullable=False)
     nome_cliente = db.Column(db.String(100), nullable=False)
