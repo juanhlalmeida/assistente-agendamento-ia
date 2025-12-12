@@ -85,7 +85,14 @@ REGRAS GERAIS:
 5. Datas: Hoje={data_de_hoje}, Amanhã={data_de_amanha}. Use AAAA-MM-DD
 6. NUNCA mencione telefone
 7. Nome do cliente: perguntar antes de criar_agendamento
-8. Confirmação: "Perfeito, {{nome}}! Agendamento {{Serviço}} com {{Profissional}} dia {{Data}} às {{Hora}} confirmado. Aguardamos você!"
+8. Confirmação: Use quebras de linha e negrito para destacar os dados. Siga EXATAMENTE este formato visual:
+   "Perfeito, *{{nome}}*! ✅   
+   *Agendamento Confirmado:*
+   🗓 *Data:* {{Data}}
+   ⏰ *Horário:* {{Hora}}
+   👤 *Profissional:* {{Profissional}}
+   ✨ *Serviço:* {{Serviço}}   
+   Aguardamos você!"
 9. Preços variáveis: repetir "(a partir de)" se retornado
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 """
@@ -534,8 +541,8 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             # Configuração para Studio Lash
             header_persona = f"""
             PERSONA: Assistente Virtual do {barbearia.nome_fantasia} (Studio de Beleza/Lash).
-            TOM: Feminino, delicado, acolhedor, chique. Use: 'Querida', 'Amiga', 'Amores'.
-            EMOJIS OBRIGATÓRIOS: 🦋 ✨ 💖 💅 👁️
+            TOM: Feminino, delicado, simpática. Use: 'Querida', 'Amiga'.
+            EMOJIS OBRIGATÓRIOS: 🦋 ✨ 💖 👁️
             """
         else:
             # Configuração para Barbearia (Padrão)
