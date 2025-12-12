@@ -1,1 +1,79 @@
+{% extends 'base.html' %}
 
+{% block title %}Configurações{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-text-primary-dark mb-1">Configurações da Loja</h1>
+        <p class="text-text-secondary-dark">Personalize horários, cores e a inteligência artificial.</p>
+    </div>
+
+    <form method="POST" class="space-y-6">
+        
+        {# --- CARTÃO 1: HORÁRIOS --- #}
+        <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5">
+            <h2 class="text-xl font-bold text-primary flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined">schedule</span>
+                Horários de Atendimento
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Abertura</label>
+                    <input type="time" name="horario_abertura" value="{{ barbearia.horario_abertura or '09:00' }}" required
+                           class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Fechamento</label>
+                    <input type="time" name="horario_fechamento" value="{{ barbearia.horario_fechamento or '19:00' }}" required
+                           class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-text-secondary-dark mb-1">Dias de Funcionamento (Texto)</label>
+                <input type="text" name="dias_funcionamento" value="{{ barbearia.dias_funcionamento }}" placeholder="Ex: Terça a Sábado"
+                       class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
+                <p class="text-xs text-gray-500 mt-2">ℹ️ A IA usará este texto exato para responder aos clientes.</p>
+            </div>
+        </div>
+
+        {# --- CARTÃO 2: PERSONALIZAÇÃO VISUAL --- #}
+        <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5">
+            <h2 class="text-xl font-bold text-primary flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined">palette</span>
+                Visual e IA
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-2">Cor Principal do Painel</label>
+                    <div class="flex items-center gap-3">
+                        <input type="color" name="cor_primaria" value="{{ barbearia.cor_primaria or '#00A6FB' }}" 
+                               class="h-12 w-20 rounded cursor-pointer border-0 bg-transparent p-0">
+                        <span class="text-sm text-gray-400">Clique na cor para alterar.</span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-2">Emojis da IA (Personalidade)</label>
+                    <input type="text" name="emojis_sistema" value="{{ barbearia.emojis_sistema or '✂️💈👊' }}" 
+                           class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors text-2xl">
+                    <p class="text-xs text-gray-500 mt-2">Estes emojis serão usados em todas as mensagens do Bot.</p>
+                </div>
+            </div>
+        </div>
+
+        {# --- BOTÃO SALVAR --- #}
+        <div class="pt-2 pb-10">
+            <button type="submit" class="w-full bg-primary text-white font-bold py-4 rounded-xl hover:brightness-110 transition-all shadow-lg shadow-primary/20 text-lg flex items-center justify-center gap-2">
+                <span class="material-symbols-outlined">save</span>
+                Salvar Configurações
+            </button>
+        </div>
+
+    </form>
+</div>
+{% endblock %}
