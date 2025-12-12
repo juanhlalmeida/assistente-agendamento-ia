@@ -49,6 +49,9 @@ OBJETIVO: Agendamentos. Foco 100%.
 ID_CLIENTE: {cliente_whatsapp} | ID_LOJA: {barbearia_id}
 HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
 
+🚨 REGRA DO PROFISSIONAL (IMPORTANTE):
+{regra_profissional_dinamica}
+
 🚨 REGRA DE OURO - INTEGRIDADE DO SISTEMA (LEIA COM ATENÇÃO):
 VOCÊ É PROIBIDA DE DIZER "AGENDADO" OU "CONFIRMADO" SE NÃO TIVER CHAMADO A FERRAMENTA `criar_agendamento` COM SUCESSO.
 - Se você apenas falar "Ok, marquei", você está MENTINDO para o cliente, pois nada foi salvo no sistema.
@@ -543,12 +546,31 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             """
         # -----------------------------------------------
 
+        # 4. 🔥 LÓGICA DE PROFISSIONAL ÚNICO 🔥
+        profs_db = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
+        qtd_profs = len(profs_db)
+        
+        if qtd_profs == 1:
+            # SÓ TEM UM: Força a IA a usar ele
+            nome_unico = profs_db[0].nome
+            regra_profissional = f"""
+            ATENÇÃO: Só existe 1 profissional neste estabelecimento: {nome_unico}.
+            NÃO pergunte 'com quem prefere fazer'.
+            Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e prossiga para verificar horários.
+            """
+        else:
+            # TEM VÁRIOS: Pergunta normal
+            regra_profissional = "Pergunte ao cliente a preferência de profissional caso ele não diga."
+
+        # 5. Monta o Prompt Final
+        agora = datetime.now(BR_TZ)
         system_prompt = SYSTEM_INSTRUCTION_TEMPLATE.format(
             header_persona=header_persona,
             cliente_whatsapp=cliente_whatsapp,
             barbearia_id=barbearia_id,
-            data_de_hoje=data_hoje_str,
-            data_de_amanha=data_amanha_str
+            data_de_hoje=agora.strftime('%Y-%m-%d'),
+            data_de_amanha=(agora + timedelta(days=1)).strftime('%Y-%m-%d'),
+            regra_profissional_dinamica=regra_profissional
         )
         
         is_new_chat = not history_to_load
@@ -569,7 +591,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
              cache.set(cache_key, new_serialized_history)
              logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
              return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
-       
+      
         logging.info(f"Enviando mensagem para a IA: {user_message}")
         
         # --- PROTEÇÃO CONTRA ERRO MALFORMED (Tente enviar, capture se der erro) ---
@@ -584,14 +606,14 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             logging.error(f"Erro ao enviar mensagem para a IA: {e}", exc_info=True)
             return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
         # ------------------------------------------------------
-       
+      
         # Lógica de Ferramentas
         while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
-           
+          
             function_call = response.candidates[0].content.parts[0].function_call
             function_name = function_call.name
             function_args = function_call.args
-           
+          
             logging.info(f"IA solicitou a ferramenta '{function_name}' com os argumentos: {dict(function_args)}")
             
             tool_map = {
