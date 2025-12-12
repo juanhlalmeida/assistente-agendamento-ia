@@ -568,6 +568,48 @@ def webhook_meta():
         return "Método não permitido", 405
 
 # ============================================
+# ⚙️ ROTA DE CONFIGURAÇÕES (NOVA)
+# ============================================
+@bp.route('/configuracoes', methods=['GET', 'POST'])
+@login_required
+def configuracoes():
+    # Segurança: Apenas quem tem barbearia pode acessar
+    if not current_user.barbearia:
+        flash('Você precisa estar vinculado a uma loja para acessar as configurações.', 'warning')
+        return redirect(url_for('main.agenda'))
+    
+    barbearia = current_user.barbearia
+
+    if request.method == 'POST':
+        try:
+            # 1. Captura dados do formulário
+            h_abre = request.form.get('horario_abertura')
+            h_fecha = request.form.get('horario_fechamento')
+            dias = request.form.get('dias_funcionamento')
+            cor = request.form.get('cor_primaria')
+            emojis = request.form.get('emojis_sistema')
+
+            # 2. Atualiza no Banco
+            barbearia.horario_abertura = h_abre
+            barbearia.horario_fechamento = h_fecha
+            barbearia.dias_funcionamento = dias
+            barbearia.cor_primaria = cor
+            barbearia.emojis_sistema = emojis
+            
+            db.session.commit()
+            flash('✅ Configurações salvas com sucesso!', 'success')
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Erro ao salvar configurações: {e}", exc_info=True)
+            flash(f'Erro ao salvar: {str(e)}', 'danger')
+            
+        return redirect(url_for('main.configuracoes'))
+
+    return render_template('configuracoes.html', barbearia=barbearia)
+
+
+# ============================================
 # 🔒 ROTAS PERIGOSAS - PROTEGIDAS
 # ============================================
 
