@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 {# 
-  Este é o arquivo 'base.html' COMPLETO e OTIMIZADO (VERSÃO MOBILE RESPONSIVA).
-  Inclui a lógica de cores dinâmicas (SaaS), proteção contra erros de rota e Sidebar Mobile.
+  Este é o arquivo 'base.html' FINAL.
+  Inclui: Menu Mobile Responsivo + Cores Dinâmicas + BOTÃO CONFIGURAÇÕES.
 #}
 <html class="dark" lang="pt-br">
 <head>
@@ -161,39 +161,49 @@
         <nav class="flex flex-col gap-3 flex-1">
           
           {# Link Agendamentos #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.agenda') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
              href="{{ url_for('main.agenda') }}">
             <span class="material-symbols-outlined">calendar_today</span>
             <p class="text-base">Agendamentos</p>
           </a>
           
           {# Link Dashboard #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('dashboard.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}"
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('dashboard.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}"
              href="{{ url_for('dashboard.index') }}">
             <span class="material-symbols-outlined">dashboard</span>
             <p class="text-base">Dashboard</p>
           </a>
           
           {# Link Profissionais #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
              href="{{ url_for('profissionais.index') }}"> 
             <span class="material-symbols-outlined">group</span>
             <p class="text-base">Profissionais</p>
           </a>
 
           {# Link Serviços #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
              href="{{ url_for('servicos.index') }}"> 
             <span class="material-symbols-outlined">cut</span>
             <p class="text-base">Serviços</p>
           </a>
 
           {# Link Clientes #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('clientes.') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('clientes.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
              href="{{ url_for('clientes.index') }}"> 
             <span class="material-symbols-outlined">person_search</span>
             <p class="text-base">Clientes</p>
           </a>
+
+          {# ============================================================ #}
+          {# ⚙️ NOVO BOTÃO: CONFIGURAÇÕES (Horários, Cores, etc.)       #}
+          {# ============================================================ #}
+          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.configuracoes') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+             href="{{ url_for('main.configuracoes') }}"> 
+            <span class="material-symbols-outlined">settings</span>
+            <p class="text-base">Configurações</p>
+          </a>
+          {# ============================================================ #}
 
         </nav>
         
