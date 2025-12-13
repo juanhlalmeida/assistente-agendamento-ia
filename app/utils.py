@@ -2,45 +2,76 @@
 import pytz
 from datetime import datetime, time, timedelta
 from sqlalchemy.orm import joinedload
-# Importa os modelos necessários DENTRO da função ou globalmente se não houver risco circular
-# Vamos importar globalmente por agora, mas atentos a erros de importação
-from app.models.tables import Profissional, Agendamento, Servico # type: ignore
+from app.models.tables import Profissional, Agendamento, Servico, Barbearia
 
-# --- FUNÇÃO UNIFICADA PARA CÁLCULO DE HORÁRIOS ---
-# Baseada na versão _web que funcionava no painel
+# --- FUNÇÃO UNIFICADA PARA CÁLCULO DE HORÁRIOS (DINÂMICA) ---
 def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime):
     """
-    Calcula os horários disponíveis para um profissional em um dia específico,
-    considerando agendamentos existentes e o horário atual (fuso de São Paulo).
-    Retorna uma lista de objetos datetime cientes do fuso horário (America/Sao_Paulo).
+    Calcula horários disponíveis respeitando as configurações da Barbearia (Horários e Dias).
     """
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
-    # Horário de funcionamento padrão (pode virar configuração no futuro)
-    HORA_INICIO_TRABALHO = 9
-    HORA_FIM_TRABALHO = 20 
-    INTERVALO_MINUTOS = 30 # Intervalo entre slots oferecidos
+    
+    # 1. Recupera as Configurações da Barbearia
+    barbearia = profissional.barbearia
+    
+    # Defaults de segurança caso não tenha configurado
+    h_abre_str = getattr(barbearia, 'horario_abertura', '09:00') or '09:00'
+    h_fecha_str = getattr(barbearia, 'horario_fechamento', '19:00') or '19:00'
+    dias_func_str = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado').lower()
+
+    # 2. Converte strings "09:00" para inteiros (Hora e Minuto)
+    try:
+        h_inicio, m_inicio = map(int, h_abre_str.split(':'))
+        h_fim, m_fim = map(int, h_fecha_str.split(':'))
+    except ValueError:
+        # Fallback se formato estiver errado no banco
+        h_inicio, m_inicio = 9, 0
+        h_fim, m_fim = 19, 0
+
+    INTERVALO_MINUTOS = 30 
 
     horarios_disponiveis = []
     
-    # Garante que estamos a trabalhar com a data base (sem hora/tz)
+    # 3. Lógica de Bloqueio por Dia da Semana
+    # 0=Segunda, 1=Terça, ... 5=Sábado, 6=Domingo
+    dia_semana_int = dia_selecionado.weekday()
+    
+    # Mapeamento simples de texto para números permitidos
+    # Ex: "Terça a Sábado" -> Bloqueia Segunda (0) e Domingo (6)
+    dias_permitidos = []
+    
+    if 'segunda' in dias_func_str and 'sábado' in dias_func_str: # "Segunda a Sábado"
+        dias_permitidos = [0, 1, 2, 3, 4, 5]
+    elif 'terça' in dias_func_str and 'sábado' in dias_func_str: # "Terça a Sábado"
+        dias_permitidos = [1, 2, 3, 4, 5]
+    elif 'segunda' in dias_func_str and 'sexta' in dias_func_str: # "Segunda a Sexta"
+        dias_permitidos = [0, 1, 2, 3, 4]
+    else:
+        # Padrão seguro se a IA não entender o texto customizado: 
+        # Assume Terça(1) a Sábado(5)
+        dias_permitidos = [1, 2, 3, 4, 5]
+
+    # SE O DIA PEDIDO NÃO FOR PERMITIDO, RETORNA VAZIO
+    if dia_semana_int not in dias_permitidos:
+        return []
+
+    # 4. Cálculo Matemático (Agora com variáveis dinâmicas)
     dia_base = datetime.combine(dia_selecionado.date(), time.min) 
     
     try:
-        # Define o início e fim do dia de trabalho COM timezone
-        # Usa is_dst=None para lidar com mudanças de horário de verão, se aplicável
-        horario_iteracao = sao_paulo_tz.localize(dia_base.replace(hour=HORA_INICIO_TRABALHO), is_dst=None)
-        fim_do_dia = sao_paulo_tz.localize(dia_base.replace(hour=HORA_FIM_TRABALHO), is_dst=None)
+        # Início e Fim baseados na configuração
+        horario_iteracao = sao_paulo_tz.localize(dia_base.replace(hour=h_inicio, minute=m_inicio), is_dst=None)
+        fim_do_dia = sao_paulo_tz.localize(dia_base.replace(hour=h_fim, minute=m_fim), is_dst=None)
         
-        # Define o intervalo de query no banco (sem timezone - naive)
-        # O banco geralmente guarda em UTC ou local naive. Assumimos naive.
+        # Intervalo de query no banco (naive)
         inicio_query = dia_base.replace(hour=0, minute=0, second=0, microsecond=0)
         fim_query = inicio_query + timedelta(days=1)
         
-        # Busca agendamentos do profissional no dia especificado
         agendamentos_do_dia = (
             Agendamento.query
-            .options(joinedload(Agendamento.servico)) # Carrega o serviço junto para pegar a duração
+            .options(joinedload(Agendamento.servico))
             .filter(
+                Agendamento.barbearia_id == barbearia.id, # Garante que é da mesma loja
                 Agendamento.profissional_id == profissional.id,
                 Agendamento.data_hora >= inicio_query, 
                 Agendamento.data_hora < fim_query 
@@ -48,30 +79,19 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
             .all()
         )
         
-        # Cria lista de intervalos ocupados, convertendo para o timezone correto (SP)
         intervalos_ocupados = []
         for ag in agendamentos_do_dia:
-            if ag.servico is None: # Segurança: Ignora agendamentos sem serviço associado
-                 print(f"Aviso: Agendamento ID {ag.id} sem serviço associado.")
-                 continue
+            if ag.servico is None: continue
                  
-            # Converte ag.data_hora (naive do DB) para o fuso de SP
             inicio_ocupado = sao_paulo_tz.localize(ag.data_hora, is_dst=None)
             fim_ocupado = inicio_ocupado + timedelta(minutes=ag.servico.duracao)
             intervalos_ocupados.append((inicio_ocupado, fim_ocupado))
             
-        # Obtém a hora atual COM timezone para comparação
         agora = datetime.now(sao_paulo_tz)
         
-        # Itera pelos horários possíveis do dia
         while horario_iteracao < fim_do_dia:
-            # Verifica se o horário atual está dentro de algum intervalo ocupado
-            # A verificação deve considerar a duração do *serviço sendo agendado*? 
-            # Não, aqui apenas listamos slots livres no intervalo definido (INTERVALO_MINUTOS).
-            # A verificação de conflito *real* (com duração) é feita ao *criar* o agendamento.
             esta_ocupado = any(inicio <= horario_iteracao < fim for inicio, fim in intervalos_ocupados)
             
-            # Adiciona à lista se NÃO estiver ocupado E for no futuro
             if not esta_ocupado and horario_iteracao > agora:
                 horarios_disponiveis.append(horario_iteracao) 
                 
@@ -80,9 +100,5 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
         return horarios_disponiveis
 
     except Exception as e:
-        # Usar o logger da aplicação Flask seria melhor aqui, mas print funciona por agora
         print(f"ERRO CRÍTICO ao calcular horários: {e}") 
-        # Considerar logar traceback: import traceback; traceback.print_exc()
-        return [] # Retorna lista vazia em caso de erro
-
-# --- OUTRAS FUNÇÕES UTILITÁRIAS PODEM SER ADICIONADAS AQUI ---
+        return []
