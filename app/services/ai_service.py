@@ -219,42 +219,70 @@ def listar_servicos(barbearia_id: int) -> str:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_servicos': {e}", exc_info=True)
         return f"Erro ao listar serviços: Ocorreu um erro interno."
 
+# app/services/ai_service.py
+
+# ... (imports e resto do código anterior continuam iguais) ...
+
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
     try:
         with current_app.app_context():
-            # --- PLANO B: BUSCA INTELIGENTE DE PROFISSIONAL ---
+            # 1. Identifica Profissional e Loja
             todos_profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
-            nomes_profs = [p.nome for p in todos_profs]
+            nome_correto = encontrar_melhor_match(profissional_nome, [p.nome for p in todos_profs])
             
-            nome_correto = encontrar_melhor_match(profissional_nome, nomes_profs)
+            if not nome_correto: 
+                return f"Profissional '{profissional_nome}' não encontrado."
             
-            if not nome_correto:
-                return f"Profissional '{profissional_nome}' não encontrado. Opções: {', '.join(nomes_profs)}."
+            profissional = next(p for p in todos_profs if p.nome == nome_correto)
+            barbearia = profissional.barbearia
             
-            profissional = next((p for p in todos_profs if p.nome == nome_correto), None)
-            # --------------------------------------------------
-            
+            # 2. Identifica a Data
             agora_br = datetime.now(BR_TZ)
-            
-            if dia.lower() == 'hoje':
-                dia_dt = agora_br
-            elif dia.lower() == 'amanhã':
-                dia_dt = agora_br + timedelta(days=1)
+            if dia.lower() == 'hoje': dia_dt = agora_br
+            elif dia.lower() == 'amanhã': dia_dt = agora_br + timedelta(days=1)
             else:
-                try:
-                    dia_dt_naive = datetime.strptime(dia, '%Y-%m-%d')
-                    dia_dt = BR_TZ.localize(dia_dt_naive)
-                except ValueError:
-                    return "Formato de data inválido. Use 'hoje', 'amanhã' ou 'AAAA-MM-DD'."
+                try: dia_dt = BR_TZ.localize(datetime.strptime(dia, '%Y-%m-%d'))
+                except: return "Data inválida. Use 'hoje', 'amanhã' ou AAAA-MM-DD."
             
-            horarios_dt_list = calcular_horarios_disponiveis_util(profissional, dia_dt)
-            horarios_str_list = [h.strftime('%H:%M') for h in horarios_dt_list]
-            dia_formatado = dia_dt.strftime('%d/%m/%Y') 
-            return f"Horários disponíveis para {nome_correto} em {dia_formatado}: {', '.join(horarios_str_list) or 'Nenhum horário encontrado.'}"
-    except Exception as e:
-        current_app.logger.error(f"Erro no wrapper 'calcular_horarios_disponiveis': {e}", exc_info=True)
-        return "Desculpe, ocorreu um erro ao verificar os horários."
+            # 3. 🛡️ LÓGICA DE BLOQUEIO INTELIGENTE (Conectada ao Painel)
+            # Lê EXATAMENTE o que você salvou em Configurações
+            dias_txt = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado').lower()
+            dia_semana = dia_dt.weekday() # 0=Segunda, 6=Domingo
+            
+            dias_proibidos = []
+            
+            # Interpreta o texto das configurações
+            if 'terça' in dias_txt and 'sábado' in dias_txt: # "Terça a Sábado"
+                dias_proibidos = [0, 6] # Seg e Dom
+            elif 'segunda' in dias_txt and 'sexta' in dias_txt: # "Segunda a Sexta"
+                dias_proibidos = [5, 6] # Sab e Dom
+            elif 'segunda' in dias_txt and 'sábado' in dias_txt: # "Segunda a Sábado"
+                dias_proibidos = [6] # Só Dom
+            elif dia_semana == 0 and 'segunda' not in dias_txt: # Fallback seguro
+                dias_proibidos = [0]
 
+            if dia_semana in dias_proibidos:
+                nomes_dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
+                nome_dia = nomes_dias[dia_semana]
+                
+                # Ajuste de Artigo (O/A) baseado no nicho
+                nome_negocio = barbearia.nome_fantasia.lower()
+                is_lash = any(x in nome_negocio for x in ['lash', 'cílios', 'sobrancelha', 'studio', 'estética'])
+                artigo = "A" if is_lash else "O"
+                
+                return f"INFORMAÇÃO: {artigo} {profissional.nome} (e o estabelecimento) NÃO atende às {nome_dia}s. O horário configurado no sistema é: {barbearia.dias_funcionamento}. Peça para o cliente escolher outro dia."
+
+            # 4. Cálculo Matemático
+            # Esta função (do utils.py) JÁ LÊ o horário de abertura/fechamento do banco também!
+            horarios = calcular_horarios_disponiveis_util(profissional, dia_dt)
+            lista_h = [h.strftime('%H:%M') for h in horarios]
+            
+            return f"Horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}: {', '.join(lista_h) or 'Sem horários livres neste dia.'}"
+            
+    except Exception as e:
+        return f"Erro ao calcular horários: {str(e)}"
+
+# ... (resto do arquivo continua igual) ...
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
     try:
         with current_app.app_context():
