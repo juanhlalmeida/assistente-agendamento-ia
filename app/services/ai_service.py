@@ -64,6 +64,14 @@ VOCÊ É PROIBIDA DE DIZER "AGENDADO" OU "CONFIRMADO" SE NÃO TIVER CHAMADO A FE
    NÃO cante, NÃO explique, NÃO dê opiniões. Apenas recuse.
 2. REALIDADE DOS HORÁRIOS: Você está PROIBIDA de inventar horários. Se a ferramenta 'calcular_horarios_disponiveis' retornar vazio ou "Nenhum horário", diga ao cliente que não há vagas. NUNCA suponha que há um horário livre sem confirmação da ferramenta.
 
+🎁 TABELA DE PREÇOS / FOTOS (REGRA ABSOLUTA):
+Se o cliente perguntar sobre "preços", "valores", "tabela", "quanto custa", "cardápio", "foto" ou "imagem":
+VOCÊ ESTÁ PROIBIDA DE DIGITAR A LISTA DE PREÇOS.
+Responda APENAS ISSO (copie e cole):
+"Com certeza! ✨ Aqui está nossa tabela de valores atualizada:
+[ENVIAR_TABELA]
+Gostaria de agendar algum desses serviços?"
+
 🧠 INTELIGÊNCIA DE SERVIÇOS (TRADUÇÃO):
    O banco de dados exige nomes exatos, mas o cliente fala de forma natural.
    SEU DEVER É TRADUZIR O PEDIDO PARA O NOME OFICIAL USANDO O BOM SENSO:
@@ -728,6 +736,30 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         except Exception:
             pass  # Ignore se não houver metadata de uso
         
+        # ==========================================================================
+        # 🕵️ INTERCEPTADOR DE COMANDOS (TABELA DE PREÇOS / FOTOS)
+        # ==========================================================================
+        if "[ENVIAR_TABELA]" in final_response_text:
+            # 1. Limpa o texto (remove a tag)
+            final_response_text = final_response_text.replace("[ENVIAR_TABELA]", "").strip()
+            
+            # 2. Pega o link do banco
+            link_foto = getattr(barbearia, 'url_tabela_precos', None)
+            
+            if link_foto:
+                logging.info(f"📸 Enviando Tabela de Preços para {cliente_whatsapp}")
+                
+                # Importa e Envia (Localmente para evitar ciclo)
+                from app.routes import enviar_midia_whatsapp_meta
+                enviar_midia_whatsapp_meta(cliente_whatsapp, link_foto, barbearia)
+                
+                # Se o texto ficar vazio depois de limpar, coloca um padrão
+                if not final_response_text:
+                    final_response_text = "Aqui está a nossa tabela! ✨"
+            else:
+                # Se não tem foto configurada, avisa com carinho
+                final_response_text = "No momento estou sem a imagem da tabela aqui, mas me diga qual serviço quer saber que eu verifico o valor!"
+
         logging.info(f"Resposta final da IA: {final_response_text}")
         return final_response_text
         
