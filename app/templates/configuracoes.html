@@ -10,37 +10,88 @@
         <p class="text-text-secondary-dark">Personalize horários, cores e a inteligência artificial.</p>
     </div>
 
-    <form method="POST" class="space-y-6">
+    {# ATENÇÃO: Adicionado enctype="multipart/form-data" para permitir upload de arquivos #}
+    <form method="POST" enctype="multipart/form-data" class="space-y-6">
         
-        {# --- CARTÃO 1: HORÁRIOS --- #}
+        {# --- CARTÃO 1: HORÁRIOS & CONTATO --- #}
         <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5">
             <h2 class="text-xl font-bold text-primary flex items-center gap-2 mb-4">
                 <span class="material-symbols-outlined">schedule</span>
                 Horários de Atendimento
             </h2>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {# Alterado de grid-cols-2 para grid-cols-3 para caber o Sábado #}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-medium text-text-secondary-dark mb-1">Abertura</label>
                     <input type="time" name="horario_abertura" value="{{ barbearia.horario_abertura or '09:00' }}" required
                            class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Fechamento</label>
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Fechamento (Seg-Sex)</label>
                     <input type="time" name="horario_fechamento" value="{{ barbearia.horario_fechamento or '19:00' }}" required
                            class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Fechamento (Sábado)</label>
+                    <input type="time" name="horario_fechamento_sabado" value="{{ barbearia.horario_fechamento_sabado or '14:00' }}" required
+                           class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors border-dashed border-gray-600">
+                </div>
             </div>
 
-            <div>
+            <div class="mb-6">
                 <label class="block text-sm font-medium text-text-secondary-dark mb-1">Dias de Funcionamento (Texto)</label>
                 <input type="text" name="dias_funcionamento" value="{{ barbearia.dias_funcionamento }}" placeholder="Ex: Terça a Sábado"
                        class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
                 <p class="text-xs text-gray-500 mt-2">ℹ️ A IA usará este texto exato para responder aos clientes.</p>
             </div>
+
+            <hr class="border-gray-700 my-4">
+
+            {# CAMPO NOVO: TELEFONE DO DONO #}
+            <div>
+                 <label class="block text-sm font-medium text-text-secondary-dark mb-1">Telefone do Dono (Para Notificações)</label>
+                 <div class="flex gap-2">
+                     <span class="bg-primary/20 text-primary p-3 rounded-lg material-symbols-outlined flex items-center justify-center">notifications_active</span>
+                     <input type="text" name="telefone_admin" value="{{ barbearia.telefone_admin or '' }}" placeholder="Ex: 5511999999999"
+                            class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
+                 </div>
+                 <p class="text-xs text-gray-500 mt-1">Coloque o número com código do país (55) e DDD. O Robô avisará aqui quando tiver agendamento.</p>
+            </div>
         </div>
 
-        {# --- CARTÃO 2: PERSONALIZAÇÃO VISUAL --- #}
+        {# --- CARTÃO 2: TABELA DE PREÇOS (UPLOAD) --- #}
+        <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5">
+             <h2 class="text-xl font-bold text-primary flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined">image</span>
+                Tabela de Preços (Imagem)
+            </h2>
+            
+            <div class="flex flex-col md:flex-row items-center gap-4">
+                {# Pré-visualização se já tiver imagem #}
+                {% if barbearia.url_tabela_precos %}
+                <div class="relative group shrink-0">
+                    <img src="{{ barbearia.url_tabela_precos }}" class="h-24 w-24 object-cover rounded-lg border border-gray-600 shadow-sm">
+                    <span class="absolute bottom-0 left-0 bg-green-500 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-bl-lg rounded-tr-lg">Salva</span>
+                </div>
+                {% endif %}
+
+                <div class="flex-1 w-full">
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Enviar Nova Imagem</label>
+                    <input type="file" name="arquivo_tabela" accept="image/*"
+                           class="block w-full text-sm text-gray-400
+                                  file:mr-4 file:py-2 file:px-4
+                                  file:rounded-lg file:border-0
+                                  file:text-sm file:font-semibold
+                                  file:bg-primary file:text-white
+                                  hover:file:brightness-110 cursor-pointer
+                                  bg-background-dark rounded-lg border border-gray-700">
+                    <p class="text-xs text-gray-500 mt-2">Formatos: JPG ou PNG. Será enviada automaticamente quando o cliente pedir "preço" ou "tabela".</p>
+                </div>
+            </div>
+        </div>
+
+        {# --- CARTÃO 3: PERSONALIZAÇÃO VISUAL --- #}
         <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5">
             <h2 class="text-xl font-bold text-primary flex items-center gap-2 mb-4">
                 <span class="material-symbols-outlined">palette</span>
