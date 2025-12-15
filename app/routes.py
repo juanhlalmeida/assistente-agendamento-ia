@@ -6,6 +6,7 @@ import logging
 import json
 import requests
 import threading
+from werkzeug.utils import secure_filename # <--- IMPORT NOVO PARA UPLOAD
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
 from sqlalchemy.orm import joinedload
@@ -117,6 +118,39 @@ def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: B
         return True
     except requests.exceptions.RequestException as e:
         logging.error(f"❌ Erro ao enviar mensagem via Meta: {e}")
+        return False
+
+# --- NOVO: FUNÇÃO PARA ENVIAR MÍDIA (FOTO/PDF) ---
+def enviar_midia_whatsapp_meta(destinatario: str, url_arquivo: str, barbearia: Barbearia):
+    """
+    Envia imagem para o WhatsApp do cliente via Meta API.
+    """
+    if not url_arquivo: return False
+    
+    # Remove prefixo whatsapp: se existir
+    if destinatario.startswith('whatsapp:'):
+        destinatario = destinatario.replace('whatsapp:', '')
+
+    url = f"https://graph.facebook.com/v19.0/{barbearia.meta_phone_number_id}/messages"
+    headers = {"Authorization": f"Bearer {barbearia.meta_access_token}", "Content-Type": "application/json"}
+    
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": destinatario,
+        "type": "image", 
+        "image": {"link": url_arquivo}
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        # Não damos raise_for_status aqui para não quebrar o fluxo se a URL for inválida temporariamente
+        if response.status_code == 200:
+            logging.info(f"✅ Mídia enviada com sucesso para {destinatario}")
+            return True
+        else:
+            logging.error(f"❌ Erro Meta Media: {response.text}")
+            return False
+    except Exception as e:
+        logging.error(f"❌ Erro ao enviar mídia: {e}")
         return False
 
 # --- NOVO: FUNÇÃO MARCAR COMO LIDO ---
@@ -283,6 +317,27 @@ def agenda():
                 )
                 db.session.add(novo_agendamento)
                 db.session.commit()
+                
+                # =================================================================
+                # 🔔 NOTIFICAÇÃO PARA O DONO (NOVO - Se tiver telefone configurado)
+                # =================================================================
+                try:
+                    barbearia_dono = profissional.barbearia
+                    if barbearia_dono.telefone_admin and barbearia_dono.assinatura_ativa:
+                        msg_dono = (
+                            f"🔔 *Novo Agendamento (Via Painel)*\n\n"
+                            f"👤 Cliente: {nome_cliente}\n"
+                            f"📞 Tel: {telefone_cliente}\n"
+                            f"✂️ Serviço: {servico.nome}\n"
+                            f"🗓 Data: {novo_inicio.strftime('%d/%m às %H:%M')}\n"
+                            f"💈 Prof: {profissional.nome}"
+                        )
+                        enviar_mensagem_whatsapp_meta(barbearia_dono.telefone_admin, msg_dono, barbearia_dono)
+                except Exception as e_notify:
+                    # Não bloqueia o agendamento se a notificação falhar
+                    logging.error(f"Erro ao notificar dono: {e_notify}")
+                # =================================================================
+
                 flash('Agendamento criado com sucesso!', 'success')
         
         except ValueError as ve:
@@ -568,7 +623,7 @@ def webhook_meta():
         return "Método não permitido", 405
 
 # ============================================
-# ⚙️ ROTA DE CONFIGURAÇÕES (NOVA)
+# ⚙️ ROTA DE CONFIGURAÇÕES (ATUALIZADA)
 # ============================================
 @bp.route('/configuracoes', methods=['GET', 'POST'])
 @login_required
@@ -582,20 +637,42 @@ def configuracoes():
 
     if request.method == 'POST':
         try:
-            # 1. Captura dados do formulário
-            h_abre = request.form.get('horario_abertura')
-            h_fecha = request.form.get('horario_fechamento')
-            dias = request.form.get('dias_funcionamento')
-            cor = request.form.get('cor_primaria')
-            emojis = request.form.get('emojis_sistema')
+            # 1. Captura dados de texto
+            barbearia.horario_abertura = request.form.get('horario_abertura')
+            barbearia.horario_fechamento = request.form.get('horario_fechamento')
+            barbearia.horario_fechamento_sabado = request.form.get('horario_fechamento_sabado') # <--- NOVO
+            barbearia.dias_funcionamento = request.form.get('dias_funcionamento')
+            barbearia.cor_primaria = request.form.get('cor_primaria')
+            barbearia.emojis_sistema = request.form.get('emojis_sistema')
 
-            # 2. Atualiza no Banco
-            barbearia.horario_abertura = h_abre
-            barbearia.horario_fechamento = h_fecha
-            barbearia.dias_funcionamento = dias
-            barbearia.cor_primaria = cor
-            barbearia.emojis_sistema = emojis
-            
+            # Limpa telefone
+            raw_tel = request.form.get('telefone_admin')
+            if raw_tel:
+                barbearia.telefone_admin = ''.join(filter(str.isdigit, raw_tel))
+
+            # 2. LÓGICA DE UPLOAD DA FOTO (NOVA E SEGURA) 📸
+            arquivo = request.files.get('arquivo_tabela')
+            if arquivo and arquivo.filename != '':
+                # Define pasta de salvamento (Render Disk)
+                pasta_uploads = os.path.join(current_app.root_path, 'static', 'uploads')
+                os.makedirs(pasta_uploads, exist_ok=True)
+                
+                # RENOMEIA USANDO O ID DA BARBEARIA (Segurança)
+                extensao = os.path.splitext(arquivo.filename)[1] # ex: .jpg
+                if not extensao: extensao = '.jpg'
+                
+                nome_seguro = f"tabela_{barbearia.id}{extensao}" # Ex: tabela_1.jpg
+                
+                caminho_completo = os.path.join(pasta_uploads, nome_seguro)
+                arquivo.save(caminho_completo)
+                
+                # Gera o Link Completo
+                # request.host_url retorna algo como "https://meuapp.onrender.com/"
+                url_base = request.host_url.rstrip('/') 
+                url_final = f"{url_base}/static/uploads/{nome_seguro}"
+                
+                barbearia.url_tabela_precos = url_final
+
             db.session.commit()
             flash('✅ Configurações salvas com sucesso!', 'success')
             
