@@ -38,11 +38,22 @@ class Barbearia(db.Model):
     # Horários (Editáveis pelo Dono no Painel)
     horario_abertura = db.Column(db.String(5), default="09:00")      # Ex: "09:00"
     horario_fechamento = db.Column(db.String(5), default="19:00")    # Ex: "19:00"
+    
+    # --- NOVO: Horário de Sábado (Funcionalidade criada hoje) ---
+    horario_fechamento_sabado = db.Column(db.String(5), default="14:00")
+    
     dias_funcionamento = db.Column(db.String(50), default="Terça a Sábado") # Ex: "Segunda a Sexta"
 
     # Personalização Visual e de Comportamento (IA)
     cor_primaria = db.Column(db.String(7), nullable=True)      # Ex: "#EC4899" (Para o Painel)
     emojis_sistema = db.Column(db.String(100), nullable=True)  # Ex: "🦋✨💖" (Para a IA)
+
+    # --- NOVOS CAMPOS (Funcionalidades Extras) ---
+    # Telefone pessoal do Dono para receber notificação de agendamento
+    telefone_admin = db.Column(db.String(20), nullable=True)
+    
+    # Link da Imagem da Tabela de Preços (Segurança por ID)
+    url_tabela_precos = db.Column(db.String(500), nullable=True)
 
     # Relações: Define o que "pertence" a esta barbearia
     # O 'cascade="all, delete-orphan"' significa que se uma barbearia for
