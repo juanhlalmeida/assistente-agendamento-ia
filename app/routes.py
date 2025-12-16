@@ -319,18 +319,33 @@ def agenda():
                 db.session.commit()
                 
                 # =================================================================
-                # 🔔 NOTIFICAÇÃO PARA O DONO (NOVO - Se tiver telefone configurado)
+                # 🔔 NOTIFICAÇÃO PARA O DONO (COM TEMA DINÂMICO LASH/BARBER)
                 # =================================================================
                 try:
                     barbearia_dono = profissional.barbearia
                     if barbearia_dono.telefone_admin and barbearia_dono.assinatura_ativa:
+                        
+                        # --- DETECÇÃO DE TEMA DINÂMICO ---
+                        nome_loja = barbearia_dono.nome_fantasia.lower()
+                        # Lista de palavras-chave para o nicho de beleza
+                        is_lash = any(x in nome_loja for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'beleza', 'estética'])
+                        
+                        if is_lash:
+                            emoji_titulo = "🦋✨"
+                            emoji_servico = "💅"
+                            emoji_prof = "👩‍⚕️"
+                        else:
+                            emoji_titulo = "💈✂️"
+                            emoji_servico = "🪒"
+                            emoji_prof = "👊"
+
                         msg_dono = (
-                            f"🔔 *Novo Agendamento (Via Painel)*\n\n"
+                            f"🔔 *Novo Agendamento (Via Painel)* {emoji_titulo}\n\n"
                             f"👤 Cliente: {nome_cliente}\n"
                             f"📞 Tel: {telefone_cliente}\n"
-                            f"✂️ Serviço: {servico.nome}\n"
+                            f"{emoji_servico} Serviço: {servico.nome}\n"
                             f"🗓 Data: {novo_inicio.strftime('%d/%m às %H:%M')}\n"
-                            f"💈 Prof: {profissional.nome}"
+                            f"{emoji_prof} Prof: {profissional.nome}"
                         )
                         enviar_mensagem_whatsapp_meta(barbearia_dono.telefone_admin, msg_dono, barbearia_dono)
                 except Exception as e_notify:
