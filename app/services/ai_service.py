@@ -40,9 +40,10 @@ from thefuzz import process
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- PROMPT OTIMIZADO (AGORA COM PLACEHOLDER PARA A PERSONA DINÂMICA) ---
-# Alteramos o início para {header_persona} para aceitar Lash ou Barbearia
-SYSTEM_INSTRUCTION_TEMPLATE = """
+# ==============================================================================
+# 🧠 PROMPT 1: MODO CLIENTE (O Original, preservado e renomeado)
+# ==============================================================================
+SYSTEM_INSTRUCTION_CLIENTE = """
 {header_persona}
 
 OBJETIVO: Agendamentos. Foco 100%.
@@ -103,6 +104,34 @@ REGRAS GERAIS:
    Aguardamos você!"
 9. Preços variáveis: repetir "(a partir de)" se retornado
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
+"""
+
+# ==============================================================================
+# 👩‍💼 PROMPT 2: MODO SECRETÁRIA (NOVO - Para a Dona Carol/Barbeiro)
+# ==============================================================================
+SYSTEM_INSTRUCTION_SECRETARIA = """
+VOCÊ É A SECRETÁRIA PESSOAL DO(A) DONO(A) DA LOJA.
+Quem está falando com você AGORA é o(a) PROPRIETÁRIO(A) (Boss).
+
+SEU OBJETIVO:
+Ajudar o dono a gerenciar o dia. Você NÃO deve agendar nada para ele(a) (ele já sabe fazer isso).
+Você deve RESPONDER perguntas sobre a agenda e dar relatórios.
+
+FERRAMENTA PRINCIPAL: `consultar_agenda_dono`
+Use essa ferramenta para ver quem está marcado.
+
+COMO AGIR:
+- Seja ultra-eficiente e proativa.
+- Se ele perguntar "O que tenho hoje?", liste os horários cronologicamente.
+- Se perguntar "Como está a semana?", faça um resumo.
+- Use emojis de check ✅ e alerta ⚠️.
+- Use tom de respeito e parceria ("Chefe", "Patroa", "Amiga" dependendo do contexto).
+
+EXEMPLO DE RESPOSTA (Relatório):
+"Olá Chefe! 🫡 Aqui está sua agenda para Hoje ({data_de_hoje}):
+14:00 - Maria (Cílios) com Carol
+15:30 - Joana (Design) com Carol
+Total: 2 clientes."
 """
 # ---------------------------------------
 
@@ -227,10 +256,6 @@ def listar_servicos(barbearia_id: int) -> str:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_servicos': {e}", exc_info=True)
         return f"Erro ao listar serviços: Ocorreu um erro interno."
 
-# app/services/ai_service.py
-
-# ... (imports e resto do código anterior continuam iguais) ...
-
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
     try:
         with current_app.app_context():
@@ -290,7 +315,38 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
     except Exception as e:
         return f"Erro ao calcular horários: {str(e)}"
 
-# ... (resto do arquivo continua igual) ...
+# --- NOVA TOOL: CONSULTAR AGENDA DO DONO (MODO SECRETÁRIA) ---
+def consultar_agenda_dono(barbearia_id: int, data_inicio: str, data_fim: str) -> str:
+    """Retorna os agendamentos confirmados para o dono ver."""
+    try:
+        with current_app.app_context():
+            # Converte strings para data
+            agora = datetime.now(BR_TZ)
+            if data_inicio.lower() == 'hoje': dt_ini = agora.replace(hour=0, minute=0)
+            else: dt_ini = datetime.strptime(data_inicio, '%Y-%m-%d')
+            
+            if data_fim.lower() == 'hoje': dt_fim = agora.replace(hour=23, minute=59)
+            elif data_fim == 'mesmo_dia': dt_fim = dt_ini.replace(hour=23, minute=59)
+            else: dt_fim = datetime.strptime(data_fim, '%Y-%m-%d')
+
+            agendamentos = Agendamento.query.filter(
+                Agendamento.barbearia_id == barbearia_id,
+                Agendamento.data_hora >= dt_ini,
+                Agendamento.data_hora <= dt_fim
+            ).order_by(Agendamento.data_hora).all()
+
+            if not agendamentos:
+                return f"Nenhum agendamento encontrado entre {dt_ini.strftime('%d/%m')} e {dt_fim.strftime('%d/%m')}."
+
+            relatorio = []
+            for ag in agendamentos:
+                linha = f"🕒 {ag.data_hora.strftime('%H:%M')} - {ag.nome_cliente} ({ag.servico.nome}) com {ag.profissional.nome}"
+                relatorio.append(linha)
+            
+            return "\n".join(relatorio)
+    except Exception as e:
+        return f"Erro ao consultar agenda: {e}"
+
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
     try:
         with current_app.app_context():
@@ -345,6 +401,40 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
             )
             db.session.add(novo_agendamento)
             db.session.commit()
+            
+            # ==========================================================
+            # 🔔 NOTIFICAÇÃO AUTOMÁTICA PRO DONO (NOVIDADE)
+            # ==========================================================
+            try:
+                # Importa aqui dentro para evitar erro de ciclo (Circular Import)
+                from app.routes import enviar_mensagem_whatsapp_meta
+                
+                barbearia_dono = profissional.barbearia
+                if barbearia_dono.telefone_admin and barbearia_dono.assinatura_ativa:
+                    # Lógica de Emojis Dinâmicos para a Notificação
+                    nome_loja = barbearia_dono.nome_fantasia.lower()
+                    is_lash = any(x in nome_loja for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'beleza'])
+                    
+                    if is_lash:
+                        emoji_titulo = "🦋✨"
+                        emoji_servico = "💅"
+                    else:
+                        emoji_titulo = "💈✂️"
+                        emoji_servico = "🪒"
+
+                    msg_dono = (
+                        f"🔔 *Novo Agendamento (Via IA)* {emoji_titulo}\n\n"
+                        f"👤 {nome_cliente}\n"
+                        f"📅 {data_hora_dt.strftime('%d/%m às %H:%M')}\n"
+                        f"{emoji_servico} {servico.nome}\n"
+                        f"👋 Prof: {profissional.nome}"
+                    )
+                    enviar_mensagem_whatsapp_meta(barbearia_dono.telefone_admin, msg_dono, barbearia_dono)
+                    logging.info(f"🔔 Notificação enviada para o dono {barbearia_dono.telefone_admin}")
+            except Exception as e:
+                logging.error(f"Erro ao notificar dono: {e}")
+            # ==========================================================
+
             data_hora_formatada = data_hora_dt.strftime('%d/%m/%Y às %H:%M')
             return f"Agendamento criado com sucesso para {nome_cliente} em {data_hora_formatada} com {profissional.nome} para {servico.nome}."
     except Exception as e:
@@ -394,7 +484,7 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
         return f"Erro ao cancelar agendamento: {str(e)}"
 
 # ---------------------------------------------------------------------
-# DEFINIÇÃO DAS TOOLS (Preservada + 1 Nova)
+# DEFINIÇÃO DAS TOOLS (Atualizada com a Nova Tool)
 # ---------------------------------------------------------------------
 listar_profissionais_func = FunctionDeclaration(
     name="listar_profissionais",
@@ -445,13 +535,28 @@ cancelar_agendamento_func = FunctionDeclaration(
     }
 )
 
+# --- NOVA DEFINIÇÃO DE TOOL ---
+consultar_agenda_func = FunctionDeclaration(
+    name="consultar_agenda_dono",
+    description="Exclusivo para o dono. Consulta os agendamentos marcados em um período.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "data_inicio": {"type": "string", "description": "Data inicial YYYY-MM-DD ou 'hoje'"},
+            "data_fim": {"type": "string", "description": "Data final YYYY-MM-DD ou 'mesmo_dia' para ver só 1 dia"}
+        },
+        "required": ["data_inicio", "data_fim"]
+    }
+)
+
 tools = Tool(
     function_declarations=[
         listar_profissionais_func,
         listar_servicos_func,
         calcular_horarios_disponiveis_func,
         criar_agendamento_func,
-        cancelar_agendamento_func
+        cancelar_agendamento_func,
+        consultar_agenda_func # Adicionado aqui
     ]
 )
 
@@ -536,7 +641,7 @@ def deserialize_history(json_string: str) -> list[Content]:
         history_list.append(Content(role=item.get('role'), parts=deserial_parts))
     return history_list
 
-# --- FUNÇÃO PRINCIPAL DE PROCESSAMENTO (Refatorada para Cache) ---
+# --- FUNÇÃO PRINCIPAL DE PROCESSAMENTO (Refatorada para Cache e Modo Secretária) ---
 def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
     """
     Processa a mensagem do usuário usando o Gemini, mantendo o histórico
@@ -568,53 +673,67 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         agora_br = datetime.now(BR_TZ)
         data_hoje_str = agora_br.strftime('%Y-%m-%d')
         data_amanha_str = (agora_br + timedelta(days=1)).strftime('%Y-%m-%d')
+
+        # --- VERIFICAÇÃO DE IDENTIDADE: É A PATROA/PATRÃO? 🕵️‍♀️ ---
+        # Limpa números para comparar (remove espaços, traços, etc)
+        tel_cliente_limpo = ''.join(filter(str.isdigit, cliente_whatsapp))
+        tel_admin_limpo = ''.join(filter(str.isdigit, barbearia.telefone_admin or ''))
         
-        # --- LÓGICA MULTI-TENANCY (BARBEARIA VS LASH) ---
-        nome_lower = barbearia.nome_fantasia.lower()
-        eh_lash = any(x in nome_lower for x in ['lash', 'cílios', 'sobrancelha', 'estética', 'beauty', 'studio'])
-
-        if eh_lash:
-            # Configuração para Studio Lash
-            header_persona = f"""
-            PERSONA: Assistente Virtual do {barbearia.nome_fantasia} (Studio de Beleza/Lash).
-            TOM: Feminino, delicado, simpática. Use: 'Querida', 'Amiga'.
-            EMOJIS OBRIGATÓRIOS: 🦋 ✨ 💖 👁️
-            """
-        else:
-            # Configuração para Barbearia (Padrão)
-            header_persona = f"""
-            PERSONA: Assistente da {barbearia.nome_fantasia} (Barbearia).
-            TOM: Brother, prático, gente boa. Use: 'Cara', 'Mano', 'Campeão'.
-            EMOJIS OBRIGATÓRIOS: ✂️ 💈 👊 🔥
-            """
-        # -----------------------------------------------
-
-        # 4. 🔥 LÓGICA DE PROFISSIONAL ÚNICO 🔥
-        profs_db = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
-        qtd_profs = len(profs_db)
+        # Verifica se os números batem (com ou sem o 55, pra garantir)
+        # O 'and tel_admin_limpo' garante que não bugue se o campo estiver vazio
+        eh_o_dono = (tel_admin_limpo and tel_admin_limpo in tel_cliente_limpo) or (tel_cliente_limpo in tel_admin_limpo)
         
-        if qtd_profs == 1:
-            # SÓ TEM UM: Força a IA a usar ele
-            nome_unico = profs_db[0].nome
-            regra_profissional = f"""
-            ATENÇÃO: Só existe 1 profissional neste estabelecimento: {nome_unico}.
-            NÃO pergunte 'com quem prefere fazer'.
-            Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e prossiga para verificar horários.
-            """
+        if eh_o_dono:
+            logging.info(f"👑 MODO SECRETÁRIA ATIVADO para {cliente_whatsapp}")
+            system_prompt = SYSTEM_INSTRUCTION_SECRETARIA.format(
+                data_de_hoje=agora_br.strftime('%d/%m/%Y')
+            )
         else:
-            # TEM VÁRIOS: Pergunta normal
-            regra_profissional = "Pergunte ao cliente a preferência de profissional caso ele não diga."
+            # --- LÓGICA MULTI-TENANCY (BARBEARIA VS LASH) - MODO CLIENTE ---
+            nome_lower = barbearia.nome_fantasia.lower()
+            eh_lash = any(x in nome_lower for x in ['lash', 'cílios', 'sobrancelha', 'estética', 'beauty', 'studio'])
 
-        # 5. Monta o Prompt Final
-        agora = datetime.now(BR_TZ)
-        system_prompt = SYSTEM_INSTRUCTION_TEMPLATE.format(
-            header_persona=header_persona,
-            cliente_whatsapp=cliente_whatsapp,
-            barbearia_id=barbearia_id,
-            data_de_hoje=agora.strftime('%Y-%m-%d'),
-            data_de_amanha=(agora + timedelta(days=1)).strftime('%Y-%m-%d'),
-            regra_profissional_dinamica=regra_profissional
-        )
+            if eh_lash:
+                # Configuração para Studio Lash
+                header_persona = f"""
+                PERSONA: Assistente Virtual do {barbearia.nome_fantasia} (Studio de Beleza/Lash).
+                TOM: Feminino, delicado, simpática. Use: 'Querida', 'Amiga'.
+                EMOJIS OBRIGATÓRIOS: 🦋 ✨ 💖 👁️
+                """
+            else:
+                # Configuração para Barbearia (Padrão)
+                header_persona = f"""
+                PERSONA: Assistente da {barbearia.nome_fantasia} (Barbearia).
+                TOM: Brother, prático, gente boa. Use: 'Cara', 'Mano', 'Campeão'.
+                EMOJIS OBRIGATÓRIOS: ✂️ 💈 👊 🔥
+                """
+            # -----------------------------------------------
+
+            # 4. 🔥 LÓGICA DE PROFISSIONAL ÚNICO 🔥
+            profs_db = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
+            qtd_profs = len(profs_db)
+            
+            if qtd_profs == 1:
+                # SÓ TEM UM: Força a IA a usar ele
+                nome_unico = profs_db[0].nome
+                regra_profissional = f"""
+                ATENÇÃO: Só existe 1 profissional neste estabelecimento: {nome_unico}.
+                NÃO pergunte 'com quem prefere fazer'.
+                Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e prossiga para verificar horários.
+                """
+            else:
+                # TEM VÁRIOS: Pergunta normal
+                regra_profissional = "Pergunte ao cliente a preferência de profissional caso ele não diga."
+
+            # 5. Monta o Prompt Final (CLIENTE)
+            system_prompt = SYSTEM_INSTRUCTION_CLIENTE.format(
+                header_persona=header_persona,
+                cliente_whatsapp=cliente_whatsapp,
+                barbearia_id=barbearia_id,
+                data_de_hoje=data_hoje_str,
+                data_de_amanha=data_amanha_str,
+                regra_profissional_dinamica=regra_profissional
+            )
         
         is_new_chat = not history_to_load
         
@@ -665,6 +784,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 "calcular_horarios_disponiveis": calcular_horarios_disponiveis,
                 "criar_agendamento": criar_agendamento,
                 "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
+                "consultar_agenda_dono": consultar_agenda_dono # ADICIONADO NO MAPA
             }
             
             if function_name in tool_map:
