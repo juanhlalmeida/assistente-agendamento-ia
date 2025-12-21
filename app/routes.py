@@ -261,8 +261,6 @@ def agenda():
         flash('Acesso não permitido ou usuário inválido.', 'danger')
         return redirect(url_for('main.login'))
     
-    # ... (o resto da função continua igual)
-    
     barbearia_id_logada = current_user.barbearia_id
     
     if request.method == 'POST':
@@ -704,6 +702,63 @@ def configuracoes():
 
     return render_template('configuracoes.html', barbearia=barbearia)
 
+# ============================================
+# 👑 ROTAS DO SUPER ADMIN (GESTÃO DE BARBEARIAS)
+# ============================================
+
+@bp.route('/admin/barbearias', methods=['GET'])
+@login_required
+def admin_barbearias():
+    if current_user.role != 'super_admin':
+        flash('Acesso restrito.', 'danger')
+        return redirect(url_for('main.login'))
+    barbearias = Barbearia.query.order_by(Barbearia.id).all()
+    return render_template('admin_barbearias.html', barbearias=barbearias)
+
+@bp.route('/admin/barbearia/editar/<int:barbearia_id>', methods=['GET', 'POST'])
+@login_required
+def admin_editar_barbearia(barbearia_id):
+    # 1. Segurança
+    if current_user.role != 'super_admin':
+        flash('Acesso restrito.', 'danger')
+        return redirect(url_for('main.login'))
+
+    barbearia = Barbearia.query.get_or_404(barbearia_id)
+
+    if request.method == 'POST':
+        # 2. Atualiza dados da empresa (Conforme imagem que você mandou)
+        barbearia.nome_fantasia = request.form.get('nome_fantasia')
+        
+        raw_tel = request.form.get('telefone_whatsapp')
+        if raw_tel:
+            barbearia.telefone_admin = ''.join(filter(str.isdigit, raw_tel)) # O campo no model é telefone_admin
+
+        barbearia.meta_phone_number_id = request.form.get('meta_phone_number_id')
+        barbearia.meta_access_token = request.form.get('meta_access_token')
+        
+        status = request.form.get('status_assinatura')
+        if status:
+            barbearia.status_assinatura = status
+
+        # 3. 🔑 LOGICA DE TROCA DE SENHA DO CLIENTE (O QUE VC PEDIU)
+        nova_senha = request.form.get('nova_senha_admin')
+        if nova_senha and nova_senha.strip():
+            # Busca o dono da barbearia
+            dono = User.query.filter_by(barbearia_id=barbearia.id).first()
+            if dono:
+                dono.set_password(nova_senha)
+                flash(f'✅ Dados salvos e SENHA DO CLIENTE alterada para: {nova_senha}', 'success')
+            else:
+                flash('Dados salvos, mas esta barbearia não tem usuário vinculado para trocar senha.', 'warning')
+        else:
+            flash('✅ Dados atualizados com sucesso!', 'success')
+
+        db.session.commit()
+        return redirect(url_for('main.admin_barbearias')) # Redireciona para a lista
+
+    # GET: Se você precisar renderizar a página (caso não seja modal)
+    return render_template('editar_barbearia.html', barbearia=barbearia)
+
 
 # ============================================
 # 🔒 ROTAS PERIGOSAS - PROTEGIDAS
@@ -723,44 +778,3 @@ def reset_database(secret_key):
         return "Banco de dados recriado com sucesso!", 200
     except Exception as e:
         return f"Ocorreu um erro: {str(e)}", 500
-
-# No final do arquivo app/routes.py
-
-#@bp.route('/admin/emergencia-total')
-#def criar_primeiro_usuario_emergencia():
-    # 🚨 SEM VERIFICAÇÃO DE CHAVE OU DEV_ROUTE (Só para destravar agora)
-    
-   # email_admin = "juanhl_almeida@hotmail.com"
-    #senha_nova = "174848STi"
-    
-    #try:
-        # Busca o usuário
-     #   user = User.query.filter_by(email=email_admin).first()
-        
-      #  if user:
-            # SE JÁ EXISTE: FORÇA RESET
-       #     user.set_password(senha_nova)
-        #    user.role = 'super_admin'
-            
-            # Garante vínculo com barbearia
-         #   if not user.barbearia_id:
-          #       barbearia_teste = Barbearia.query.first()
-           #      if barbearia_teste: user.barbearia_id = barbearia_teste.id
-            
-            #db.session.commit()
-            #return f"✅ SUCESSO! Senha de '{email_admin}' definida para '{senha_nova}'.", 200
-        
-       # else:
-            # SE NÃO EXISTE: CRIA
-         #   barbearia_teste = Barbearia.query.first()
-        #    if not barbearia_teste: return "Erro: Nenhuma barbearia no banco.", 500
-            
-          #  u = User(email=email_admin, nome='Juan Super Admin', role='super_admin', barbearia_id=barbearia_teste.id)
-           # u.set_password(senha_nova)
-            #db.session.add(u)
-            #db.session.commit()
-            #return f"✅ SUCESSO! Usuário '{email_admin}' CRIADO com senha '{senha_nova}'.", 200
-
-    #except Exception as e:
-     #   db.session.rollback()
-#        return f"❌ Erro: {str(e)}", 500
