@@ -713,6 +713,7 @@ def admin_barbearias():
         flash('Acesso restrito.', 'danger')
         return redirect(url_for('main.login'))
     barbearias = Barbearia.query.order_by(Barbearia.id).all()
+    # Garante que carrega o template correto da LISTA
     return render_template('admin_barbearias.html', barbearias=barbearias)
 
 @bp.route('/admin/barbearia/editar/<int:barbearia_id>', methods=['GET', 'POST'])
@@ -750,13 +751,35 @@ def admin_editar_barbearia(barbearia_id):
                 flash(f'✅ Dados salvos e SENHA DO CLIENTE alterada para: {nova_senha}', 'success')
             else:
                 flash('Dados salvos, mas esta barbearia não tem usuário vinculado para trocar senha.', 'warning')
-        else:
-            flash('✅ Dados atualizados com sucesso!', 'success')
+
+        # 4. 📸 UPLOAD DE TABELA PELO SUPER ADMIN (NOVO - Resolve o problema da imagem)
+        arquivo = request.files.get('arquivo_tabela_admin')
+        if arquivo and arquivo.filename != '':
+            pasta_uploads = os.path.join(current_app.root_path, 'static', 'uploads')
+            os.makedirs(pasta_uploads, exist_ok=True)
+            
+            # RENOMEIA USANDO O ID DA BARBEARIA (Segurança)
+            extensao = os.path.splitext(arquivo.filename)[1] # ex: .jpg
+            if not extensao: extensao = '.jpg'
+            
+            nome_seguro = f"tabela_{barbearia.id}{extensao}" # Ex: tabela_5.jpg
+            
+            caminho_completo = os.path.join(pasta_uploads, nome_seguro)
+            arquivo.save(caminho_completo)
+            
+            # Gera o Link Completo e salva no banco
+            url_base = request.host_url.rstrip('/') 
+            url_final = f"{url_base}/static/uploads/{nome_seguro}"
+            barbearia.url_tabela_precos = url_final
 
         db.session.commit()
+        if not (nova_senha and nova_senha.strip()):
+             flash('✅ Dados atualizados com sucesso!', 'success')
+
         return redirect(url_for('main.admin_barbearias')) # Redireciona para a lista
 
-    # GET: Se você precisar renderizar a página (caso não seja modal)
+    # GET: Se você precisar renderizar a página
+    # CORREÇÃO: O return está fora do if POST para evitar tela branca
     return render_template('editar_barbearia.html', barbearia=barbearia)
 
 
