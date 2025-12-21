@@ -1,1 +1,84 @@
+{% extends "base.html" %}
 
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="bi bi-pencil-square"></i> Editar Barbearia: {{ barbearia.nome_fantasia }}</h4>
+                    <span class="badge bg-secondary">ID: {{ barbearia.id }}</span>
+                </div>
+                
+                <div class="card-body bg-light">
+                    <form method="POST" action="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) }}">
+                        
+                        <h5 class="mb-3 text-secondary border-bottom pb-2">Dados da Empresa</h5>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Nome Fantasia</label>
+                                <input type="text" class="form-control" name="nome_fantasia" value="{{ barbearia.nome_fantasia }}" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Telefone WhatsApp (com +55)</label>
+                                <input type="text" class="form-control" name="telefone_whatsapp" value="{{ barbearia.telefone_admin or '' }}" placeholder="5511999999999">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Status da Assinatura</label>
+                                <select class="form-select" name="status_assinatura">
+                                    <option value="ativa" {% if barbearia.status_assinatura == 'ativa' %}selected{% endif %}>Ativa</option>
+                                    <option value="inativa" {% if barbearia.status_assinatura == 'inativa' %}selected{% endif %}>Inativa</option>
+                                    <option value="teste" {% if barbearia.status_assinatura == 'teste' %}selected{% endif %}>Teste Grátis</option>
+                                </select>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold">Meta Phone Number ID</label>
+                                <input type="text" class="form-control font-monospace" name="meta_phone_number_id" value="{{ barbearia.meta_phone_number_id or '' }}">
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold">Meta Access Token</label>
+                            <input type="text" class="form-control font-monospace" name="meta_access_token" value="{{ barbearia.meta_access_token or '' }}">
+                        </div>
+
+                        <h5 class="mb-3 text-secondary border-bottom pb-2">
+                            <i class="bi bi-key-fill"></i> Gerenciamento de Acesso (Senha do Cliente)
+                        </h5>
+                        
+                        <div class="alert alert-warning d-flex align-items-center" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
+                            <div>
+                                <strong>Atenção Super Admin:</strong>
+                                Você não pode ver a senha atual do cliente (ela é criptografada).
+                                <br>Se o cliente esqueceu a senha, digite uma nova abaixo para <strong>sobrescrever</strong> a antiga.
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-danger">Nova Senha do Cliente (Opcional)</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-danger text-white"><i class="bi bi-lock-fill"></i></span>
+                                <input type="text" class="form-control border-danger" name="nova_senha_admin" placeholder="Digite aqui para TROCAR a senha do cliente...">
+                            </div>
+                            <div class="form-text">Deixe em branco se não quiser alterar a senha.</div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                            <a href="{{ url_for('main.admin_barbearias') }}" class="btn btn-secondary">Cancelar</a>
+                            <button type="submit" class="btn btn-primary fw-bold">
+                                <i class="bi bi-save"></i> Salvar Alterações
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
