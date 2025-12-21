@@ -1,1 +1,130 @@
+<!DOCTYPE html>
+<html class="dark" lang="pt-br">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Editar Barbearia</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+  <script>
+    tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#00A6FB", "background-dark": "#121212", "surface-dark": "#1E1E1E" }, fontFamily: { "display": ["Inter", "sans-serif"] } } } }
+  </script>
+  <style> .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24 } </style>
+</head>
+<body class="bg-background-dark font-display text-white min-h-screen flex flex-col items-center py-10">
 
+  <div class="w-full max-w-3xl px-4">
+    
+    <div class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-3xl font-bold flex items-center gap-2">
+          <span class="material-symbols-outlined text-primary">edit_square</span> Editar Barbearia
+        </h1>
+        <p class="text-gray-400 mt-1">ID: <span class="font-mono text-primary">{{ barbearia.id }}</span></p>
+      </div>
+      <a href="{{ url_for('main.admin_barbearias') }}" class="text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
+        <span class="material-symbols-outlined text-lg">arrow_back</span> Voltar
+      </a>
+    </div>
+
+    <div class="bg-surface-dark rounded-xl shadow-2xl p-8 border border-gray-800">
+      
+      <form method="POST" action="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) }}" enctype="multipart/form-data" class="space-y-6">
+        
+        <div class="space-y-4">
+          <h2 class="text-xl font-semibold border-b border-gray-700 pb-2 mb-4 text-primary">Dados da Empresa</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-1">Nome Fantasia</label>
+              <input type="text" name="nome_fantasia" value="{{ barbearia.nome_fantasia }}" required 
+                     class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary outline-none transition-all">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-400 mb-1">WhatsApp (com 55)</label>
+              <input type="text" name="telefone_whatsapp" value="{{ barbearia.telefone_admin or '' }}" 
+                     class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary outline-none transition-all">
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <div class="md:col-span-1">
+                <label class="block text-sm font-medium text-gray-400 mb-1">Status Assinatura</label>
+                <div class="relative">
+                    <select name="status_assinatura" class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 text-white appearance-none focus:ring-2 focus:ring-primary outline-none">
+                        <option value="ativa" {% if barbearia.status_assinatura == 'ativa' %}selected{% endif %}>Ativa</option>
+                        <option value="inativa" {% if barbearia.status_assinatura == 'inativa' %}selected{% endif %}>Inativa</option>
+                        <option value="teste" {% if barbearia.status_assinatura == 'teste' %}selected{% endif %}>Teste Grátis</option>
+                    </select>
+                    <span class="material-symbols-outlined absolute right-3 top-2 pointer-events-none text-gray-500">expand_more</span>
+                </div>
+             </div>
+             <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-400 mb-1">Meta Phone Number ID</label>
+                <input type="text" name="meta_phone_number_id" value="{{ barbearia.meta_phone_number_id or '' }}" 
+                       class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 font-mono text-yellow-500 focus:ring-2 focus:ring-primary outline-none">
+             </div>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-400 mb-1">Meta Access Token</label>
+            <input type="text" name="meta_access_token" value="{{ barbearia.meta_access_token or '' }}" 
+                   class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 font-mono text-green-500 focus:ring-2 focus:ring-primary outline-none">
+          </div>
+
+          <div class="pt-4 border-t border-gray-800">
+            <label class="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-2">
+                <span class="material-symbols-outlined text-purple-400">image</span> Tabela de Preços (Imagem para IA)
+            </label>
+            <input type="file" name="arquivo_tabela_admin" accept="image/*" 
+                   class="w-full bg-background-dark border border-gray-700 rounded-lg text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary file:text-white hover:file:bg-blue-600 transition-all cursor-pointer">
+            
+            {% if barbearia.url_tabela_precos %}
+                <div class="mt-2 p-2 bg-green-500/10 border border-green-500/30 rounded-lg">
+                    <p class="text-xs text-green-400 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">check_circle</span> Imagem atual configurada.
+                    </p>
+                    <a href="{{ barbearia.url_tabela_precos }}" target="_blank" class="text-xs text-blue-400 hover:underline mt-1 block">Ver imagem atual</a>
+                </div>
+            {% else %}
+                <div class="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                    <p class="text-xs text-yellow-500 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-sm">warning</span> Nenhuma imagem. A IA não enviará nada.
+                    </p>
+                </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="pt-6 space-y-4">
+          <h2 class="text-xl font-semibold border-b border-gray-700 pb-2 mb-4 text-red-500 flex items-center gap-2">
+            <span class="material-symbols-outlined">lock_reset</span> Gerenciamento de Acesso
+          </h2>
+          <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex gap-4 items-start">
+            <span class="material-symbols-outlined text-red-500 mt-1">warning</span>
+            <div class="text-sm text-red-200">
+              <p class="font-bold mb-1">Atenção Super Admin</p>
+              <p class="opacity-80">Você não pode ver a senha atual. Digite abaixo apenas se quiser <strong>sobrescrever</strong> a senha do cliente.</p>
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-bold text-red-400 mb-1">Nova Senha do Cliente (Opcional)</label>
+            <input type="text" name="nova_senha_admin" placeholder="Digite para trocar a senha..." 
+                   class="w-full bg-background-dark border border-red-900/50 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-red-500 outline-none transition-all">
+            <p class="text-xs text-gray-500 mt-2">Deixe em branco para manter a senha atual.</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-4 pt-6 border-t border-gray-800 mt-6">
+          <a href="{{ url_for('main.admin_barbearias') }}" class="px-6 py-2 rounded-lg text-gray-400 hover:bg-white/5 transition font-medium">Cancelar</a>
+          <button type="submit" class="px-6 py-2 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 transition shadow-lg shadow-primary/20 flex items-center gap-2">
+            <span class="material-symbols-outlined">save</span> Salvar Alterações
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</body>
+</html>
