@@ -94,13 +94,15 @@
                 {% endif %}
               </td>
               <td class="p-4 text-center">
-                {# Botão Editar #}
-                <a href="{{ url_for('superadmin.editar_barbearia', barbearia_id=barbearia.id) }}" 
+                {# ======================================================= #}
+                {# 🎯 ALTERAÇÃO AQUI: Botão Editar aponta para 'main'      #}
+                {# ======================================================= #}
+                <a href="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) }}" 
                    class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
                   <span class="material-symbols-outlined">edit</span>
                 </a>
                 
-                {# Botão Apagar (desabilitado para ID 1) #}
+                {# Botão Apagar (MANTIDO como superadmin, pois não mexemos na lógica de apagar) #}
                 {% if barbearia.id != 1 %}
                   <form action="{{ url_for('superadmin.apagar_barbearia', barbearia_id=barbearia.id) }}" 
                         method="post" class="inline" 
