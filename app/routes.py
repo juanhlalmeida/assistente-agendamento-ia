@@ -726,41 +726,41 @@ def reset_database(secret_key):
 
 # No final do arquivo app/routes.py
 
-@bp.route('/admin/emergencia-total')
-def criar_primeiro_usuario_emergencia():
+#@bp.route('/admin/emergencia-total')
+#def criar_primeiro_usuario_emergencia():
     # 🚨 SEM VERIFICAÇÃO DE CHAVE OU DEV_ROUTE (Só para destravar agora)
     
-    email_admin = "juanhl_almeida@hotmail.com"
-    senha_nova = "174848STi"
+   # email_admin = "juanhl_almeida@hotmail.com"
+    #senha_nova = "174848STi"
     
-    try:
+    #try:
         # Busca o usuário
-        user = User.query.filter_by(email=email_admin).first()
+     #   user = User.query.filter_by(email=email_admin).first()
         
-        if user:
+      #  if user:
             # SE JÁ EXISTE: FORÇA RESET
-            user.set_password(senha_nova)
-            user.role = 'super_admin'
+       #     user.set_password(senha_nova)
+        #    user.role = 'super_admin'
             
             # Garante vínculo com barbearia
-            if not user.barbearia_id:
-                 barbearia_teste = Barbearia.query.first()
-                 if barbearia_teste: user.barbearia_id = barbearia_teste.id
+         #   if not user.barbearia_id:
+          #       barbearia_teste = Barbearia.query.first()
+           #      if barbearia_teste: user.barbearia_id = barbearia_teste.id
             
-            db.session.commit()
-            return f"✅ SUCESSO! Senha de '{email_admin}' definida para '{senha_nova}'.", 200
+            #db.session.commit()
+            #return f"✅ SUCESSO! Senha de '{email_admin}' definida para '{senha_nova}'.", 200
         
-        else:
+       # else:
             # SE NÃO EXISTE: CRIA
-            barbearia_teste = Barbearia.query.first()
-            if not barbearia_teste: return "Erro: Nenhuma barbearia no banco.", 500
+         #   barbearia_teste = Barbearia.query.first()
+        #    if not barbearia_teste: return "Erro: Nenhuma barbearia no banco.", 500
             
-            u = User(email=email_admin, nome='Juan Super Admin', role='super_admin', barbearia_id=barbearia_teste.id)
-            u.set_password(senha_nova)
-            db.session.add(u)
-            db.session.commit()
-            return f"✅ SUCESSO! Usuário '{email_admin}' CRIADO com senha '{senha_nova}'.", 200
+          #  u = User(email=email_admin, nome='Juan Super Admin', role='super_admin', barbearia_id=barbearia_teste.id)
+           # u.set_password(senha_nova)
+            #db.session.add(u)
+            #db.session.commit()
+            #return f"✅ SUCESSO! Usuário '{email_admin}' CRIADO com senha '{senha_nova}'.", 200
 
-    except Exception as e:
-        db.session.rollback()
-        return f"❌ Erro: {str(e)}", 500
+    #except Exception as e:
+     #   db.session.rollback()
+#        return f"❌ Erro: {str(e)}", 500
