@@ -766,23 +766,3 @@ def criar_primeiro_usuario(secret_key):
     except Exception as e:
         db.session.rollback()
         return f"Erro: {str(e)}", 500
-            
-            u = User(email=email_admin, nome='Super Admin', role='super_admin', barbearia_id=barbearia_teste.id)
-            u.set_password(senha_nova)
-            db.session.add(u)
-            db.session.commit()
-            return f"SUCESSO! Usuário criado com senha '{senha_nova}'.", 200
-
-    except Exception as e:
-        db.session.rollback()
-        return f"Erro: {str(e)}", 500
-        
-        u = User(email=email_admin, nome='Admin Criado Via Rota', role='admin', barbearia_id=barbearia_teste.id)
-        u.set_password(senha_admin)
-        db.session.add(u)
-        db.session.commit()
-        
-        return f"Usuário '{email_admin}' criado com sucesso!", 200
-    except Exception as e:
-        db.session.rollback()
-        return f"Ocorreu um erro: {e}", 500
