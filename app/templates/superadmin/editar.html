@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-{# TELA DE EDIÇÃO ESTILIZADA #}
+{# TELA DE EDIÇÃO ESTILIZADA + UPLOAD DE IMAGEM #}
 <html class="dark" lang="pt-br">
 <head>
   <meta charset="utf-8"/>
@@ -17,6 +17,8 @@
 <body class="bg-background-dark font-display text-white min-h-screen flex flex-col items-center py-10">
 
   <div class="w-full max-w-3xl px-4">
+    
+    {# Cabeçalho #}
     <div class="flex items-center justify-between mb-8">
       <div>
         <h1 class="text-3xl font-bold flex items-center gap-2">
@@ -24,13 +26,16 @@
         </h1>
         <p class="text-gray-400 mt-1">ID: <span class="font-mono text-primary">{{ barbearia.id }}</span></p>
       </div>
-      <a href="{{ url_for('superadmin.listar_barbearias') }}" class="text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
+      {# CORREÇÃO: Botão voltar aponta para a rota certa #}
+      <a href="{{ url_for('main.admin_barbearias') }}" class="text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
         <span class="material-symbols-outlined text-lg">arrow_back</span> Voltar
       </a>
     </div>
 
     <div class="bg-surface-dark rounded-xl shadow-2xl p-8 border border-gray-800">
-      <form method="POST" action="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) }}" class="space-y-6">
+      
+      {# CORREÇÃO: Adicionado enctype="multipart/form-data" para permitir envio de fotos #}
+      <form method="POST" action="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) }}" enctype="multipart/form-data" class="space-y-6">
         
         <div class="space-y-4">
           <h2 class="text-xl font-semibold border-b border-gray-700 pb-2 mb-4 text-primary">Dados da Empresa</h2>
@@ -71,6 +76,24 @@
             <input type="text" name="meta_access_token" value="{{ barbearia.meta_access_token or '' }}" 
                    class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 font-mono text-green-500 focus:ring-2 focus:ring-primary outline-none">
           </div>
+
+          <div class="pt-4 border-t border-gray-800">
+            <label class="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-2">
+                <span class="material-symbols-outlined text-purple-400">image</span> Tabela de Preços (Imagem para IA)
+            </label>
+            <input type="file" name="arquivo_tabela_admin" accept="image/*" 
+                   class="w-full bg-background-dark border border-gray-700 rounded-lg text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary file:text-white hover:file:bg-blue-600 transition-all cursor-pointer">
+            
+            {% if barbearia.url_tabela_precos %}
+                <p class="text-xs text-green-400 mt-2 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-sm">check_circle</span> Imagem atual já configurada. (Envie outra para substituir)
+                </p>
+            {% else %}
+                <p class="text-xs text-yellow-500 mt-2 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-sm">warning</span> Nenhuma imagem configurada. A IA não enviará foto.
+                </p>
+            {% endif %}
+          </div>
         </div>
 
         <div class="pt-6 space-y-4">
@@ -93,7 +116,7 @@
         </div>
 
         <div class="flex justify-end gap-4 pt-6 border-t border-gray-800 mt-6">
-          <a href="{{ url_for('superadmin.listar_barbearias') }}" class="px-6 py-2 rounded-lg text-gray-400 hover:bg-white/5 transition font-medium">Cancelar</a>
+          <a href="{{ url_for('main.admin_barbearias') }}" class="px-6 py-2 rounded-lg text-gray-400 hover:bg-white/5 transition font-medium">Cancelar</a>
           <button type="submit" class="px-6 py-2 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 transition shadow-lg shadow-primary/20 flex items-center gap-2">
             <span class="material-symbols-outlined">save</span> Salvar Alterações
           </button>
