@@ -111,31 +111,29 @@ CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 """
 
 # ==============================================================================
-# 👩‍💼 PROMPT 2: MODO SECRETÁRIA (NOVO - Para a Dona Carol/Barbeiro)
+# 👩‍💼 PROMPT 2: MODO SECRETÁRIA (ATUALIZADO PARA FINANCEIRO SOB DEMANDA)
 # ==============================================================================
 SYSTEM_INSTRUCTION_SECRETARIA = """
 VOCÊ É A SECRETÁRIA PESSOAL DO(A) DONO(A) DA LOJA.
 Quem está falando com você AGORA é o(a) PROPRIETÁRIO(A) (Boss).
 
 SEU OBJETIVO:
-Ajudar o dono a gerenciar o dia. Você NÃO deve agendar nada para ele(a) (ele já sabe fazer isso).
-Você deve RESPONDER perguntas sobre a agenda e dar relatórios.
+Ajudar o dono a gerenciar o dia.
 
 FERRAMENTA PRINCIPAL: `consultar_agenda_dono`
-Use essa ferramenta para ver quem está marcado.
+- Para ver o dia de hoje: use data_inicio='hoje', data_fim='mesmo_dia'
+- Para ver a SEMANA inteira: use data_inicio='hoje', data_fim='semana'
 
 COMO AGIR:
 - Seja ultra-eficiente e proativa.
-- Se ele perguntar "O que tenho hoje?", liste os horários cronologicamente.
-- Se perguntar "Como está a semana?", faça um resumo.
-- Use emojis de check ✅ e alerta ⚠️.
-- Use tom de respeito e parceria ("Chefe", "Patroa", "Amiga" dependendo do contexto).
+- Liste os horários cronologicamente.
+- Use emojis de check ✅ para qtd de clientes.
+- Trate como "Chefe", "Patroa" ou "Líder".
 
-EXEMPLO DE RESPOSTA (Relatório):
-"Olá Chefe! 🫡 Aqui está sua agenda para Hoje ({data_de_hoje}):
-14:00 - Maria (Cílios) com Carol
-15:30 - Joana (Design) com Carol
-Total: 2 clientes."
+💰 SOBRE FINANCEIRO (IMPORTANTE):
+- A ferramenta vai te entregar os valores de cada serviço e o total previsto.
+- PORÉM, você só deve mostrar valores (R$) se o chefe perguntar explicitamente sobre "faturamento", "dinheiro", "quanto deu", "valores" ou "resumo financeiro".
+- Se ele perguntar apenas "como está a agenda" ou "quem vem hoje", mostre apenas os horários e nomes, OMITINDO OS VALORES.
 """
 # ---------------------------------------
 
@@ -319,35 +317,75 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
     except Exception as e:
         return f"Erro ao calcular horários: {str(e)}"
 
-# --- NOVA TOOL: CONSULTAR AGENDA DO DONO (MODO SECRETÁRIA) ---
+# --- NOVA TOOL: CONSULTAR AGENDA DO DONO (ATUALIZADA COM SEMANA + FINANCEIRO) ---
 def consultar_agenda_dono(barbearia_id: int, data_inicio: str, data_fim: str) -> str:
-    """Retorna os agendamentos confirmados para o dono ver."""
+    """
+    Retorna os agendamentos E O FATURAMENTO PREVISTO.
+    Aceita 'semana' no data_fim para calcular os próximos 7 dias automaticamente.
+    """
     try:
         with current_app.app_context():
-            # Converte strings para data
             agora = datetime.now(BR_TZ)
-            if data_inicio.lower() == 'hoje': dt_ini = agora.replace(hour=0, minute=0)
-            else: dt_ini = datetime.strptime(data_inicio, '%Y-%m-%d')
             
-            if data_fim.lower() == 'hoje': dt_fim = agora.replace(hour=23, minute=59)
-            elif data_fim == 'mesmo_dia': dt_fim = dt_ini.replace(hour=23, minute=59)
-            else: dt_fim = datetime.strptime(data_fim, '%Y-%m-%d')
+            # 1. DATA INICIAL
+            if data_inicio.lower() in ['hoje', 'agora']: 
+                dt_ini = agora.replace(hour=0, minute=0, second=0)
+            else: 
+                try: dt_ini = datetime.strptime(data_inicio, '%Y-%m-%d')
+                except: dt_ini = agora # Fallback
+            
+            # 2. DATA FINAL (LÓGICA DA SEMANA CORRIGIDA)
+            if data_fim.lower() == 'hoje': 
+                dt_fim = agora.replace(hour=23, minute=59)
+            elif data_fim == 'mesmo_dia': 
+                dt_fim = dt_ini.replace(hour=23, minute=59)
+            elif data_fim == 'semana': # <--- AQUI ESTÁ A MÁGICA
+                dt_fim = dt_ini + timedelta(days=7)
+                dt_fim = dt_fim.replace(hour=23, minute=59)
+            else: 
+                try: dt_fim = datetime.strptime(data_fim, '%Y-%m-%d')
+                except: dt_fim = dt_ini.replace(hour=23, minute=59)
 
-            agendamentos = Agendamento.query.filter(
+            # 3. BUSCA NO BANCO
+            agendamentos = Agendamento.query.options(joinedload(Agendamento.servico), joinedload(Agendamento.profissional)).filter(
                 Agendamento.barbearia_id == barbearia_id,
                 Agendamento.data_hora >= dt_ini,
                 Agendamento.data_hora <= dt_fim
             ).order_by(Agendamento.data_hora).all()
 
             if not agendamentos:
-                return f"Nenhum agendamento encontrado entre {dt_ini.strftime('%d/%m')} e {dt_fim.strftime('%d/%m')}."
+                return f"🏖️ Nada marcado entre {dt_ini.strftime('%d/%m')} e {dt_fim.strftime('%d/%m')}."
 
-            relatorio = []
+            # 4. MONTA O RELATÓRIO COM DADOS FINANCEIROS
+            relatorio = [f"📅 RELATÓRIO DE {dt_ini.strftime('%d/%m')} A {dt_fim.strftime('%d/%m')}\n"]
+            
+            faturamento_total = 0.0
+            dia_atual = ""
+            
             for ag in agendamentos:
-                linha = f"🕒 {ag.data_hora.strftime('%H:%M')} - {ag.nome_cliente} ({ag.servico.nome}) com {ag.profissional.nome}"
+                # Cabeçalho do dia
+                data_ag_str = ag.data_hora.strftime('%d/%m (%A)')
+                if data_ag_str != dia_atual:
+                    relatorio.append(f"\n🔹 {data_ag_str}")
+                    dia_atual = data_ag_str
+                
+                # Detalhes
+                valor = ag.servico.preco if ag.servico else 0.0
+                faturamento_total += valor
+                
+                # A string retornada contém o valor para a IA saber, mas o prompt controla a exibição
+                linha = f"   ⏰ {ag.data_hora.strftime('%H:%M')} - {ag.nome_cliente.split()[0]} ({ag.servico.nome}) [Valor: R$ {valor:.2f}] com {ag.profissional.nome}"
                 relatorio.append(linha)
             
+            # 5. RESUMO FINAL
+            relatorio.append("\n" + "="*20)
+            relatorio.append(f"📊 DADOS INTERNOS (Use apenas se solicitado):")
+            relatorio.append(f"✅ Total Clientes: {len(agendamentos)}")
+            relatorio.append(f"💰 Faturamento Total Previsto: R$ {faturamento_total:.2f}")
+            relatorio.append("="*20)
+
             return "\n".join(relatorio)
+            
     except Exception as e:
         return f"Erro ao consultar agenda: {e}"
 
@@ -539,15 +577,15 @@ cancelar_agendamento_func = FunctionDeclaration(
     }
 )
 
-# --- NOVA DEFINIÇÃO DE TOOL ---
+# --- NOVA DEFINIÇÃO DE TOOL (ATUALIZADA) ---
 consultar_agenda_func = FunctionDeclaration(
     name="consultar_agenda_dono",
-    description="Exclusivo para o dono. Consulta os agendamentos marcados em um período.",
+    description="Exclusivo para o dono. Consulta os agendamentos e previsão financeira. Aceita 'semana'.",
     parameters={
         "type": "object",
         "properties": {
             "data_inicio": {"type": "string", "description": "Data inicial YYYY-MM-DD ou 'hoje'"},
-            "data_fim": {"type": "string", "description": "Data final YYYY-MM-DD ou 'mesmo_dia' para ver só 1 dia"}
+            "data_fim": {"type": "string", "description": "Data final YYYY-MM-DD, 'mesmo_dia' (só hoje) ou 'semana' (7 dias)"}
         },
         "required": ["data_inicio", "data_fim"]
     }
