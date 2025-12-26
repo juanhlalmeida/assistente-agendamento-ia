@@ -1,12 +1,12 @@
 # app/routes.py
-# (CÓDIGO COMPLETO: META ATIVO + TWILIO OPCIONAL + MARCAR LIDO + ÁUDIO COM MEMÓRIA E CONTEXTO)
+# (CÓDIGO COMPLETO - COM DEBUG DE ID E PROTEÇÃO DE ESPAÇOS)
 
 import os
 import logging
 import json
 import requests
 import threading
-from werkzeug.utils import secure_filename # <--- IMPORT NOVO PARA UPLOAD
+from werkzeug.utils import secure_filename
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
 from sqlalchemy.orm import joinedload
@@ -558,17 +558,27 @@ def webhook_meta():
                 value = data['entry'][0]['changes'][0]['value']
                 message_data = value['messages'][0]
                 
-                # Identificação básica
-                phone_number_id = value['metadata']['phone_number_id']
-                remetente = message_data['from']
-                msg_type = message_data.get('type')
+                # Identificação básica com DEBUGGER
+                # ----------------------------------------------
+                raw_id = value['metadata']['phone_number_id']
+                phone_number_id = str(raw_id).strip() # Limpa espaços
+                
+                logging.info(f"📨 DEBUG META: Recebi ID '{phone_number_id}' (Original: '{raw_id}')")
                 
                 # Busca Barbearia
                 barbearia = Barbearia.query.filter_by(meta_phone_number_id=phone_number_id).first()
                 
                 if not barbearia:
-                    logging.error(f"❌ Nenhuma barbearia encontrada para o ID {phone_number_id}")
+                    # LOGA OS IDs EXISTENTES PARA COMPARAÇÃO
+                    all_ids = [b.meta_phone_number_id for b in Barbearia.query.all()]
+                    logging.error(f"❌ ERRO CRÍTICO: O ID '{phone_number_id}' não existe no banco! Os IDs que tenho são: {all_ids}")
                     return jsonify({"status": "ignored"}), 200
+                
+                logging.info(f"✅ Loja Encontrada: {barbearia.nome_fantasia} (ID: {barbearia.id})")
+                # ----------------------------------------------
+
+                remetente = message_data['from']
+                msg_type = message_data.get('type')
                 
                 # --- MARCAR COMO LIDO (VISUALIZAÇÃO AZUL) ---
                 message_id = message_data.get('id')
