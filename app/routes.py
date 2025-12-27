@@ -1,5 +1,5 @@
 # app/routes.py
-# (CÓDIGO COMPLETO - COM DEBUG DE ID E PROTEÇÃO DE ESPAÇOS)
+# (VERSÃO FINAL COMPLETA: CORREÇÃO DE DATA DE ASSINATURA + DEBUG DETALHADO + PROTEÇÃO DE ESPAÇOS)
 
 import os
 import logging
@@ -71,7 +71,6 @@ def enviar_mensagem_whatsapp_twilio(destinatario, mensagem):
     Envia mensagem via Twilio (apenas se biblioteca estiver disponível)
     """
     if not TWILIO_AVAILABLE:
-        logging.error("❌ Tentativa de enviar via Twilio falhou: Biblioteca não instalada.")
         return False
 
     try:
@@ -114,7 +113,7 @@ def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: B
     try:
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
-        logging.info(f"✅ Mensagem enviada para {destinatario} via Meta: {response.json()}")
+        # logging.info(f"✅ Mensagem enviada para {destinatario} via Meta: {response.json()}")
         return True
     except requests.exceptions.RequestException as e:
         logging.error(f"❌ Erro ao enviar mensagem via Meta: {e}")
@@ -172,8 +171,8 @@ def marcar_como_lido(message_id: str, barbearia: Barbearia):
     }
     try:
         requests.post(url, headers=headers, json=payload)
-    except Exception as e:
-        logging.error(f"Erro ao marcar como lido: {e}")
+    except Exception:
+        pass
 
 # --- HELPER PARA PROCESSAMENTO DE ÁUDIO EM THREAD ---
 def processar_audio_background(audio_id, wa_id, access_token, phone_number_id, barbearia_id, app_instance): # <-- Recebe app_instance
@@ -184,7 +183,7 @@ def processar_audio_background(audio_id, wa_id, access_token, phone_number_id, b
     # Cria o contexto manualmente usando a instância do app passada
     with app_instance.app_context():
         try:
-            logging.info(f"🧵 Thread áudio iniciada: {audio_id}")
+            # logging.info(f"🧵 Thread áudio iniciada: {audio_id}")
             
             # Passa a instância do app para o serviço (embora o contexto já esteja ativo aqui, o serviço pode precisar)
             resposta_texto = audio_service.processar_audio(audio_id, access_token, wa_id, barbearia_id, app_instance)
@@ -526,9 +525,9 @@ def webhook_twilio():
         logging.error(f"❌ Erro no webhook do Twilio: {e}")
         return "Erro interno", 500
 
-# ============================================
-# ✨ ROTA DO WEBHOOK DA META
-# ============================================
+# ==============================================================================
+# ✨ ROTA DO WEBHOOK DA META (COM DEBUG ATIVADO)
+# ==============================================================================
 @bp.route('/meta-webhook', methods=['GET', 'POST'])
 def webhook_meta():
     """
@@ -558,69 +557,69 @@ def webhook_meta():
                 value = data['entry'][0]['changes'][0]['value']
                 message_data = value['messages'][0]
                 
-                # Identificação básica com DEBUGGER
-                # ----------------------------------------------
+                # -------------------------------------------------------------
+                # 🕵️‍♂️ DEBUGGER DE ID (RASTREIO DO ERRO)
+                # -------------------------------------------------------------
                 raw_id = value['metadata']['phone_number_id']
                 phone_number_id = str(raw_id).strip() # Limpa espaços
                 
-                logging.info(f"📨 DEBUG META: Recebi ID '{phone_number_id}' (Original: '{raw_id}')")
+                logging.info(f"📨 DEBUG META: Recebi ID '{phone_number_id}'")
                 
-                # Busca Barbearia
+                # Busca Barbearia com o ID limpo
                 barbearia = Barbearia.query.filter_by(meta_phone_number_id=phone_number_id).first()
                 
                 if not barbearia:
-                    # LOGA OS IDs EXISTENTES PARA COMPARAÇÃO
-                    all_ids = [b.meta_phone_number_id for b in Barbearia.query.all()]
-                    logging.error(f"❌ ERRO CRÍTICO: O ID '{phone_number_id}' não existe no banco! Os IDs que tenho são: {all_ids}")
-                    return jsonify({"status": "ignored"}), 200
+                    logging.error(f"❌ ERRO CRÍTICO: ID '{phone_number_id}' não encontrado no banco!")
+                    return jsonify({"status": "ignored_id_not_found"}), 200
                 
                 logging.info(f"✅ Loja Encontrada: {barbearia.nome_fantasia} (ID: {barbearia.id})")
-                # ----------------------------------------------
+                # -------------------------------------------------------------
+
+                # 🔥 CORREÇÃO DE ASSINATURA + DEBUG
+                status_str = str(barbearia.status_assinatura).lower()
+                data_validade = barbearia.assinatura_expira_em
+                agora = datetime.now()
+                
+                # Regra: Se está 'Ativa' (manual) OU se tem data futura, libera.
+                # O admin agora corrige a data ao salvar, então isso deve funcionar.
+                assinatura_ok = False
+                
+                if status_str in ['ativa', 'teste']:
+                    assinatura_ok = True
+                elif data_validade and data_validade > agora:
+                    assinatura_ok = True
+                
+                if not assinatura_ok:
+                    logging.warning(f"🚫 BLOQUEIO: Assinatura '{barbearia.nome_fantasia}' expirada. Status: {status_str}, Venceu: {data_validade}")
+                    return jsonify({"status": "inactive"}), 200
 
                 remetente = message_data['from']
                 msg_type = message_data.get('type')
                 
-                # --- MARCAR COMO LIDO (VISUALIZAÇÃO AZUL) ---
+                # Marcar como lido
                 message_id = message_data.get('id')
                 if message_id:
-                    # Dispara em thread para não atrasar
                     threading.Thread(target=marcar_como_lido, args=(message_id, barbearia)).start()
                 
-                # Bloqueios de Assinatura
-                if not barbearia.assinatura_ativa:
-                    return jsonify({"status": "subscription_inactive"}), 200
-                if barbearia.assinatura_expira_em and barbearia.assinatura_expira_em < datetime.now():
-                    return jsonify({"status": "subscription_expired"}), 200
+                logging.info(f"✅ Mensagem ({msg_type}) autorizada para IA.")
                 
-                logging.info(f"✅ Mensagem ({msg_type}) autorizada para Barbearia: {barbearia.nome_fantasia}")
-                
-                # ============================================
-                # 🎤 ROTEAMENTO DE TIPO DE MENSAGEM
-                # ============================================
-                
-                # CASO 1: MENSAGEM DE TEXTO
+                # TEXTO
                 if msg_type == 'text':
                     mensagem_recebida = message_data['text']['body']
-                    
                     resposta_ia = ai_service.processar_ia_gemini(
                         user_message=mensagem_recebida,
                         barbearia_id=barbearia.id,
                         cliente_whatsapp=remetente
                     )
-                    
                     if resposta_ia:
                         enviar_mensagem_whatsapp_meta(remetente, resposta_ia, barbearia)
                 
-                # CASO 2: MENSAGEM DE ÁUDIO
+                # ÁUDIO
                 elif msg_type == 'audio':
                     audio_id = message_data['audio']['id']
-                    logging.info(f"🎤 Áudio detectado. ID: {audio_id}. Iniciando thread de processamento.")
-                    
                     # Captura o app real para passar para a thread
                     app_real = current_app._get_current_object()
-                    
-                    # Dispara thread para não bloquear o webhook
-                    thread = threading.Thread(
+                    threading.Thread(
                         target=processar_audio_background,
                         args=(
                             audio_id, 
@@ -628,22 +627,17 @@ def webhook_meta():
                             barbearia.meta_access_token, 
                             barbearia.meta_phone_number_id,
                             barbearia.id,
-                            app_real # <-- Passa o app real com contexto
+                            app_real
                         )
-                    )
-                    thread.start()
-
-                # OUTROS TIPOS (Ignora)
-                else:
-                    logging.info(f"ℹ️ Tipo de mensagem não suportado: {msg_type}")
+                    ).start()
 
                 return jsonify({"status": "success"}), 200
             
             else:
-                return jsonify({"status": "ignored"}), 200
+                return jsonify({"status": "ignored_no_message"}), 200
         
         except Exception as e:
-            logging.error(f"❌ Erro ao processar payload da Meta: {e}", exc_info=True)
+            logging.error(f"❌ Erro Webhook: {e}", exc_info=True)
             return jsonify({"status": "error"}), 500
     
     else:
@@ -747,9 +741,16 @@ def admin_editar_barbearia(barbearia_id):
         barbearia.meta_phone_number_id = request.form.get('meta_phone_number_id')
         barbearia.meta_access_token = request.form.get('meta_access_token')
         
+        # 🟢 CORREÇÃO: ATUALIZA DATA SE O STATUS FOR ATIVA
         status = request.form.get('status_assinatura')
         if status:
             barbearia.status_assinatura = status
+            if status == 'Ativa':
+                barbearia.assinatura_ativa = True
+                # Se a data estiver vazia ou no passado, joga pra +30 dias
+                if not barbearia.assinatura_expira_em or barbearia.assinatura_expira_em < datetime.now():
+                    barbearia.assinatura_expira_em = datetime.now() + timedelta(days=30)
+                    flash('✅ Assinatura ativada! Validade renovada por 30 dias.', 'success')
 
         # 3. 🔑 LOGICA DE TROCA DE SENHA DO CLIENTE (O QUE VC PEDIU)
         nova_senha = request.form.get('nova_senha_admin')
