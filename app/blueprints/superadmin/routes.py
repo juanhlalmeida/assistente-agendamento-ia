@@ -1,5 +1,5 @@
 # app/blueprints/superadmin/routes.py
-# (CÓDIGO COMPLETO E CORRIGIDO COM SINCRONIZAÇÃO)
+# (CÓDIGO COMPLETO E CORRIGIDO COM SINCRONIZAÇÃO RIGOROSA DE STATUS)
 
 import logging
 from functools import wraps
@@ -73,20 +73,27 @@ def nova_barbearia():
             return render_template('superadmin/novo.html', form_data=request.form)
 
         try:
-            # ✅ SINCRONIZAR: Converter status_assinatura para assinatura_ativa
-            assinatura_ativa = (status_assinatura == 'ativa')
+            # ✅ SINCRONIZAÇÃO RIGOROSA NA CRIAÇÃO
+            assinatura_ativa = False
             assinatura_expira_em = None
             
-            if assinatura_ativa:
-                # Se estiver ativa, definir expiração daqui a 30 dias
+            # Normaliza o status para letras minúsculas para comparação
+            status_lower = str(status_assinatura).lower() if status_assinatura else ''
+
+            if status_lower == 'ativa':
+                assinatura_ativa = True
                 assinatura_expira_em = datetime.now() + timedelta(days=30)
+            elif status_lower == 'teste':
+                assinatura_ativa = True
+                assinatura_expira_em = datetime.now() + timedelta(days=7) # 7 dias de teste
+            # Se for 'inativa', mantém False e None
             
             nova_barbearia = Barbearia(
                 nome_fantasia=nome_fantasia,
                 telefone_whatsapp=telefone_whatsapp,
                 status_assinatura=status_assinatura,
-                assinatura_ativa=assinatura_ativa,  # ✅ SINCRONIZADO
-                assinatura_expira_em=assinatura_expira_em,  # ✅ SINCRONIZADO
+                assinatura_ativa=assinatura_ativa,  
+                assinatura_expira_em=assinatura_expira_em,  
                 meta_phone_number_id=meta_phone_number_id,
                 meta_access_token=meta_access_token
             )
@@ -151,18 +158,29 @@ def editar_barbearia(barbearia_id):
         try:
             barbearia.nome_fantasia = nome_fantasia
             barbearia.telefone_whatsapp = telefone_whatsapp
+            
+            # Atualiza o status visual
             barbearia.status_assinatura = status_assinatura
             
-            # ✅ SINCRONIZAR: Atualizar assinatura_ativa baseado em status_assinatura
-            if status_assinatura == 'ativa':
+            # ✅ SINCRONIZAÇÃO RIGOROSA NA EDIÇÃO
+            status_lower = str(status_assinatura).lower() if status_assinatura else ''
+
+            if status_lower == 'ativa':
                 barbearia.assinatura_ativa = True
-                # Se estava inativa e agora ficou ativa, definir expiração
+                # Se a data não existe ou já passou (vencida), renova por 30 dias
                 if not barbearia.assinatura_expira_em or barbearia.assinatura_expira_em < datetime.now():
                     barbearia.assinatura_expira_em = datetime.now() + timedelta(days=30)
-            else:
+            
+            elif status_lower == 'teste':
+                barbearia.assinatura_ativa = True
+                # Se não tem data, dá 7 dias
+                if not barbearia.assinatura_expira_em:
+                    barbearia.assinatura_expira_em = datetime.now() + timedelta(days=7)
+            
+            else: # caso 'inativa', 'bloqueada', etc.
                 barbearia.assinatura_ativa = False
-                if status_assinatura == 'inativa':
-                    barbearia.assinatura_expira_em = None
+                # Remove a data de expiração para garantir que o sistema não considere "Vencido" mas sim "Sem Plano"
+                barbearia.assinatura_expira_em = None
             
             barbearia.meta_phone_number_id = meta_phone_number_id
             barbearia.meta_access_token = meta_access_token
