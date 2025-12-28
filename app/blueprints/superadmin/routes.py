@@ -1,5 +1,5 @@
 # app/blueprints/superadmin/routes.py
-# (VERSÃO BLINDADA: CORREÇÃO DE STATUS, TRIM E LOGS DE AUDITORIA)
+# (CÓDIGO COMPLETO: CORREÇÃO DE STATUS INATIVO E DEBUG)
 
 import logging
 from functools import wraps
@@ -51,13 +51,11 @@ def nova_barbearia():
     if request.method == 'POST':
         nome_fantasia = request.form.get('nome_fantasia')
         telefone_whatsapp = request.form.get('telefone_whatsapp')
-        
-        # Captura o status bruto
-        status_assinatura_raw = request.form.get('status_assinatura')
-        
+        status_assinatura = request.form.get('status_assinatura')
         admin_email = request.form.get('admin_email')
         admin_senha = request.form.get('admin_senha')
         
+        # 'get' dos novos campos
         meta_phone_number_id = request.form.get('meta_phone_number_id')
         meta_access_token = request.form.get('meta_access_token')
 
@@ -75,32 +73,26 @@ def nova_barbearia():
             return render_template('superadmin/novo.html', form_data=request.form)
 
         try:
-            # ✅ LÓGICA DE STATUS BLINDADA (NOVO)
-            # 1. Limpa espaços e converte para minúsculo
-            status_clean = str(status_assinatura_raw).strip().lower() if status_assinatura_raw else 'teste'
-            
-            logging.info(f"🆕 CRIANDO BARBEARIA: Status Bruto='{status_assinatura_raw}' -> Limpo='{status_clean}'")
-
+            # ✅ LÓGICA DE CRIAÇÃO (STATUS)
             assinatura_ativa = False
             assinatura_expira_em = None
             
+            # Limpa e normaliza o status
+            status_clean = str(status_assinatura).strip().lower() if status_assinatura else 'teste'
+
             if status_clean == 'ativa':
                 assinatura_ativa = True
                 assinatura_expira_em = datetime.now() + timedelta(days=30)
-                logging.info("-> Decisão: ATIVAR (30 dias)")
             elif status_clean == 'teste':
                 assinatura_ativa = True
                 assinatura_expira_em = datetime.now() + timedelta(days=7)
-                logging.info("-> Decisão: TESTE (7 dias)")
-            else:
-                logging.info("-> Decisão: INATIVA (Sem acesso)")
             
             nova_barbearia = Barbearia(
                 nome_fantasia=nome_fantasia,
                 telefone_whatsapp=telefone_whatsapp,
-                status_assinatura=status_assinatura_raw, # Salva o visual original
-                assinatura_ativa=assinatura_ativa,
-                assinatura_expira_em=assinatura_expira_em,
+                status_assinatura=status_assinatura,
+                assinatura_ativa=assinatura_ativa,  
+                assinatura_expira_em=assinatura_expira_em,  
                 meta_phone_number_id=meta_phone_number_id,
                 meta_access_token=meta_access_token
             )
@@ -130,7 +122,7 @@ def nova_barbearia():
 
     return render_template('superadmin/novo.html', form_data={})
 
-# --- ROTA: EDITAR BARBEARIA ---
+# --- ROTA: EDITAR BARBEARIA (AQUI ESTÁ A CORREÇÃO PRINCIPAL) ---
 @bp.route('/barbearias/editar/<int:barbearia_id>', methods=['GET', 'POST'])
 @login_required
 @super_admin_required
@@ -138,51 +130,33 @@ def editar_barbearia(barbearia_id):
     barbearia = Barbearia.query.get_or_404(barbearia_id)
     
     if request.method == 'POST':
-        nome_fantasia = request.form.get('nome_fantasia')
-        telefone_whatsapp = request.form.get('telefone_whatsapp')
+        # Captura os dados do formulário
+        novo_status = request.form.get('status_assinatura')
+        novo_nome = request.form.get('nome_fantasia')
+        novo_tel = request.form.get('telefone_whatsapp')
+        novo_meta_id = request.form.get('meta_phone_number_id')
+        novo_meta_token = request.form.get('meta_access_token')
         
-        # Captura o status bruto
-        status_assinatura_raw = request.form.get('status_assinatura')
-        
-        meta_phone_number_id = request.form.get('meta_phone_number_id')
-        meta_access_token = request.form.get('meta_access_token')
-
-        erros = []
-        if not nome_fantasia: erros.append("O Nome Fantasia é obrigatório.")
-            
-        if telefone_whatsapp:
-            existente = Barbearia.query.filter(
-                Barbearia.telefone_whatsapp == telefone_whatsapp,
-                Barbearia.id != barbearia_id 
-            ).first()
-            if existente:
-                erros.append(f"O telefone {telefone_whatsapp} já está em uso por outra barbearia.")
-
-        if erros:
-            for erro in erros:
-                flash(erro, 'danger')
-            return render_template('superadmin/editar.html', barbearia=barbearia, form_data=request.form)
+        # LOG DE DEPURAÇÃO (Verifique nos logs da Render se isso aparece)
+        logging.info(f"📝 EDITANDO BARBEARIA {barbearia_id}: Status Recebido='{novo_status}'")
 
         try:
-            barbearia.nome_fantasia = nome_fantasia
-            barbearia.telefone_whatsapp = telefone_whatsapp
-            barbearia.meta_phone_number_id = meta_phone_number_id
-            barbearia.meta_access_token = meta_access_token
+            barbearia.nome_fantasia = novo_nome
+            barbearia.telefone_whatsapp = novo_tel
+            barbearia.meta_phone_number_id = novo_meta_id
+            barbearia.meta_access_token = novo_meta_token
             
-            # Atualiza o campo visual (texto)
-            barbearia.status_assinatura = status_assinatura_raw
+            # Atualiza o texto visual (para aparecer certo no dropdown depois)
+            barbearia.status_assinatura = novo_status
             
-            # ✅ LÓGICA DE STATUS BLINDADA E COM LOGS (A CORREÇÃO PRINCIPAL)
-            # .strip() remove espaços vazios antes/depois
-            # .lower() garante que "Inativa" vire "inativa"
-            status_clean = str(status_assinatura_raw).strip().lower() if status_assinatura_raw else ''
-            
-            logging.info(f"✏️ EDITANDO BARBEARIA {barbearia_id}: Status Bruto='{status_assinatura_raw}' -> Limpo='{status_clean}'")
+            # ✅ LÓGICA BLINDADA DE ATIVAÇÃO/DESATIVAÇÃO
+            # 1. Remove espaços e coloca em minúsculo para comparar
+            status_clean = str(novo_status).strip().lower()
 
             if status_clean == 'ativa':
                 logging.info("-> Decisão: ATIVAR")
                 barbearia.assinatura_ativa = True
-                # Renovação inteligente: Só muda a data se estiver vazia ou no passado
+                # Se não tem data ou já venceu, renova por 30 dias
                 if not barbearia.assinatura_expira_em or barbearia.assinatura_expira_em < datetime.now():
                     barbearia.assinatura_expira_em = datetime.now() + timedelta(days=30)
                     logging.info("-> Data renovada para +30 dias")
@@ -194,24 +168,25 @@ def editar_barbearia(barbearia_id):
                     barbearia.assinatura_expira_em = datetime.now() + timedelta(days=7)
             
             else:
-                # QUALQUER COISA DIFERENTE DE 'ativa' ou 'teste' VAI DESATIVAR
-                # Isso pega: "Inativa", "Bloqueada", "Cancelada", etc.
-                logging.info("-> Decisão: DESATIVAR TOTALMENTE")
+                # QUALQUER OUTRA COISA (Inativa, inativa, Cancelada...) DESATIVA TUDO
+                logging.info(f"-> Decisão: DESATIVAR TOTALMENTE (Status: {status_clean})")
                 barbearia.assinatura_ativa = False
-                barbearia.assinatura_expira_em = None # Força NULL no banco
+                barbearia.assinatura_expira_em = None # Força remover a data
             
+            # Força a gravação no banco
+            db.session.add(barbearia)
             db.session.commit() 
             
-            flash(f'Barbearia "{nome_fantasia}" atualizada com sucesso!', 'success')
+            flash(f'Barbearia atualizada! Status: {novo_status}', 'success')
             return redirect(url_for('superadmin.listar_barbearias'))
 
         except Exception as e:
             db.session.rollback() 
-            current_app.logger.error(f"Erro ao editar barbearia {barbearia_id}: {e}", exc_info=True)
+            current_app.logger.error(f"Erro ao editar: {e}", exc_info=True)
             flash(f'Erro ao salvar: {e}', 'danger')
             return render_template('superadmin/editar.html', barbearia=barbearia, form_data=request.form)
 
-    # Preenche formulário
+    # Prepara os dados para preencher o formulário
     form_data_preenchido = {
         'nome_fantasia': barbearia.nome_fantasia,
         'telefone_whatsapp': barbearia.telefone_whatsapp,
@@ -226,22 +201,17 @@ def editar_barbearia(barbearia_id):
 @login_required
 @super_admin_required
 def apagar_barbearia(barbearia_id):
-    """Apaga uma barbearia (e todos os dados associados em cascata)."""
-    
     if barbearia_id == 1:
         flash('Erro: Não é permitido apagar a barbearia principal (ID 1).', 'danger')
         return redirect(url_for('superadmin.listar_barbearias'))
 
     barbearia = Barbearia.query.get_or_404(barbearia_id)
-    nome_barbearia = barbearia.nome_fantasia
-
     try:
         db.session.delete(barbearia)
         db.session.commit()
-        flash(f'Barbearia "{nome_barbearia}" apagada com sucesso!', 'warning')
+        flash('Barbearia apagada com sucesso!', 'warning')
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Erro ao apagar: {e}", exc_info=True)
         flash(f'Erro ao apagar: {e}', 'danger')
 
     return redirect(url_for('superadmin.listar_barbearias'))
