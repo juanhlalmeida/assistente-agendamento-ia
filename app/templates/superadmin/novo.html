@@ -1,141 +1,101 @@
-<!-- novo.html -->
 <!DOCTYPE html>
-{# Template para Adicionar Nova Barbearia #}
 <html class="dark" lang="pt-br">
 <head>
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  <title>Super Admin - Nova Barbearia</title>
-
   <title>Super Admin - Editar Barbearia</title>
-  {# Inclui Tailwind #}
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
-  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
   <script>
     tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#00A6FB", "background-dark": "#121212", "surface-dark": "#1E1E1E", "text-primary-dark": "#FFFFFF", "text-secondary-dark": "#A0A0A0" }, fontFamily: { "display": ["Inter", "sans-serif"] } } } }
   </script>
-  <style> .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24 } </style>
 </head>
 <body class="bg-background-dark font-display text-text-primary-dark min-h-screen">
 
   <div class="container mx-auto p-8">
-    {# Header Simples #}
     <div class="flex justify-between items-center mb-8 pb-4 border-b border-gray-700">
-      <h1 class="text-3xl font-bold">Super Admin</h1>
-      {% if current_user.is_authenticated %}
-        <div class="text-right">
-            <p class="text-sm">Logado como: {{ current_user.email }}</p>
-            <a href="{{ url_for('main.logout') }}" class="text-sm text-primary hover:underline">Sair</a>
-        </div>
-      {% endif %}
-    </div>  
+      <h1 class="text-3xl font-bold">Editar Barbearia</h1>
+      <a href="{{ url_for('superadmin.listar_barbearias') }}" class="text-sm text-primary hover:underline">Voltar</a>
+    </div>
 
-  {# Inclui Tailwind #}
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com" rel="preconnect"/>
-  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
-  <script>
-    tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#00A6FB", "background-dark": "#121212", "surface-dark": "#1E1E1E", "text-primary-dark": "#FFFFFF", "text-secondary-dark": "#A0A0A0" }, fontFamily: { "display": ["Inter", "sans-serif"] } } } }
-  </script>
-  <style> .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24 } </style>
-</head>
-<body class="bg-background-dark font-display text-text-primary-dark min-h-screen">
-
-      
-    {# Mensagens Flash de Erro (se a validação falhar) #}
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
-          {% if category == 'danger' %} 
-          <div class="bg-red-500 text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
-            <span>{{ message }}</span>
-            <button type="button" onclick="this.parentElement.remove()">
-              <span class="material-symbols-outlined">close</span>
-            </button>
+          <div class="p-4 rounded-lg mb-6 shadow-lg text-white {{ 'bg-green-500' if category == 'success' else 'bg-red-500' }}">
+            {{ message }}
           </div>
-          {% endif %}
         {% endfor %}
       {% endif %}
     {% endwith %}
 
-    {# Card principal com o formulário #}
     <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden max-w-4xl mx-auto">
-      <div class="p-6 border-b border-gray-700">
-        <h2 class="text-xl font-bold text-text-primary-dark">Adicionar Nova Barbearia</h2>
-      </div>
       <div class="p-6">
-        {# O formulário envia os dados via POST para a mesma rota #}
         <form method="POST">
           
           <h3 class="text-lg font-semibold text-text-primary-dark mb-4">Dados da Empresa</h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div>
-              <label for="nome_fantasia" class="block text-sm font-medium text-text-secondary-dark mb-1">Nome Fantasia</label>
-              <input type="text" id="nome_fantasia" name="nome_fantasia" 
-                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+              <label class="block text-sm font-medium text-text-secondary-dark mb-1">Nome Fantasia</label>
+              <input type="text" name="nome_fantasia" 
+                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5" 
                      value="{{ form_data.get('nome_fantasia', '') }}" required>
             </div>
             <div>
-              <label for="telefone_whatsapp" class="block text-sm font-medium text-text-secondary-dark mb-1">Telefone WhatsApp (com +55)</label>
-              <input type="text" id="telefone_whatsapp" name="telefone_whatsapp" 
-                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
-                     value="{{ form_data.get('telefone_whatsapp', '') }}" placeholder="+55119..." required>
+              <label class="block text-sm font-medium text-text-secondary-dark mb-1">WhatsApp</label>
+              <input type="text" name="telefone_whatsapp" 
+                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5" 
+                     value="{{ form_data.get('telefone_whatsapp', '') }}">
             </div>
+            
             <div>
-                <label for="status_assinatura" class="block text-sm font-medium text-text-secondary-dark mb-1">Status da Assinatura</label>
-                <select id="status_assinatura" name="status_assinatura" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
-                    <option value="ativa" {% if form_data.get('status_assinatura') == 'ativa' %}selected{% endif %}>Ativa</option>
-                    <option value="inativa" {% if form_data.get('status_assinatura') == 'inativa' %}selected{% endif %}>Inativa</option>
-                    <option value="pendente" {% if form_data.get('status_assinatura') == 'pendente' or not form_data %}selected{% endif %}>Pendente</option>
+                <label class="block text-sm font-medium text-text-secondary-dark mb-1">Status da Assinatura</label>
+                <select name="status_assinatura" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5">
+                    <option value="ativa" {% if form_data.get('status_assinatura')|lower == 'ativa' %}selected{% endif %}>Ativa</option>
+                    <option value="inativa" {% if form_data.get('status_assinatura')|lower == 'inativa' %}selected{% endif %}>Inativa</option>
+                    <option value="teste" {% if form_data.get('status_assinatura')|lower == 'teste' %}selected{% endif %}>Teste</option>
                 </select>
             </div>
+
             <div>
-              <label for="meta_phone_number_id" class="block text-sm font-medium text-text-secondary-dark mb-1">Meta Phone Number ID</label>
-              <input type="text" id="meta_phone_number_id" name="meta_phone_number_id" 
-                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+              <label class="block text-sm font-medium text-text-secondary-dark mb-1">Meta Phone ID</label>
+              <input type="text" name="meta_phone_number_id" 
+                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5" 
                      value="{{ form_data.get('meta_phone_number_id', '') }}">
             </div>
-            <div>
-              <label for="meta_access_token" class="block text-sm font-medium text-text-secondary-dark mb-1">Meta Access Token</label>
-              <input type="text" id="meta_access_token" name="meta_access_token" 
-                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+            
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-text-secondary-dark mb-1">Meta Access Token</label>
+              <input type="text" name="meta_access_token" 
+                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5" 
                      value="{{ form_data.get('meta_access_token', '') }}">
             </div>
           </div>
 
           <div class="border-t border-gray-700 my-6"></div>
-
-          <h3 class="text-lg font-semibold text-text-primary-dark mb-4">Conta Admin (Para o Dono da Barbearia)</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-                <label for="admin_email" class="block text-sm font-medium text-text-secondary-dark mb-1">Email do Admin</label>
-                <input type="email" id="admin_email" name="admin_email" 
-                       class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
-                       value="{{ form_data.get('admin_email', '') }}" required>
-            </div>
-             <div>
-                <label for="admin_senha" class="block text-sm font-medium text-text-secondary-dark mb-1">Senha Provisória</label>
-                <input type="password" id="admin_senha" name="admin_senha" 
-                       class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
-                       required>
-            </div>
+          
+          <h3 class="text-lg font-semibold text-text-primary-dark mb-4">Trocar Senha do Admin (Opcional)</h3>
+          <div>
+             <input type="password" name="nova_senha_admin" placeholder="Nova senha (deixe em branco para manter)"
+                    class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5">
           </div>
 
-          <div class="border-t border-gray-700 pt-6 flex justify-end gap-3">
-            <a href="{{ url_for('superadmin.listar_barbearias') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">
-              Cancelar
-            </a>
-            <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
-              Salvar Nova Barbearia
-            </button>
+          <div class="border-t border-gray-700 pt-6 flex justify-end gap-3 mt-6">
+            <a href="{{ url_for('superadmin.listar_barbearias') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white hover:bg-gray-500">Cancelar</a>
+            <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white hover:bg-primary/90">Salvar Alterações</button>
           </div>
           
         </form>
+        
+        <div class="mt-8 border-t border-red-900/30 pt-6">
+            <form method="POST" action="{{ url_for('superadmin.apagar_barbearia', barbearia_id=barbearia.id) }}" onsubmit="return confirm('Tem certeza? Isso apagará TUDO desta barbearia.');">
+                <button type="submit" class="text-red-500 hover:text-red-400 text-sm font-bold flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm">delete</span>
+                    Apagar Barbearia (Zona de Perigo)
+                </button>
+            </form>
+        </div>
       </div>
     </div>
   </div>
