@@ -1,5 +1,5 @@
 # app/routes.py
-# (VERSÃO FINAL COMPLETA: CORREÇÃO DE DATA DE ASSINATURA + DEBUG DETALHADO + PROTEÇÃO DE ESPAÇOS)
+# (VERSÃO CORRIGIDA DEFINITIVA: LÓGICA DE INATIVAÇÃO + TODOS OS RECURSOS)
 
 import os
 import logging
@@ -731,54 +731,64 @@ def admin_editar_barbearia(barbearia_id):
     barbearia = Barbearia.query.get_or_404(barbearia_id)
 
     if request.method == 'POST':
-        # 2. Atualiza dados da empresa (Conforme imagem que você mandou)
+        # 2. Atualiza dados da empresa
         barbearia.nome_fantasia = request.form.get('nome_fantasia')
         
         raw_tel = request.form.get('telefone_whatsapp')
         if raw_tel:
-            barbearia.telefone_admin = ''.join(filter(str.isdigit, raw_tel)) # O campo no model é telefone_admin
+            barbearia.telefone_admin = ''.join(filter(str.isdigit, raw_tel))
 
         barbearia.meta_phone_number_id = request.form.get('meta_phone_number_id')
         barbearia.meta_access_token = request.form.get('meta_access_token')
         
-        # 🟢 CORREÇÃO: ATUALIZA DATA SE O STATUS FOR ATIVA
-        status = request.form.get('status_assinatura')
-        if status:
-            barbearia.status_assinatura = status
-            if status == 'Ativa':
+        # ✅ AQUI ESTÁ A CORREÇÃO CRÍTICA DO STATUS E DATA ✅
+        status_input = request.form.get('status_assinatura')
+        
+        if status_input:
+            barbearia.status_assinatura = status_input
+            
+            # Normaliza para letras minúsculas e sem espaços
+            status_clean = str(status_input).strip().lower()
+            
+            if status_clean == 'ativa':
                 barbearia.assinatura_ativa = True
-                # Se a data estiver vazia ou no passado, joga pra +30 dias
+                # Se não tem data ou data é passada, renova 30 dias
                 if not barbearia.assinatura_expira_em or barbearia.assinatura_expira_em < datetime.now():
                     barbearia.assinatura_expira_em = datetime.now() + timedelta(days=30)
                     flash('✅ Assinatura ativada! Validade renovada por 30 dias.', 'success')
+            
+            elif status_clean == 'teste':
+                barbearia.assinatura_ativa = True
+                if not barbearia.assinatura_expira_em:
+                    barbearia.assinatura_expira_em = datetime.now() + timedelta(days=7)
+                flash('✅ Modo Teste ativado (7 dias).', 'success')
+            
+            else:
+                # SE FOR 'inativa', 'bloqueada', 'pendente', etc.
+                barbearia.assinatura_ativa = False
+                barbearia.assinatura_expira_em = None # Remove a data para sumir a faixa verde
+                flash('🚫 Assinatura DESATIVADA. O acesso foi revogado.', 'warning')
 
-        # 3. 🔑 LOGICA DE TROCA DE SENHA DO CLIENTE (O QUE VC PEDIU)
+        # 3. Troca de Senha
         nova_senha = request.form.get('nova_senha_admin')
         if nova_senha and nova_senha.strip():
-            # Busca o dono da barbearia
             dono = User.query.filter_by(barbearia_id=barbearia.id).first()
             if dono:
                 dono.set_password(nova_senha)
-                flash(f'✅ Dados salvos e SENHA DO CLIENTE alterada para: {nova_senha}', 'success')
-            else:
-                flash('Dados salvos, mas esta barbearia não tem usuário vinculado para trocar senha.', 'warning')
+                flash(f'🔑 Senha do cliente alterada para: {nova_senha}', 'success')
 
-        # 4. 📸 UPLOAD DE TABELA PELO SUPER ADMIN (NOVO - Resolve o problema da imagem)
+        # 4. Upload Tabela
         arquivo = request.files.get('arquivo_tabela_admin')
         if arquivo and arquivo.filename != '':
             pasta_uploads = os.path.join(current_app.root_path, 'static', 'uploads')
             os.makedirs(pasta_uploads, exist_ok=True)
             
-            # RENOMEIA USANDO O ID DA BARBEARIA (Segurança)
-            extensao = os.path.splitext(arquivo.filename)[1] # ex: .jpg
-            if not extensao: extensao = '.jpg'
-            
-            nome_seguro = f"tabela_{barbearia.id}{extensao}" # Ex: tabela_5.jpg
+            extensao = os.path.splitext(arquivo.filename)[1] or '.jpg'
+            nome_seguro = f"tabela_{barbearia.id}{extensao}"
             
             caminho_completo = os.path.join(pasta_uploads, nome_seguro)
             arquivo.save(caminho_completo)
             
-            # Gera o Link Completo e salva no banco
             url_base = request.host_url.rstrip('/') 
             url_final = f"{url_base}/static/uploads/{nome_seguro}"
             barbearia.url_tabela_precos = url_final
@@ -787,10 +797,8 @@ def admin_editar_barbearia(barbearia_id):
         if not (nova_senha and nova_senha.strip()):
              flash('✅ Dados atualizados com sucesso!', 'success')
 
-        return redirect(url_for('main.admin_barbearias')) # Redireciona para a lista
+        return redirect(url_for('main.admin_barbearias'))
 
-    # GET: Se você precisar renderizar a página
-    # CORREÇÃO: O return está fora do if POST para evitar tela branca
     return render_template('editar_barbearia.html', barbearia=barbearia)
 
 
