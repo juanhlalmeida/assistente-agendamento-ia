@@ -1,14 +1,3 @@
-Entendi. Você quer o arquivo `routes.py` **COMPLETO**, exatamente como você me enviou, mas com a implementação do Log para `merchant_order` para que você possa rastrear o que está acontecendo (o "só carrega").
-
-O problema "só carrega" acontece porque o Mercado Pago envia primeiro um aviso de "Pedido Criado" (`merchant_order`) e só depois (se der certo) envia o "Pagamento" (`payment`). O seu código atual ignora o primeiro aviso, parecendo que o sistema travou.
-
-Aqui está o arquivo **INTEIRO**, linha por linha, sem omitir nada, com a correção na função `webhook_mp`.
-
-### 📂 ARQUIVO: `app/routes.py`
-
-*(Copie e substitua TODO o conteúdo deste arquivo).*
-
-```python
 # app/routes.py
 # (VERSÃO FINAL: BASEADO NO SEU ARQUIVO + LOGS DETALHADOS PARA MERCHANT ORDER)
 
@@ -1046,5 +1035,3 @@ def reset_database(secret_key):
         return "Banco de dados recriado com sucesso!", 200
     except Exception as e:
         return f"Ocorreu um erro: {str(e)}", 500
-
-```
