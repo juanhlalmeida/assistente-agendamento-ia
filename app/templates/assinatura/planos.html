@@ -1,157 +1,162 @@
 {% extends "base.html" %}
 
-{% block title %}Escolha seu Plano{% endblock %}
+{% block title %}Planos e Preços{% endblock %}
 
 {% block head %}
 {{ super() }}
-<!-- Material Icons usando CDN do Google -->
 <link href="https://fonts.googleapis.com/css2?family=Material+Icons+Outlined" rel="stylesheet">
+<style>
+  /* Efeito de brilho suave para o plano Premium */
+  .shadow-glow-primary {
+    box-shadow: 0 0 25px rgba(var(--color-primary-rgb, 59, 130, 246), 0.5);
+  }
+  .scale-102 {
+    transform: scale(1.02);
+  }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex flex-col items-center justify-center p-4 -mt-8">
-  <div class="max-w-6xl w-full">
-    <h1 class="text-4xl md:text-5xl font-bold text-center mb-12 text-gray-900 dark:text-white">
-      Escolha seu Plano
-    </h1>
+<div class="min-h-screen flex flex-col items-center justify-center p-4 py-12">
+  <div class="max-w-7xl w-full">
+    
+    <div class="text-center mb-16">
+      <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white mb-4">
+        Escolha a Evolução do seu Negócio
+      </h1>
+      <p class="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+        Automatize agendamentos, reduza faltas e fidelize clientes com a inteligência artificial mais avançada do mercado.
+      </p>
+    </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
+      
       {% if planos %}
         {% for plano in planos %}
-          <div class="{% if loop.index == 2 %}bg-primary shadow-glow-primary{% else %}bg-gray-100 dark:bg-gray-900 shadow-lg{% endif %} rounded-lg p-1 relative">
-            {% if loop.index != 2 %}
-            <div class="absolute inset-0 bg-primary/40 dark:bg-primary/30 blur-xl rounded-lg -z-10 animate-pulse duration-3000"></div>
+          {% set is_premium = 'Premium' in plano.nome %}
+          
+          <div class="relative flex flex-col h-full rounded-2xl transition-all duration-300 
+                      {% if is_premium %} 
+                        bg-white dark:bg-gray-800 border-2 border-primary shadow-glow-primary scale-102 z-10
+                      {% else %} 
+                        bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl hover:shadow-2xl
+                      {% endif %}">
+
+            {% if is_premium %}
+            <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-primary text-white text-sm font-bold px-4 py-1 rounded-full shadow-md">
+              MAIS POPULAR ⭐
+            </div>
             {% endif %}
-            
-            <div class="relative bg-gray-100 dark:bg-gray-900 rounded-lg h-full flex flex-col">
-              <div class="bg-primary text-gray-900 dark:text-black font-bold text-2xl p-6 rounded-t-lg text-center">
-                {{ plano.nome }}
+
+            <div class="p-8 flex-grow">
+              <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">{{ plano.nome }}</h3>
+              <p class="text-gray-500 dark:text-gray-400 text-sm mb-6 h-10">{{ plano.descricao }}</p>
+              
+              <div class="flex items-baseline mb-8">
+                <span class="text-5xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+                  R$ {{ "%.2f"|format(plano.preco_mensal)|replace('.', ',') }}
+                </span>
+                <span class="text-xl font-semibold text-gray-500 dark:text-gray-400 ml-2">/mês</span>
               </div>
 
-              <div class="p-8 flex-grow">
-                <div class="text-center mb-6">
-                  <p class="text-4xl font-bold text-gray-900 dark:text-white">
-                    R$ {{ "%.2f"|format(plano.preco_mensal) }}
-                    <span class="text-lg font-medium text-gray-500 dark:text-gray-400">/mês</span>
-                  </p>
-                  <p class="text-gray-600 dark:text-gray-400 mt-2">{{ plano.descricao }}</p>
-                </div>
+              <ul class="space-y-4 mb-8">
+                <li class="flex items-start">
+                  <span class="material-icons-outlined text-green-500 mr-2 shrink-0">check_circle</span>
+                  <span class="text-gray-700 dark:text-gray-300 font-medium">
+                    Até <strong class="text-gray-900 dark:text-white">{{ plano.max_profissionais }}</strong> Profissionais
+                  </span>
+                </li>
 
-                <ul class="space-y-4">
-                  {% if plano.max_profissionais %}
-                  <li class="flex items-center">
-                    <!-- ✅ Usando SVG ao invés de fonte de ícone -->
-                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    <span class="ml-3 text-gray-700 dark:text-gray-300">
-                      Até {{ plano.max_profissionais }} profissionais
-                    </span>
-                  </li>
-                  {% endif %}
-                  
-                  {% if plano.max_servicos %}
-                  <li class="flex items-center">
-                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    <span class="ml-3 text-gray-700 dark:text-gray-300">
-                      Até {{ plano.max_servicos }} serviços
-                    </span>
-                  </li>
-                  {% endif %}
-
-                  {% if plano.tem_ia %}
-                  <li class="flex items-center">
-                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    <span class="ml-3 text-gray-700 dark:text-gray-300">Assistente IA Luana</span>
-                  </li>
-                  {% endif %}
-                  
-                  <li class="flex items-center">
-                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    <span class="ml-3 text-gray-700 dark:text-gray-300">WhatsApp integrado</span>
-                  </li>
-                  
-                  <li class="flex items-center">
-                    <svg class="w-5 h-5 text-primary flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                    <span class="ml-3 text-gray-700 dark:text-gray-300">Agenda completa</span>
-                  </li>
-                </ul>
-
-                <form method="POST" action="{{ url_for('assinaturas.assinar', plano_id=plano.id) }}" class="mt-8">
-                  <button type="submit" 
-                          class="w-full bg-primary text-white font-bold py-3 px-6 rounded-full hover:opacity-90 transition-opacity duration-300 shadow-lg shadow-primary/30">
-                    {% if barbearia and barbearia.assinatura_ativa %}
-                      Mudar para este Plano
+                <li class="flex items-start">
+                  <span class="material-icons-outlined text-green-500 mr-2 shrink-0">check_circle</span>
+                  <span class="text-gray-700 dark:text-gray-300">
+                    {% if plano.max_servicos > 100 %}
+                      Serviços <strong>Ilimitados</strong>
                     {% else %}
-                      Assinar Agora
+                      Até <strong>{{ plano.max_servicos }}</strong> Serviços
                     {% endif %}
-                  </button>
-                </form>
-              </div>
+                  </span>
+                </li>
+
+                <li class="flex items-start">
+                  <span class="material-icons-outlined text-green-500 mr-2 shrink-0">check_circle</span>
+                  <span class="text-gray-700 dark:text-gray-300">Agenda Inteligente (Link)</span>
+                </li>
+
+                <li class="flex items-start">
+                  {% if plano.tem_notificacao_whatsapp %}
+                    <span class="material-icons-outlined text-green-500 mr-2 shrink-0">check_circle</span>
+                    <span class="text-gray-700 dark:text-gray-300 font-bold">Lembretes WhatsApp</span>
+                  {% else %}
+                    <span class="material-icons-outlined text-gray-300 dark:text-gray-600 mr-2 shrink-0">cancel</span>
+                    <span class="text-gray-400 dark:text-gray-500 line-through">Lembretes WhatsApp</span>
+                  {% endif %}
+                </li>
+
+                <li class="flex items-start">
+                  {% if plano.tem_ia_avancada %}
+                    <span class="material-icons-outlined text-purple-500 mr-2 shrink-0">auto_awesome</span>
+                    <span class="text-gray-700 dark:text-gray-300 font-bold">IA Ouve Áudios + Imagens</span>
+                  {% else %}
+                    <span class="material-icons-outlined text-gray-300 dark:text-gray-600 mr-2 shrink-0">cancel</span>
+                    <span class="text-gray-400 dark:text-gray-500 line-through">IA Ouve Áudios + Imagens</span>
+                  {% endif %}
+                </li>
+
+                <li class="flex items-start">
+                  {% if plano.tem_google_agenda %}
+                    <span class="material-icons-outlined text-blue-500 mr-2 shrink-0">event</span>
+                    <span class="text-gray-700 dark:text-gray-300 font-bold">Sync Google Agenda</span>
+                  {% else %}
+                    <span class="material-icons-outlined text-gray-300 dark:text-gray-600 mr-2 shrink-0">cancel</span>
+                    <span class="text-gray-400 dark:text-gray-500 line-through">Sync Google Agenda</span>
+                  {% endif %}
+                </li>
+                
+                {% if plano.tem_suporte_prioritario %}
+                <li class="flex items-start">
+                    <span class="material-icons-outlined text-yellow-500 mr-2 shrink-0">star</span>
+                    <span class="text-gray-700 dark:text-gray-300 font-bold">Suporte Prioritário</span>
+                </li>
+                {% endif %}
+              </ul>
+            </div>
+
+            <div class="p-8 pt-0 mt-auto">
+              <form method="POST" action="{{ url_for('main.assinar_plano', plano_id=plano.id) }}">
+                <button type="submit" 
+                        class="w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-200 transform hover:-translate-y-1 shadow-lg
+                        {% if is_premium %}
+                          bg-primary text-white hover:bg-blue-600 shadow-primary/30
+                        {% else %}
+                          bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600
+                        {% endif %}">
+                  {% if barbearia and barbearia.assinatura_ativa %}
+                    Trocar Plano
+                  {% else %}
+                    Assinar Agora
+                  {% endif %}
+                </button>
+              </form>
             </div>
           </div>
         {% endfor %}
       {% else %}
-        <div class="col-span-3 text-center py-12">
-          <p class="text-xl text-gray-500 dark:text-gray-400">
-            Nenhum plano disponível no momento.
-          </p>
-          <p class="text-sm text-gray-400 dark:text-gray-300 mt-4">
-            <a href="{{ url_for('dashboard.index') }}" class="text-primary hover:underline">
-              ← Voltar ao Dashboard
-            </a>
-          </p>
+        <div class="col-span-3 text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow">
+          <p class="text-xl text-gray-500">Nenhum plano configurado no momento.</p>
+          <p class="text-sm mt-2 text-gray-400">Admin: execute a rota de atualização.</p>
         </div>
       {% endif %}
     </div>
 
-    {% if barbearia and barbearia.assinatura_ativa %}
-    <div class="max-w-md mx-auto bg-green-500/10 border-2 border-green-500 rounded-xl p-4 mb-8">
-      <div class="flex items-center gap-3">
-        <svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-        </svg>
-        <div>
-          <h3 class="text-lg font-bold text-green-500">Assinatura Ativa</h3>
-          {% if barbearia.assinatura_expira_em %}
-          <p class="text-sm text-gray-600 dark:text-gray-400">
-            Válida até: {{ barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}
-          </p>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    <div class="max-w-md mx-auto text-center">
-      <a href="{{ url_for('dashboard.index') }}" 
-         class="text-primary hover:text-primary/80 transition-colors font-medium">
-        ← Voltar ao Dashboard
+    <div class="mt-12 text-center">
+      <p class="text-gray-500 dark:text-gray-400 text-sm mb-4">
+        Pagamento seguro via Mercado Pago. Cancele quando quiser.
+      </p>
+      <a href="{{ url_for('dashboard.index') }}" class="inline-flex items-center text-primary hover:text-primary/80 font-medium">
+        <span class="material-icons-outlined mr-1">arrow_back</span> Voltar ao Dashboard
       </a>
     </div>
   </div>
 </div>
-
-<style>
-  @keyframes pulse {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.6; }
-  }
-  
-  .animate-pulse {
-    animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  }
-  
-  .shadow-glow-primary {
-    box-shadow: 0 0 15px 0 rgba(0, 191, 255, 0.4), 0 0 20px 0 rgba(0, 191, 255, 0.3);
-  }
-</style>
 {% endblock %}
