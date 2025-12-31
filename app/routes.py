@@ -1,5 +1,5 @@
 # app/routes.py
-# (VERSÃO FINAL: BASEADO NO SEU ARQUIVO + LOGS DETALHADOS PARA MERCHANT ORDER)
+# (VERSÃO FINAL: BASEADO NO SEU ARQUIVO ORIGINAL + ATUALIZAÇÃO DE PLANOS)
 
 import os
 import logging
@@ -11,8 +11,8 @@ from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
 from sqlalchemy.orm import joinedload
 
-# Importações de modelos
-from app.models.tables import Agendamento, Profissional, Servico, User, Barbearia, Plano
+# Importações de modelos (ADICIONADO Assinatura e Pagamento)
+from app.models.tables import Agendamento, Profissional, Servico, User, Barbearia, Plano, Assinatura, Pagamento
 from app.extensions import db
 
 # ============================================
@@ -37,6 +37,12 @@ except ImportError:
     logging.warning("⚠️ O arquivo mercadopago_service.py não foi encontrado. Pagamentos desativados.")
     mercadopago_service = None
     MP_AVAILABLE = False
+
+# ✅ Importação Direta do SDK (Para garantir funcionamento do PIX/Cartão)
+try:
+    import mercadopago
+except ImportError:
+    logging.warning("⚠️ Biblioteca 'mercadopago' não instalada.")
 
 from app.services import ai_service  
 from app.services.audio_service import AudioService
@@ -122,7 +128,6 @@ def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: B
     try:
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
-        # logging.info(f"✅ Mensagem enviada para {destinatario} via Meta: {response.json()}")
         return True
     except requests.exceptions.RequestException as e:
         logging.error(f"❌ Erro ao enviar mensagem via Meta: {e}")
@@ -150,7 +155,6 @@ def enviar_midia_whatsapp_meta(destinatario: str, url_arquivo: str, barbearia: B
     }
     try:
         response = requests.post(url, headers=headers, json=payload)
-        # Não damos raise_for_status aqui para não quebrar o fluxo se a URL for inválida temporariamente
         if response.status_code == 200:
             logging.info(f"✅ Mídia enviada com sucesso para {destinatario}")
             return True
@@ -192,8 +196,6 @@ def processar_audio_background(audio_id, wa_id, access_token, phone_number_id, b
     # Cria o contexto manualmente usando a instância do app passada
     with app_instance.app_context():
         try:
-            # logging.info(f"🧵 Thread áudio iniciada: {audio_id}")
-            
             # Passa a instância do app para o serviço (embora o contexto já esteja ativo aqui, o serviço pode precisar)
             resposta_texto = audio_service.processar_audio(audio_id, access_token, wa_id, barbearia_id, app_instance)
             
@@ -811,177 +813,147 @@ def admin_editar_barbearia(barbearia_id):
     return render_template('editar_barbearia.html', barbearia=barbearia)
 
 # ============================================
-# 💳 PAGAMENTOS (IMPLEMENTAÇÃO COMPLETA MERCADO PAGO)
+# 💳 PAGAMENTOS (MERCADO PAGO) - INTEGRADO
 # ============================================
 
-# --- ROTA: LISTAR PLANOS ---
 @bp.route('/assinatura/planos')
 @login_required
-def planos():
-    """Exibe página de escolha de planos"""
-    try:
-        # Buscar todos os planos ativos
-        lista_planos = Plano.query.filter_by(ativo=True).order_by(Plano.preco_mensal).all()
-        
-        # Buscar barbearia do usuário
-        barbearia = Barbearia.query.filter_by(id=current_user.barbearia_id).first()
-        
-        return render_template(
-            'assinatura/planos.html',
-            planos=lista_planos,
-            barbearia=barbearia
-        )
-    except Exception as e:
-        logging.error(f"Erro ao carregar planos: {e}", exc_info=True)
-        flash('Erro ao carregar planos. Tente novamente.', 'danger')
-        return redirect(url_for('main.agenda')) # Redireciona para agenda se falhar
+def listar_planos():
+    """Lista os planos disponíveis"""
+    planos = Plano.query.filter_by(ativo=True).order_by(Plano.preco_mensal).all()
+    return render_template('assinatura/planos.html', planos=planos, barbearia=current_user.barbearia)
 
-# --- ROTA: ASSINAR PLANO ---
-# ATENÇÃO: Se seu HTML chamar 'assinaturas.assinar', mude para 'main.assinar'
 @bp.route('/assinatura/assinar/<int:plano_id>', methods=['POST'])
 @login_required
 def assinar_plano(plano_id):
-    """Processar assinatura de plano"""
-    if not MP_AVAILABLE or not mercadopago_service:
-        flash('Sistema de pagamento indisponível.', 'danger')
-        return redirect(url_for('main.planos'))
+    """Cria a preferência de pagamento"""
+    if not MP_AVAILABLE:
+        flash('Erro: Biblioteca Mercado Pago não instalada.', 'danger')
+        return redirect(url_for('main.listar_planos'))
 
     try:
-        # Buscar plano
-        plano = Plano.query.get_or_404(plano_id)
-        
-        if not plano.ativo:
-            flash('Este plano não está mais disponível.', 'warning')
-            return redirect(url_for('main.planos'))
-        
-        # Buscar barbearia do usuário
-        barbearia = Barbearia.query.filter_by(id=current_user.barbearia_id).first()
-        
-        if not barbearia:
-            flash('Erro: Barbearia não encontrada.', 'danger')
-            return redirect(url_for('main.planos'))
-        
-        logging.info(f"📝 Processando assinatura do plano {plano.nome} para {barbearia.nome_fantasia}")
-        
-        # Cria pagamento único
-        resultado = mercadopago_service.criar_pagamento(barbearia, plano, current_user.email)
-        
-        if not resultado.get("success"):
-            logging.error(f"❌ Erro ao criar pagamento: {resultado.get('error')}")
-            flash('Erro ao processar pagamento. Tente novamente.', 'danger')
-            return redirect(url_for('main.planos'))
-        
-        # Redirecionar direto para Mercado Pago usando init_point
-        init_point = resultado.get("init_point")
-        preference_id = resultado.get("preference_id")
-        
-        if init_point:
-            logging.info(f"🚀 Redirecionando para Mercado Pago: {init_point}")
-            logging.info(f"   Preference ID: {preference_id}")
-            return redirect(init_point)
-        else:
-            logging.error(f"❌ Init point não encontrado na resposta: {resultado}")
-            flash('Erro ao gerar link de pagamento. Tente novamente.', 'danger')
-            return redirect(url_for('main.planos'))
+        # 1. Configura SDK (Pega o token MP_ACCESS_TOKEN do ambiente)
+        token = os.getenv('MP_ACCESS_TOKEN')
+        if not token:
+            flash('Erro: Token do Mercado Pago não configurado.', 'danger')
+            return redirect(url_for('main.listar_planos'))
             
+        sdk = mercadopago.SDK(token)
+        
+        # 2. Busca dados
+        plano = Plano.query.get_or_404(plano_id)
+        barbearia = current_user.barbearia
+        email_cliente = current_user.email
+        
+        logging.info(f"💳 Iniciando Pagamento: {barbearia.nome_fantasia} - Plano {plano.nome}")
+
+        # 3. Cria Preferência (Checkout Pro)
+        preference_data = {
+            "items": [
+                {
+                    "id": str(plano.id),
+                    "title": f"Assinatura - {plano.nome}",
+                    "quantity": 1,
+                    "currency_id": "BRL",
+                    "unit_price": float(plano.preco_mensal)
+                }
+            ],
+            "payer": {
+                "email": email_cliente,
+            },
+            "back_urls": {
+                "success": url_for('main.retorno_mp', _external=True) + "?status=success",
+                "failure": url_for('main.retorno_mp', _external=True) + "?status=failure",
+                "pending": url_for('main.retorno_mp', _external=True) + "?status=pending"
+            },
+            "auto_return": "approved",
+            "external_reference": f"barbearia_{barbearia.id}_plano_{plano.id}",
+            "payment_methods": {
+                "excluded_payment_types": [], # Vazio = Aceita tudo (PIX, Cartão, Boleto)
+                "installments": 1
+            },
+            "statement_descriptor": "BARBER APP"
+        }
+
+        preference_response = sdk.preference().create(preference_data)
+        preference = preference_response["response"]
+        
+        # 4. Redireciona
+        if "init_point" in preference:
+            logging.info(f"🚀 Link Gerado: {preference['init_point']}")
+            return redirect(preference["init_point"])
+        else:
+            logging.error(f"❌ Erro MP: {preference}")
+            flash('Erro ao comunicar com Mercado Pago.', 'danger')
+            return redirect(url_for('main.listar_planos'))
+
     except Exception as e:
-        logging.error(f"❌ Erro no processo de assinatura: {e}", exc_info=True)
-        flash('Erro ao processar assinatura. Tente novamente.', 'danger')
-        return redirect(url_for('main.planos'))
+        logging.error(f"❌ Erro Crítico Assinatura: {e}", exc_info=True)
+        flash('Erro interno ao processar pagamento.', 'danger')
+        return redirect(url_for('main.listar_planos'))
 
-# --- ROTA: RETORNO DO MERCADO PAGO ---
 @bp.route('/assinatura/retorno')
-def retorno():
-    """Página de retorno após pagamento no Mercado Pago"""
-    status = request.args.get('status', 'pending')
-    
-    if status == 'success':
-        flash('Pagamento aprovado! Sua assinatura foi ativada.', 'success')
-    elif status == 'pending':
-        flash('Pagamento pendente. Aguardando confirmação.', 'warning')
-    else:
-        flash('Pagamento não aprovado. Tente novamente.', 'danger')
-    
-    return redirect(url_for('main.agenda')) # Volta para agenda/dashboard
+def retorno_mp():
+    st = request.args.get('status', 'pending')
+    if st == 'success': flash('Pagamento recebido! Sua assinatura será ativada em instantes.', 'success')
+    elif st == 'failure': flash('Pagamento recusado.', 'danger')
+    return redirect(url_for('dashboard.index'))
 
-# --- ROTA: WEBHOOK DO MERCADO PAGO ---
 @bp.route('/assinatura/webhook', methods=['POST'])
-def webhook_mp_pagamento():
-    """Recebe notificações do Mercado Pago sobre pagamentos"""
-    if not MP_AVAILABLE or not mercadopago_service:
-        return {'status': 'error', 'message': 'MP service unavailable'}, 503
-
+def webhook_mp():
+    """Webhook do Mercado Pago (Com Logs de Erro Detalhados)"""
     try:
         data = request.get_json() or {}
-        # logging.info(f"📥 Webhook recebido do Mercado Pago: {data}")
+        # Captura ID e Tópico
+        p_id = request.args.get('id') or request.args.get('data.id')
+        if not p_id and data: p_id = data.get('data', {}).get('id')
         
-        # Verificar tipo de notificação
-        topic = data.get('topic') or data.get('type')
+        topic = request.args.get('topic') or data.get('type')
         
-        # LOG PARA DIAGNOSTICO: Se for apenas um pedido (antes de pagar), loga e retorna OK
+        logging.info(f"🔔 Webhook MP Recebido: Tópico={topic}, ID={p_id}")
+
+        # Se for merchant_order, apenas logamos e damos OK
         if topic == 'merchant_order':
             logging.info(f"📦 Pedido recebido (merchant_order). Aguardando pagamento...")
             return jsonify(status="ok"), 200
-
-        if topic == 'payment' or str(topic) == 'payment':
-            # Pega o ID de várias formas possíveis
-            payment_id = data.get('data', {}).get('id') or data.get('id') or request.args.get('id') or request.args.get('data.id')
-            
-            if payment_id:
-                logging.info(f"💳 Processando pagamento ID: {payment_id}")
-                
-                # Consultar pagamento no Mercado Pago
-                resultado = mercadopago_service.consultar_pagamento(payment_id)
-                
-                if resultado.get("success"):
-                    payment_data = resultado.get("data")
-                    status = payment_data.get("status")
-                    external_reference = payment_data.get("external_reference")
-                    
-                    logging.info(f"✅ Pagamento ID {payment_id} - Status: {status}")
-                    
-                    # Se pagamento aprovado, ativar barbearia
-                    if status == 'approved':
-                        # Extrair barbearia_id do external_reference
-                        # Formato esperado no service: "barbearia_{id}_plano_{id}"
-                        if external_reference:
-                            try:
-                                parts = external_reference.split('_')
-                                # parts[0] = "barbearia"
-                                barbearia_id = int(parts[1])
-                                # parts[2] = "plano"
-                                plano_id = int(parts[3])
-                                
-                                barbearia = Barbearia.query.get(barbearia_id)
-                                plano = Plano.query.get(plano_id)
-                                
-                                if barbearia and plano:
-                                    # ✅ ATIVAR ASSINATURA
-                                    barbearia.assinatura_ativa = True
-                                    barbearia.status_assinatura = 'ativa'
-                                    # Adiciona 30 dias a partir de agora
-                                    barbearia.assinatura_expira_em = datetime.now() + timedelta(days=30)
-                                    
-                                    db.session.commit()
-                                    
-                                    logging.info(f"🎉 BARBEARIA {barbearia.nome_fantasia} ATIVADA VIA WEBHOOK!")
-                                    logging.info(f"   - Assinatura ativa: {barbearia.assinatura_ativa}")
-                                    logging.info(f"   - Status: {barbearia.status_assinatura}")
-                                    logging.info(f"   - Expira em: {barbearia.assinatura_expira_em}")
-                                else:
-                                    logging.error(f"❌ Barbearia ou plano não encontrado: barbearia_id={barbearia_id}, plano_id={plano_id}")
-                            except (ValueError, IndexError) as e:
-                                logging.error(f"❌ Erro ao processar external_reference '{external_reference}': {e}")
-                        else:
-                            logging.warning(f"⚠️ External reference não encontrado no pagamento {payment_id}")
-                else:
-                    logging.error(f"❌ Erro ao consultar pagamento {payment_id}: {resultado.get('error')}")
         
-        return {'status': 'ok'}, 200
+        # Se for pagamento, processamos
+        if (topic == 'payment' or str(topic) == 'payment') and p_id:
+            token = os.getenv('MP_ACCESS_TOKEN')
+            if not token: return jsonify(error="Token missing"), 500
+            
+            sdk = mercadopago.SDK(token)
+            pay_info = sdk.payment().get(p_id)
+            
+            if pay_info["status"] == 200:
+                payment = pay_info["response"]
+                status = payment.get("status")
+                ref = payment.get("external_reference")
+                
+                logging.info(f"💳 Status Pagamento {p_id}: {status} | Ref: {ref}")
+                
+                if status == 'approved' and ref:
+                    try:
+                        # Ref: barbearia_{id}_plano_{id}
+                        parts = ref.split('_')
+                        bid = int(parts[1])
+                        
+                        b = Barbearia.query.get(bid)
+                        if b:
+                            b.assinatura_ativa = True
+                            b.status_assinatura = 'ativa'
+                            # Renova por 30 dias
+                            b.assinatura_expira_em = datetime.now() + timedelta(days=30)
+                            db.session.commit()
+                            logging.info(f"✅ SUCESSO: Barbearia {bid} ativada via Webhook!")
+                    except Exception as ex:
+                        logging.error(f"Erro ao ativar: {ex}")
+            
+        return jsonify(status="ok"), 200
         
     except Exception as e:
-        logging.error(f"❌ Erro ao processar webhook MP: {e}", exc_info=True)
-        return {'status': 'error', 'message': str(e)}, 500
+        logging.error(f"Erro Webhook MP: {e}")
+        return jsonify(status="error"), 500
 
 # --- ROTA: CANCELAR ASSINATURA ---
 @bp.route('/assinatura/cancelar', methods=['POST'])
@@ -1015,6 +987,82 @@ def cancelar_assinatura():
         logging.error(f"Erro ao cancelar assinatura: {e}", exc_info=True)
         flash('Erro ao cancelar assinatura. Tente novamente.', 'danger')
         return redirect(url_for('main.agenda'))
+
+# ============================================
+# 🛠️ ROTA DE ATUALIZAÇÃO DE PLANOS (Executar 1x)
+# ============================================
+@bp.route('/admin/atualizar-planos')
+@login_required
+def atualizar_planos_db():
+    # Segurança: Só Super Admin pode rodar
+    if current_user.role != 'super_admin': 
+        abort(403)
+    
+    try:
+        # 1. Limpa planos antigos (Remove o de R$ 0,50 e outros)
+        try:
+            db.session.query(Pagamento).delete()
+            db.session.query(Assinatura).delete()
+            db.session.query(Plano).delete()
+            db.session.commit()
+        except:
+            db.session.rollback()
+            return "Erro ao limpar banco. Resete o banco primeiro em /admin/reset-database/<key>.", 500
+        
+        # 2. Cria os Novos Planos
+        novos_planos = [
+            Plano(
+                nome="Plano Básico",
+                descricao="Ideal para quem trabalha sozinho. Agenda IA + Link Exclusivo.",
+                preco_mensal=1.00, # ⚠️ VALOR DE TESTE: 1 Real
+                max_profissionais=1,
+                max_servicos=15,
+                tem_ia=True,
+                tem_notificacao_whatsapp=False,
+                tem_ia_avancada=False,
+                tem_google_agenda=False,
+                tem_espelhamento=False,
+                tem_suporte_prioritario=False,
+                ativo=True
+            ),
+            Plano(
+                nome="Plano Premium",
+                descricao="Automação completa. IA entende áudio, envia imagens e notificações.",
+                preco_mensal=89.90,
+                max_profissionais=3,
+                max_servicos=40,
+                tem_ia=True,
+                tem_notificacao_whatsapp=True,
+                tem_ia_avancada=True,
+                tem_google_agenda=False,
+                tem_espelhamento=False,
+                tem_suporte_prioritario=False,
+                ativo=True
+            ),
+            Plano(
+                nome="Plano Plus",
+                descricao="Gestão total. Sincronização Google Agenda e Serviços Ilimitados.",
+                preco_mensal=149.90,
+                max_profissionais=10,
+                max_servicos=999, # Ilimitado na prática
+                tem_ia=True,
+                tem_notificacao_whatsapp=True,
+                tem_ia_avancada=True,
+                tem_google_agenda=True,
+                tem_espelhamento=True,
+                tem_suporte_prioritario=True,
+                ativo=True
+            )
+        ]
+        
+        db.session.add_all(novos_planos)
+        db.session.commit()
+        
+        return "✅ Sucesso! Planos atualizados para: Básico (1,00), Premium (89,90) e Plus (149,90).", 200
+
+    except Exception as e:
+        db.session.rollback()
+        return f"❌ Erro ao atualizar planos: {str(e)}", 500
 
 
 # ============================================
