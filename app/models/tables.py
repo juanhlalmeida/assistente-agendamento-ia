@@ -150,20 +150,30 @@ class Agendamento(db.Model):
     barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearia.id'), nullable=False)
 
 # ====================================
-# SISTEMA DE ASSINATURAS
+# SISTEMA DE ASSINATURAS (ATUALIZADO)
 # ====================================
 
 class Plano(db.Model):
-    """Planos de assinatura disponíveis"""
+    """Planos de assinatura com funcionalidades detalhadas"""
     __tablename__ = 'planos'
     
     id = db.Column(db.Integer, primary_key=True)
     nome = db.Column(db.String(50), nullable=False)
     descricao = db.Column(db.Text)
     preco_mensal = db.Column(db.Float, nullable=False)
+    
+    # Limites do Plano
     max_profissionais = db.Column(db.Integer, default=3)
     max_servicos = db.Column(db.Integer, default=10)
-    tem_ia = db.Column(db.Boolean, default=True)
+    
+    # Funcionalidades (Flags para controlar o que o plano oferece)
+    tem_ia = db.Column(db.Boolean, default=True) # Agenda Básica com IA
+    tem_notificacao_whatsapp = db.Column(db.Boolean, default=False)
+    tem_ia_avancada = db.Column(db.Boolean, default=False) # Entende áudio e envia imagem
+    tem_google_agenda = db.Column(db.Boolean, default=False)
+    tem_espelhamento = db.Column(db.Boolean, default=False) # Espelhamento de WhatsApp
+    tem_suporte_prioritario = db.Column(db.Boolean, default=False)
+    
     ativo = db.Column(db.Boolean, default=True)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -177,14 +187,18 @@ class Assinatura(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearia.id'), nullable=False)
     plano_id = db.Column(db.Integer, db.ForeignKey('planos.id'), nullable=False)
+    
+    # Dados do Mercado Pago
     mp_preapproval_id = db.Column(db.String(100), unique=True)
     mp_payer_id = db.Column(db.String(100))
     status = db.Column(db.String(20), default='pending')
+    
     data_inicio = db.Column(db.DateTime)
     data_fim = db.Column(db.DateTime)
     proximo_vencimento = db.Column(db.DateTime)
     tentativas_falhas = db.Column(db.Integer, default=0)
     ultima_tentativa = db.Column(db.DateTime)
+    
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
