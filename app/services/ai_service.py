@@ -641,7 +641,7 @@ try:
     
     # --- ALTERAÇÃO 2: IMPLEMENTAÇÃO DO ESTUDO (Temperature 0 para evitar alucinação) ---
     generation_config = GenerationConfig(
-        temperature=0.3,  # Zero criatividade para seguir as tools estritamente
+        temperature=0.1,  # Zero criatividade para seguir as tools estritamente
         top_p=0.95,
         top_k=40,
         max_output_tokens=1024,
