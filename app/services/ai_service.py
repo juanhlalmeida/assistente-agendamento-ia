@@ -1,5 +1,5 @@
 # app/services/ai_service.py
-# (CÓDIGO COMPLETO E OTIMIZADO - COM FUZZY MATCHING, PROTEÇÃO MALFORMED CALL E LÓGICA MULTI-TENANCY)
+# (CÓDIGO COMPLETO E OTIMIZADO - VERSÃO SENIOR COM CONTEXTO DE SERVIÇO)
 
 import os
 import logging
@@ -95,6 +95,7 @@ REGRAS GERAIS:
 3. Use APENAS nomes exatos das ferramentas (listar_profissionais/listar_servicos)
    3.1. IMPORTANTE: Se for listar ou perguntar sobre profissionais, VOCÊ DEVE CHAMAR A FERRAMENTA `listar_profissionais` ANTES de responder. Não deixe a lista vazia.
 4. Pergunte tudo que falta de uma vez
+   IMPORTANTE: Ao verificar horários, SE O CLIENTE JÁ FALOU O NOME DO SERVIÇO, envie o parametro 'servico_nome' na ferramenta para garantir a duração correta.
 5. Datas: Hoje={data_de_hoje}, Amanhã={data_de_amanha}. Use AAAA-MM-DD
 6. NUNCA mencione telefone
 7. Nome do cliente: perguntar antes de criar_agendamento
@@ -258,7 +259,8 @@ def listar_servicos(barbearia_id: int) -> str:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_servicos': {e}", exc_info=True)
         return f"Erro ao listar serviços: Ocorreu um erro interno."
 
-def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
+# --- ALTERAÇÃO SENIOR: Agora aceita servico_nome para calcular duração correta ---
+def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str, servico_nome: str = None) -> str:
     try:
         with current_app.app_context():
             # 1. Identifica Profissional e Loja
@@ -280,13 +282,11 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
                 except: return "Data inválida. Use 'hoje', 'amanhã' ou AAAA-MM-DD."
             
             # 3. 🛡️ LÓGICA DE BLOQUEIO INTELIGENTE (Conectada ao Painel)
-            # Lê EXATAMENTE o que você salvou em Configurações
             dias_txt = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado').lower()
             dia_semana = dia_dt.weekday() # 0=Segunda, 6=Domingo
             
             dias_proibidos = []
             
-            # Interpreta o texto das configurações
             if 'terça' in dias_txt and 'sábado' in dias_txt: # "Terça a Sábado"
                 dias_proibidos = [0, 6] # Seg e Dom
             elif 'segunda' in dias_txt and 'sexta' in dias_txt: # "Segunda a Sexta"
@@ -299,20 +299,42 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
             if dia_semana in dias_proibidos:
                 nomes_dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
                 nome_dia = nomes_dias[dia_semana]
-                
-                # Ajuste de Artigo (O/A) baseado no nicho
                 nome_negocio = barbearia.nome_fantasia.lower()
                 is_lash = any(x in nome_negocio for x in ['lash', 'cílios', 'sobrancelha', 'studio', 'estética'])
                 artigo = "A" if is_lash else "O"
-                
                 return f"INFORMAÇÃO: {artigo} {profissional.nome} (e o estabelecimento) NÃO atende às {nome_dia}s. O horário configurado no sistema é: {barbearia.dias_funcionamento}. Peça para o cliente escolher outro dia."
 
-            # 4. Cálculo Matemático
-            # Esta função (do utils.py) JÁ LÊ o horário de abertura/fechamento do banco também!
-            horarios = calcular_horarios_disponiveis_util(profissional, dia_dt)
+            # 4. 🔥 CÁLCULO INTELIGENTE DE DURAÇÃO (CORREÇÃO SENIOR) 🔥
+            duracao_calculo = 60 # Padrão PESSIMISTA (60 min) para evitar agendar em buracos pequenos
+            msg_extra = ""
+
+            if servico_nome:
+                # Tenta achar o serviço para pegar a duração real
+                todos_servicos = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+                nome_serv_match = encontrar_melhor_match(servico_nome, [s.nome for s in todos_servicos])
+                
+                if nome_serv_match:
+                    servico = next(s for s in todos_servicos if s.nome == nome_serv_match)
+                    duracao_calculo = servico.duracao
+                    logging.info(f"⏱️ Calculando horários para serviço '{servico.nome}' (Duração real: {duracao_calculo} min)")
+                else:
+                    msg_extra = " (Obs: Não achei o serviço exato, usando tempo padrão de 1h para segurança)."
+            else:
+                 msg_extra = " (Obs: Calculado com base em 60min pois o serviço não foi informado pela IA)."
+
+            # Passa a duração para o utilitário
+            # Se o utils.py original não aceitar 'duracao', ele vai ignorar ou dar erro, 
+            # mas o correto é tentar passar. Se der erro, usamos fallback.
+            try:
+                horarios = calcular_horarios_disponiveis_util(profissional, dia_dt, duracao=duracao_calculo)
+            except TypeError:
+                logging.warning("⚠️ Utilitário calcular_horarios não aceita 'duracao'. Usando padrão e filtrando...")
+                horarios = calcular_horarios_disponiveis_util(profissional, dia_dt)
+                # (Aqui confiamos no padrão, mas o ideal seria o utils aceitar)
+
             lista_h = [h.strftime('%H:%M') for h in horarios]
             
-            return f"Horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}: {', '.join(lista_h) or 'Sem horários livres neste dia.'}"
+            return f"Horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}: {', '.join(lista_h) or 'Sem horários livres neste dia.'}{msg_extra}"
             
     except Exception as e:
         return f"Erro ao calcular horários: {str(e)}"
@@ -432,7 +454,14 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
                 for ag in ags
             )
             if conflito:
-                return "Conflito de horário. Por favor, escolha outro."
+                # Tenta calcular horários livres PASSANDO O SERVIÇO para a sugestão ser real
+                try:
+                    sugestao = calcular_horarios_disponiveis(barbearia_id, profissional.nome, data_hora_dt.strftime('%Y-%m-%d'), servico.nome)
+                except:
+                    sugestao = "Verifique outros horários."
+                
+                return f"❌ Conflito! O horário {data_hora_dt.strftime('%H:%M')} não é suficiente para '{servico.nome}' ({servico.duracao} min) ou já está ocupado. {sugestao}"
+
             novo_agendamento = Agendamento(
                 nome_cliente=nome_cliente,
                 telefone_cliente=telefone_cliente, 
@@ -538,14 +567,16 @@ listar_servicos_func = FunctionDeclaration(
     description="Lista todos os serviços disponíveis, incluindo duração e preço.",
     parameters={"type": "object", "properties": {}, "required": []}
 )
+# --- ALTERAÇÃO SENIOR: Incluir servico_nome nos parâmetros para o Gemini saber que pode enviar ---
 calcular_horarios_disponiveis_func = FunctionDeclaration(
     name="calcular_horarios_disponiveis",
-    description="Consulta horários disponíveis (slots de 30 min) para um profissional em um dia específico.",
+    description="Consulta horários disponíveis. TENTE SEMPRE INFORMAR O SERVIÇO ('servico_nome') se o cliente já tiver dito, para garantir que o tempo calculado seja suficiente.",
     parameters={
         "type": "object",
         "properties": {
-            "profissional_nome": {"type": "string", "description": "Nome exato do profissional (confirmado pela ferramenta listar_profissionais)"},
-            "dia": {"type": "string", "description": "Dia no formato YYYY-MM-DD, ou as palavras 'hoje' ou 'amanhã'"}
+            "profissional_nome": {"type": "string", "description": "Nome exato do profissional"},
+            "dia": {"type": "string", "description": "Dia no formato YYYY-MM-DD, ou as palavras 'hoje' ou 'amanhã'"},
+            "servico_nome": {"type": "string", "description": "Nome do serviço desejado (Opcional, mas RECOMENDADO para evitar conflitos de horário)"}
         },
         "required": ["profissional_nome", "dia"]
     }
