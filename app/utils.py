@@ -5,9 +5,10 @@ from sqlalchemy.orm import joinedload
 from app.models.tables import Profissional, Agendamento, Servico, Barbearia
 
 # --- FUNÇÃO UNIFICADA PARA CÁLCULO DE HORÁRIOS (DINÂMICA & BLINDADA) ---
-def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime):
+def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime, duracao=30):
     """
     Calcula horários disponíveis respeitando RIGOROSAMENTE as configurações da Barbearia.
+    Agora suporta DURAÇÃO VARIÁVEL do serviço para evitar conflitos.
     """
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
     
@@ -60,8 +61,6 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
         dias_permitidos = [1, 2, 3, 4]
     else:
         # Padrão genérico (caso a IA não entenda o intervalo)
-        # Nota: As travas acima (Seg/Sab/Dom) JÁ filtraram os extremos perigosos.
-        # Então aqui podemos ser um pouco mais permissivos com o "miolo" da semana.
         dias_permitidos = [1, 2, 3, 4, 5]
 
     # Se o dia passou pelas travas mas não está na lista permitida do intervalo
@@ -110,17 +109,35 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
         
         intervalos_ocupados = []
         for ag in agendamentos_do_dia:
-            if ag.servico is None: continue
+            # Pega duração do agendamento existente (se não tiver serviço, assume 30min)
+            duracao_ag = ag.servico.duracao if ag.servico else 30
+            
             inicio_ocupado = sao_paulo_tz.localize(ag.data_hora, is_dst=None)
-            fim_ocupado = inicio_ocupado + timedelta(minutes=ag.servico.duracao)
+            fim_ocupado = inicio_ocupado + timedelta(minutes=duracao_ag)
             intervalos_ocupados.append((inicio_ocupado, fim_ocupado))
             
         agora = datetime.now(sao_paulo_tz)
         
-        while horario_iteracao < fim_do_dia:
-            esta_ocupado = any(inicio <= horario_iteracao < fim for inicio, fim in intervalos_ocupados)
+        # --- LOOP PRINCIPAL DE VERIFICAÇÃO ---
+        # Verifica se o bloco (Inicio + Duração Solicitada) cabe antes do fechamento
+        while horario_iteracao + timedelta(minutes=duracao) <= fim_do_dia:
             
-            if not esta_ocupado and horario_iteracao > agora:
+            # Define o fim deste slot candidato
+            fim_slot_candidato = horario_iteracao + timedelta(minutes=duracao)
+            
+            esta_ocupado = False
+            # Verifica colisão com qualquer agendamento existente
+            for inicio_oc, fim_oc in intervalos_ocupados:
+                # Lógica de Colisão: (InicioA < FimB) e (FimA > InicioB)
+                # Verifica se o slot candidato se sobrepõe a algum agendamento
+                if (horario_iteracao < fim_oc) and (fim_slot_candidato > inicio_oc):
+                    esta_ocupado = True
+                    break
+            
+            # Verifica se é passado (com margem de 15min)
+            e_passado = (horario_iteracao.date() == agora.date() and horario_iteracao < (agora + timedelta(minutes=15)))
+            
+            if not esta_ocupado and not e_passado:
                 horarios_disponiveis.append(horario_iteracao) 
                 
             horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
