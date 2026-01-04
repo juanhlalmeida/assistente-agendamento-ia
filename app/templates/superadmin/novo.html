@@ -1,103 +1,243 @@
 <!DOCTYPE html>
-<html class="dark" lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="utf-8"/>
-  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  <title>Super Admin - Editar Barbearia</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com" rel="preconnect"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
-  <script>
-    tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#00A6FB", "background-dark": "#121212", "surface-dark": "#1E1E1E", "text-primary-dark": "#FFFFFF", "text-secondary-dark": "#A0A0A0" }, fontFamily: { "display": ["Inter", "sans-serif"] } } } }
-  </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova Barbearia - Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="tel"],
+        input[type="color"],
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="tel"]:focus,
+        input[type="color"]:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-cancel {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-cancel:hover {
+            background: #d0d0d0;
+        }
+
+        a.btn-cancel {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+
+        hr {
+            margin: 40px 0;
+            border: none;
+            border-top: 1px solid #ddd;
+        }
+
+        .danger-zone {
+            background: #ffebee;
+            border-radius: 5px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .danger-zone h3 {
+            color: #d32f2f;
+            margin-bottom: 15px;
+        }
+
+        .danger-zone p {
+            color: #555;
+            margin-bottom: 15px;
+        }
+
+        .btn-delete {
+            background: #d32f2f;
+            color: white;
+            width: 100%;
+        }
+
+        .btn-delete:hover {
+            background: #b71c1c;
+            transform: translateY(-2px);
+        }
+    </style>
 </head>
-<body class="bg-background-dark font-display text-text-primary-dark min-h-screen">
+<body>
+    <div class="container">
+        <h1>🏪 Criar Nova Barbearia</h1>
 
-  <div class="container mx-auto p-8">
-    <div class="flex justify-between items-center mb-8 pb-4 border-b border-gray-700">
-      <h1 class="text-3xl font-bold">Editar Barbearia</h1>
-      <a href="{{ url_for('superadmin.listar_barbearias') }}" class="text-sm text-primary hover:underline">Voltar</a>
-    </div>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="p-4 rounded-lg mb-6 shadow-lg text-white {{ 'bg-green-500' if category == 'success' else 'bg-red-500' }}">
-            {{ message }}
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-
-    <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden max-w-4xl mx-auto">
-      <div class="p-6">
-        <form method="POST">
-          
-          <h3 class="text-lg font-semibold text-text-primary-dark mb-4">Dados da Empresa</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <label class="block text-sm font-medium text-text-secondary-dark mb-1">Nome Fantasia</label>
-              <input type="text" name="nome_fantasia" 
-                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5" 
-                     value="{{ form_data.get('nome_fantasia', '') }}" required>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-text-secondary-dark mb-1">WhatsApp</label>
-              <input type="text" name="telefone_whatsapp" 
-                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5" 
-                     value="{{ form_data.get('telefone_whatsapp', '') }}">
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-text-secondary-dark mb-1">Status da Assinatura</label>
-                <select name="status_assinatura" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5">
-                    <option value="ativa" {% if form_data.get('status_assinatura')|lower == 'ativa' %}selected{% endif %}>Ativa</option>
-                    <option value="inativa" {% if form_data.get('status_assinatura')|lower == 'inativa' %}selected{% endif %}>Inativa</option>
-                    <option value="teste" {% if form_data.get('status_assinatura')|lower == 'teste' %}selected{% endif %}>Teste</option>
-                </select>
+        <form method="POST" action="{{ url_for('superadmin.criar_barbearia') }}">
+            <div class="form-group">
+                <label for="nome_fantasia">Nome da Barbearia *</label>
+                <input type="text" id="nome_fantasia" name="nome_fantasia" required placeholder="Ex: Studio Lima Lash">
             </div>
 
-            <div>
-              <label class="block text-sm font-medium text-text-secondary-dark mb-1">Meta Phone ID</label>
-              <input type="text" name="meta_phone_number_id" 
-                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5" 
-                     value="{{ form_data.get('meta_phone_number_id', '') }}">
+            <div class="form-group">
+                <label for="telefone_whatsapp">Telefone WhatsApp *</label>
+                <input type="tel" id="telefone_whatsapp" name="telefone_whatsapp" required placeholder="Ex: 5511987654321">
             </div>
-            
-            <div class="md:col-span-2">
-              <label class="block text-sm font-medium text-text-secondary-dark mb-1">Meta Access Token</label>
-              <input type="text" name="meta_access_token" 
-                     class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5" 
-                     value="{{ form_data.get('meta_access_token', '') }}">
+
+            <div class="form-group">
+                <label for="horario_abertura">Horário de Abertura</label>
+                <input type="text" id="horario_abertura" name="horario_abertura" placeholder="Ex: 09:00" value="09:00">
             </div>
-          </div>
 
-          <div class="border-t border-gray-700 my-6"></div>
-          
-          <h3 class="text-lg font-semibold text-text-primary-dark mb-4">Trocar Senha do Admin (Opcional)</h3>
-          <div>
-             <input type="password" name="nova_senha_admin" placeholder="Nova senha (deixe em branco para manter)"
-                    class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg block w-full p-2.5">
-          </div>
+            <div class="form-group">
+                <label for="horario_fechamento">Horário de Fechamento</label>
+                <input type="text" id="horario_fechamento" name="horario_fechamento" placeholder="Ex: 19:00" value="19:00">
+            </div>
 
-          <div class="border-t border-gray-700 pt-6 flex justify-end gap-3 mt-6">
-            <a href="{{ url_for('superadmin.listar_barbearias') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white hover:bg-gray-500">Cancelar</a>
-            <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white hover:bg-primary/90">Salvar Alterações</button>
-          </div>
-          
+            <div class="form-group">
+                <label for="horario_fechamento_sabado">Horário de Fechamento (Sábado)</label>
+                <input type="text" id="horario_fechamento_sabado" name="horario_fechamento_sabado" placeholder="Ex: 14:00" value="14:00">
+            </div>
+
+            <div class="form-group">
+                <label for="dias_funcionamento">Dias de Funcionamento</label>
+                <input type="text" id="dias_funcionamento" name="dias_funcionamento" placeholder="Ex: Terça a Sábado" value="Terça a Sábado">
+            </div>
+
+            <div class="form-group">
+                <label for="cor_primaria">Cor Primária (Opcional)</label>
+                <input type="color" id="cor_primaria" name="cor_primaria" value="#EC4899">
+            </div>
+
+            <div class="form-group">
+                <label for="emojis_sistema">Emojis do Sistema (Opcional)</label>
+                <input type="text" id="emojis_sistema" name="emojis_sistema" placeholder="Ex: 🦋✨💖" value="🦋✨💖">
+            </div>
+
+            <div class="form-group">
+                <label for="telefone_admin">Telefone do Admin (para notificações)</label>
+                <input type="tel" id="telefone_admin" name="telefone_admin" placeholder="Ex: 5511987654321">
+            </div>
+
+            <div class="button-group">
+                <button type="submit" class="btn-save">✅ Criar Barbearia</button>
+                <a href="{{ url_for('superadmin.listar_barbearias') }}" class="btn-cancel">❌ Cancelar</a>
+            </div>
         </form>
-        
-        <div class="mt-8 border-t border-red-900/30 pt-6">
+
+        <!-- ✅ SEÇÃO DE APAGAR PROTEGIDA - SÓ APARECE SE BARBEARIA EXISTE -->
+        {% if barbearia %}
+        <hr>
+        <div class="danger-zone">
+            <h3>⚠️ Zona de Perigo</h3>
+            <p>Deletar a barbearia <strong>{{ barbearia.nome_fantasia }}</strong> e todos os seus dados?</p>
+            
             <form method="POST" action="{{ url_for('superadmin.apagar_barbearia', barbearia_id=barbearia.id) }}" onsubmit="return confirm('Tem certeza? Isso apagará TUDO desta barbearia.');">
-                <button type="submit" class="text-red-500 hover:text-red-400 text-sm font-bold flex items-center gap-2">
-                    <span class="material-symbols-outlined text-sm">delete</span>
-                    Apagar Barbearia (Zona de Perigo)
-                </button>
+                <button type="submit" class="btn-delete">🗑️ Deletar Barbearia</button>
             </form>
         </div>
-      </div>
+        {% endif %}
     </div>
-  </div>
+
+    <script>
+        // Script para validar formulário antes de enviar
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const nome = document.getElementById('nome_fantasia').value.trim();
+            const telefone = document.getElementById('telefone_whatsapp').value.trim();
+
+            if (!nome || !telefone) {
+                e.preventDefault();
+                alert('⚠️ Preencha todos os campos obrigatórios!');
+            }
+        });
+    </script>
 </body>
 </html>
