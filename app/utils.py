@@ -5,10 +5,10 @@ from sqlalchemy.orm import joinedload
 from app.models.tables import Profissional, Agendamento, Servico, Barbearia
 
 # --- FUNÇÃO UNIFICADA PARA CÁLCULO DE HORÁRIOS (DINÂMICA & BLINDADA) ---
-def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime, duracao=30):
+def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime, duracao=60):
     """
     Calcula horários disponíveis respeitando RIGOROSAMENTE as configurações da Barbearia.
-    Agora suporta DURAÇÃO VARIÁVEL do serviço para evitar conflitos.
+    Agora suporta DURAÇÃO VARIÁVEL e o padrão foi ajustado para 60min para evitar 'falsos positivos' no painel.
     """
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
     
