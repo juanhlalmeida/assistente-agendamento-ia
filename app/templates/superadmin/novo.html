@@ -3,190 +3,423 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerenciar Barbearia - Super Admin</title>
+    <title>{% if barbearia %}Editar{% else %}Criar{% endif %} Barbearia - Admin</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f3f4f6; /* Cinza claro profissional */
-            color: #1f2937;
-            display: flex;
-            justify-content: center;
-            padding: 40px 20px;
+            background: #1a1a1a;
             min-height: 100vh;
+            padding: 20px;
         }
+
         .container {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            background: #2a2a2a;
+            border-radius: 10px;
             padding: 40px;
-            max-width: 700px;
+            max-width: 800px;
             width: 100%;
+            margin: 0 auto;
+            max-height: 95vh;
+            overflow-y: auto;
+            color: #e0e0e0;
         }
+
         h1 {
-            color: #111827;
-            margin-bottom: 25px;
+            color: #00d4ff;
+            margin-bottom: 30px;
             text-align: center;
-            font-size: 24px;
-            border-bottom: 2px solid #e5e7eb;
-            padding-bottom: 15px;
         }
-        .section-title {
+
+        h2 {
+            color: #00d4ff;
+            font-size: 16px;
+            margin-bottom: 20px;
             margin-top: 25px;
-            margin-bottom: 15px;
-            font-size: 18px;
-            color: #4b5563;
             font-weight: 600;
-            border-left: 4px solid #3b82f6; /* Azul Admin */
-            padding-left: 10px;
         }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
         .form-row {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
         }
-        .form-group { margin-bottom: 15px; flex: 1; }
+
+        .form-row .form-group {
+            margin-bottom: 0;
+        }
+
         label {
             display: block;
             margin-bottom: 6px;
-            font-size: 14px;
+            color: #b0b0b0;
             font-weight: 500;
-            color: #374151;
+            font-size: 13px;
         }
-        input[type="text"], input[type="email"], input[type="tel"], 
-        input[type="password"], input[type="color"] {
+
+        input[type="text"],
+        input[type="email"],
+        input[type="tel"],
+        input[type="color"],
+        input[type="password"],
+        select,
+        textarea {
             width: 100%;
             padding: 10px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
+            border: 1px solid #444;
+            border-radius: 5px;
             font-size: 14px;
-            transition: border-color 0.2s;
+            font-family: inherit;
+            background: #333;
+            color: #e0e0e0;
         }
-        input:focus {
-            border-color: #3b82f6;
+
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="tel"]:focus,
+        input[type="color"]:focus,
+        input[type="password"]:focus,
+        select:focus,
+        textarea:focus {
             outline: none;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            border-color: #00d4ff;
+            box-shadow: 0 0 5px rgba(0, 212, 255, 0.3);
+            background: #3a3a3a;
         }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
         .button-group {
             display: flex;
             gap: 10px;
+            justify-content: center;
             margin-top: 30px;
-            justify-content: flex-end;
         }
+
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
         .btn-save {
-            background-color: #2563eb; /* Azul Botão */
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            color: #000;
         }
-        .btn-save:hover { background-color: #1d4ed8; }
+
+        .btn-save:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.4);
+        }
+
         .btn-cancel {
-            background-color: #f3f4f6;
-            color: #4b5563;
-            padding: 10px 20px;
+            background: #444;
+            color: #e0e0e0;
+        }
+
+        .btn-cancel:hover {
+            background: #555;
+        }
+
+        a.btn-cancel {
+            padding: 12px 30px;
             text-decoration: none;
-            border-radius: 6px;
-            border: 1px solid #d1d5db;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
         }
-        .btn-cancel:hover { background-color: #e5e7eb; }
-        
-        /* Área de Perigo */
-        .danger-zone {
-            margin-top: 40px;
-            padding: 20px;
-            background-color: #fef2f2;
-            border: 1px solid #fee2e2;
-            border-radius: 8px;
-        }
-        .danger-zone h3 { color: #991b1b; font-size: 16px; margin-bottom: 10px; }
-        .btn-delete {
-            background-color: #dc2626;
-            color: white;
-            padding: 8px 16px;
+
+        hr {
+            margin: 25px 0;
             border: none;
-            border-radius: 6px;
-            cursor: pointer;
+            border-top: 1px solid #444;
+        }
+
+        .optional-note {
+            font-size: 12px;
+            color: #888;
+            margin-top: -14px;
+            margin-bottom: 10px;
+        }
+
+        .danger-zone {
+            background: #3d2020;
+            border-radius: 5px;
+            padding: 20px;
+            margin-top: 30px;
+            border: 1px solid #662020;
+        }
+
+        .danger-zone h3 {
+            color: #ff6b6b;
+            margin-bottom: 15px;
+        }
+
+        .danger-zone p {
+            color: #b0b0b0;
+            margin-bottom: 15px;
+        }
+
+        .btn-delete {
+            background: #cc3333;
+            color: white;
             width: 100%;
         }
-        .btn-delete:hover { background-color: #b91c1c; }
+
+        .btn-delete:hover {
+            background: #992222;
+        }
+
+        .alert-box {
+            background: #3d2020;
+            border-left: 4px solid #ff6b6b;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            color: #e0e0e0;
+        }
+
+        .alert-box h4 {
+            color: #ff6b6b;
+            margin-bottom: 10px;
+        }
+
+        .alert-box p {
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .success-box {
+            background: #203d20;
+            border-left: 4px solid #52c41a;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            color: #e0e0e0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🏢 Dados da Barbearia</h1>
+        <h1>{% if barbearia %}✏️ Editar Barbearia{% else %}🏪 Criar Nova Barbearia{% endif %}</h1>
 
-        <form method="POST" action="{{ url_for('superadmin.nova_barbearia') }}">
+        <!-- QUANDO EDITANDO -->
+        {% if barbearia %}
+        <div class="alert-box">
+            <h4>⚠️ Atenção Super Admin</h4>
+            <p>Você não pode ver a senha atual. Digite abaixo apenas se quiser <strong>sobrescrever</strong> a senha do cliente.</p>
+        </div>
+
+        <div class="success-box">
+            <p>✅ Imagem atual configurada. <a href="{{ barbearia.url_tabela_precos }}" target="_blank" style="color: #52c41a; text-decoration: underline;">Ver imagem atual</a></p>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('superadmin.nova_barbearia') if not barbearia else url_for('superadmin.editar_barbearia', barbearia_id=barbearia.id) }}">
             
-            <div class="section-title">Dados Principais</div>
-            
-            <div class="form-group">
-                <label>Nome Fantasia *</label>
-                <input type="text" name="nome_fantasia" required placeholder="Ex: Barbearia do Mestre" value="{{ form_data.get('nome_fantasia', '') }}">
+            <!-- SEÇÃO 1: DADOS DA EMPRESA -->
+            <h2>📊 Dados da Empresa</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="nome_fantasia">Nome Fantasia *</label>
+                    <input type="text" id="nome_fantasia" name="nome_fantasia" required placeholder="Ex: Studio Lima Lash" value="{{ barbearia.nome_fantasia if barbearia else '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="telefone_whatsapp">WhatsApp (com 55) *</label>
+                    <input type="tel" id="telefone_whatsapp" name="telefone_whatsapp" required placeholder="Ex: 5511987654321" value="{{ barbearia.telefone_whatsapp if barbearia else '' }}">
+                </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
-                    <label>Telefone WhatsApp (Robô) *</label>
-                    <input type="tel" name="telefone_whatsapp" required placeholder="Apenas números (Ex: 5511999999999)" value="{{ form_data.get('telefone_whatsapp', '') }}">
+                    <label for="status_assinatura">Status Assinatura</label>
+                    <select id="status_assinatura" name="status_assinatura">
+                        <option value="teste" {% if barbearia and barbearia.status_assinatura == 'teste' %}selected{% endif %}>Teste (7 dias)</option>
+                        <option value="ativa" {% if barbearia and barbearia.status_assinatura == 'ativa' %}selected{% endif %}>Ativa (30 dias)</option>
+                        <option value="inativa" {% if barbearia and barbearia.status_assinatura == 'inativa' %}selected{% endif %}>Inativa</option>
+                    </select>
                 </div>
-                <div class="form-group">
-                    <label>Status</label>
-                    <input type="text" name="status_assinatura" placeholder="Ex: ativa, teste" value="{{ form_data.get('status_assinatura', 'teste') }}">
-                </div>
-            </div>
 
-            <div class="section-title">👤 Acesso do Dono (Admin)</div>
-            <div class="form-row">
                 <div class="form-group">
-                    <label>Email do Dono *</label>
-                    <input type="email" name="admin_email" required placeholder="email@exemplo.com" value="{{ form_data.get('admin_email', '') }}">
-                </div>
-                <div class="form-group">
-                    <label>Senha de Acesso *</label>
-                    <input type="password" name="admin_senha" required placeholder="Senha inicial">
-                </div>
-            </div>
-
-            <div class="section-title">⚙️ Configurações</div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Abertura</label>
-                    <input type="text" name="horario_abertura" value="{{ form_data.get('horario_abertura', '09:00') }}">
-                </div>
-                <div class="form-group">
-                    <label>Fechamento (Semana)</label>
-                    <input type="text" name="horario_fechamento" value="{{ form_data.get('horario_fechamento', '19:00') }}">
-                </div>
-                <div class="form-group">
-                    <label>Fechamento (Sábado)</label>
-                    <input type="text" name="horario_fechamento_sabado" value="{{ form_data.get('horario_fechamento_sabado', '14:00') }}">
+                    <label for="meta_phone_number_id">Meta Phone Number ID</label>
+                    <input type="text" id="meta_phone_number_id" name="meta_phone_number_id" placeholder="Ex: 104319267554..." value="{{ barbearia.meta_phone_number_id if barbearia else '' }}">
                 </div>
             </div>
 
             <div class="form-group">
-                <label>Cor do Sistema</label>
-                <input type="color" name="cor_primaria" value="{{ form_data.get('cor_primaria', '#3b82f6') }}" style="height: 40px;">
+                <label for="meta_access_token">Meta Access Token</label>
+                <input type="text" id="meta_access_token" name="meta_access_token" placeholder="Ex: EAAWa..." value="{{ barbearia.meta_access_token if barbearia else '' }}">
             </div>
 
+            <hr>
+
+            <!-- SEÇÃO 2: DADOS DO ADMIN (SÓ APARECE NA CRIAÇÃO) -->
+            {% if not barbearia %}
+            <h2>👤 Dados do Admin</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="admin_email">Email do Admin *</label>
+                    <input type="email" id="admin_email" name="admin_email" required placeholder="Ex: admin@barbearia.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="admin_senha">Senha do Admin *</label>
+                    <input type="password" id="admin_senha" name="admin_senha" required placeholder="Mínimo 8 caracteres">
+                </div>
+            </div>
+
+            <hr>
+            {% else %}
+            <!-- SEÇÃO 2B: GERENCIAMENTO DE ACESSO (SÓ NA EDIÇÃO) -->
+            <h2>🔐 Gerenciamento de Acesso</h2>
+
+            <div class="alert-box">
+                <h4>⚠️ Atenção Super Admin</h4>
+                <p>Você não pode ver a senha atual. Digite abaixo apenas se quiser <strong>sobrescrever</strong> a senha do cliente.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="nova_senha_admin">Nova Senha do Cliente (Opcional)</label>
+                <input type="password" id="nova_senha_admin" name="nova_senha_admin" placeholder="Digite para trocar a senha...">
+                <div class="optional-note">Deixe em branco para manter a senha atual.</div>
+            </div>
+
+            <hr>
+            {% endif %}
+
+            <!-- SEÇÃO 3: CONFIGURAÇÕES DE FUNCIONAMENTO -->
+            <h2>⏰ Configurações de Funcionamento</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="horario_abertura">Horário de Abertura</label>
+                    <input type="text" id="horario_abertura" name="horario_abertura" placeholder="Ex: 09:00" value="{{ barbearia.horario_abertura if barbearia else '09:00' }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="horario_fechamento">Horário de Fechamento</label>
+                    <input type="text" id="horario_fechamento" name="horario_fechamento" placeholder="Ex: 19:00" value="{{ barbearia.horario_fechamento if barbearia else '19:00' }}">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="horario_fechamento_sabado">Fechamento Sábado</label>
+                    <input type="text" id="horario_fechamento_sabado" name="horario_fechamento_sabado" placeholder="Ex: 14:00" value="{{ barbearia.horario_fechamento_sabado if barbearia else '14:00' }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="dias_funcionamento">Dias de Funcionamento</label>
+                    <input type="text" id="dias_funcionamento" name="dias_funcionamento" placeholder="Ex: Terça a Sábado" value="{{ barbearia.dias_funcionamento if barbearia else 'Terça a Sábado' }}">
+                </div>
+            </div>
+
+            <hr>
+
+            <!-- SEÇÃO 4: PERSONALIZAÇÃO -->
+            <h2>🎨 Personalização</h2>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="cor_primaria">Cor Primária</label>
+                    <input type="color" id="cor_primaria" name="cor_primaria" value="{{ barbearia.cor_primaria if barbearia else '#EC4899' }}">
+                </div>
+
+                <div class="form-group">
+                    <label for="emojis_sistema">Emojis do Sistema</label>
+                    <input type="text" id="emojis_sistema" name="emojis_sistema" placeholder="Ex: 🦋✨💖" value="{{ barbearia.emojis_sistema if barbearia else '🦋✨💖' }}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="telefone_admin">Telefone do Admin (notificações)</label>
+                <input type="tel" id="telefone_admin" name="telefone_admin" placeholder="Ex: 5511987654321" value="{{ barbearia.telefone_admin if barbearia else '' }}">
+            </div>
+
+            <hr>
+
+            <!-- BOTÕES DE AÇÃO -->
             <div class="button-group">
-                <a href="{{ url_for('superadmin.listar_barbearias') }}" class="btn-cancel">Cancelar</a>
-                <button type="submit" class="btn-save">💾 Salvar Barbearia</button>
+                <button type="submit" class="btn-save">{% if barbearia %}💾 Salvar Alterações{% else %}✅ Criar Barbearia{% endif %}</button>
+                <a href="{{ url_for('superadmin.listar_barbearias') }}" class="btn-cancel">❌ Cancelar</a>
             </div>
         </form>
 
+        <!-- ZONA DE PERIGO (SÓ NA EDIÇÃO) -->
         {% if barbearia %}
+        <hr>
         <div class="danger-zone">
-            <h3>⚠️ Zona de Perigo</h3>
-            <p>Deseja excluir permanentemente <strong>{{ barbearia.nome_fantasia }}</strong>?</p>
-            <form method="POST" action="{{ url_for('superadmin.apagar_barbearia', barbearia_id=barbearia.id) }}" onsubmit="return confirm('ATENÇÃO: Isso apagará TODOS os clientes, agendamentos e histórico desta barbearia. Tem certeza?');">
-                <button type="submit" class="btn-delete">Excluir Barbearia</button>
+            <h3>🗑️ Zona de Perigo</h3>
+            <p>Deletar a barbearia <strong>{{ barbearia.nome_fantasia }}</strong> e todos os seus dados?</p>
+            
+            <form method="POST" action="{{ url_for('superadmin.apagar_barbearia', barbearia_id=barbearia.id) }}" style="margin-top: 15px;">
+                <button type="submit" class="btn-delete" onclick="return confirm('⚠️ ATENÇÃO! Isso apagará TUDO desta barbearia. Tem certeza?')">🗑️ Deletar Barbearia</button>
             </form>
         </div>
         {% endif %}
     </div>
+
+    <script>
+        // Validação ao enviar o formulário
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const nome = document.getElementById('nome_fantasia').value.trim();
+            const telefone = document.getElementById('telefone_whatsapp').value.trim();
+
+            // Se for CRIAÇÃO, validar email e senha
+            const emailInput = document.getElementById('admin_email');
+            const senhaInput = document.getElementById('admin_senha');
+
+            if (emailInput) { // Significa que é CRIAÇÃO
+                const email = emailInput.value.trim();
+                const senha = senhaInput.value.trim();
+
+                if (!nome || !telefone || !email || !senha) {
+                    e.preventDefault();
+                    alert('⚠️ Preencha todos os campos obrigatórios!');
+                    return false;
+                }
+
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    e.preventDefault();
+                    alert('⚠️ Email inválido!');
+                    return false;
+                }
+
+                if (senha.length < 8) {
+                    e.preventDefault();
+                    alert('⚠️ Senha deve ter mínimo 8 caracteres!');
+                    return false;
+                }
+            } else { // EDIÇÃO
+                if (!nome || !telefone) {
+                    e.preventDefault();
+                    alert('⚠️ Preencha todos os campos obrigatórios!');
+                    return false;
+                }
+            }
+
+            return true;
+        });
+    </script>
 </body>
 </html>
