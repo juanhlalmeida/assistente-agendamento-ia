@@ -9,15 +9,18 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
     """
     Calcula horários disponíveis respeitando RIGOROSAMENTE as configurações da Barbearia.
     
-    ALTERAÇÃO SÊNIOR:
-    O padrão 'duracao' foi ajustado para 90 MINUTOS.
-    Motivo: O painel "Consultar Disponibilidade" não sabe qual serviço será feito.
-    Como os serviços dessa profissional são longos (min. 90 min), definimos 90 como base.
-    Isso impede que o painel mostre janelas de 30 ou 60 minutos (ex: 09:00 às 10:00)
-    que são inúteis para procedimentos longos.
+    ATUALIZAÇÃO SÊNIOR:
+    1. Bloqueia datas passadas (anos anteriores).
+    2. Padrão 'duracao=90' para limpar o painel visual de horários insuficientes.
     """
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
+    agora = datetime.now(sao_paulo_tz)
     
+    # 🛑 TRAVA DE PASSADO: Se o dia for antes de hoje -> BLOQUEIA IMEDIATAMENTE
+    # Isso resolve o problema da IA aceitar 2025 ou datas passadas.
+    if dia_selecionado.date() < agora.date():
+        return [] 
+
     # 1. Recupera as Configurações
     barbearia = profissional.barbearia
     
@@ -37,17 +40,17 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
     # Se o dia não estiver escrito explicitamente no texto, bloqueia antes de tudo.
     # ==============================================================================
     
-    # TRAVA DE SÁBADO: Se é sábado e não tem "sábado" no texto -> BLOQUEIA
+    # TRAVA DE SÁBADO
     if dia_semana_int == 5:
         if 'sábado' not in dias_func_str and 'sabado' not in dias_func_str:
             return [] # Retorna vazio = Dia Fechado
             
-    # TRAVA DE DOMINGO: Se é domingo e não tem "domingo" no texto -> BLOQUEIA
+    # TRAVA DE DOMINGO
     if dia_semana_int == 6:
         if 'domingo' not in dias_func_str:
             return []
 
-    # TRAVA DE SEGUNDA: Se é segunda e não tem "segunda" no texto -> BLOQUEIA
+    # TRAVA DE SEGUNDA
     if dia_semana_int == 0:
         if 'segunda' not in dias_func_str:
             return []
@@ -122,8 +125,6 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
             fim_ocupado = inicio_ocupado + timedelta(minutes=duracao_ag)
             intervalos_ocupados.append((inicio_ocupado, fim_ocupado))
             
-        agora = datetime.now(sao_paulo_tz)
-        
         # --- LOOP PRINCIPAL DE VERIFICAÇÃO ---
         # Verifica se o bloco (Inicio + Duração Solicitada) cabe antes do fechamento
         while horario_iteracao + timedelta(minutes=duracao) <= fim_do_dia:
@@ -140,10 +141,12 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
                     esta_ocupado = True
                     break
             
-            # Verifica se é passado (com margem de 15min)
-            e_passado = (horario_iteracao.date() == agora.date() and horario_iteracao < (agora + timedelta(minutes=15)))
+            # Verifica se é passado (com margem de 15min) APENAS SE FOR HOJE
+            if dia_selecionado.date() == agora.date():
+                if horario_iteracao < (agora + timedelta(minutes=15)):
+                    esta_ocupado = True
             
-            if not esta_ocupado and not e_passado:
+            if not esta_ocupado:
                 horarios_disponiveis.append(horario_iteracao) 
                 
             horario_iteracao += timedelta(minutes=INTERVALO_MINUTOS)
