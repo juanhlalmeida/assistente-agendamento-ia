@@ -41,6 +41,62 @@ from thefuzz import process
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # ==============================================================================
+# 🕵️ GHOST CALL DETECTOR (CAMADA DE SEGURANÇA)
+# Verifica se a IA confirmou verbalmente sem executar a ferramenta técnica.
+# ==============================================================================
+def detectar_ghost_call(resposta_final: str, historico_chat) -> tuple:
+    """
+    Detecta se IA confirmou agendamento SEM executar a ferramenta.
+    Returns: (é_ghost: bool, resposta_corrigida: str)
+    """
+    import re
+    
+    # 1. Padrões que indicam confirmação verbal
+    confirmacoes = [
+        r'agendamento\s+confirmado',
+        r'agendado\s+com\s+sucesso',
+        r'marcado\s+para',
+        r'está\s+agendado',
+        r'confirmei\s+(?:o|seu)\s+agendamento',
+        r'✅.*agendamento'
+    ]
+    
+    # Verifica se IA disse que agendou
+    ia_confirmou = any(re.search(p, resposta_final.lower()) for p in confirmacoes)
+    
+    if not ia_confirmou:
+        return False, resposta_final  # Resposta normal, não é ghost
+    
+    # 2. Verificar se tool 'criar_agendamento' foi REALMENTE chamada com sucesso
+    tool_executada_sucesso = False
+    
+    # Varre o histórico recente em busca da execução
+    for content in historico_chat:
+        for part in content.parts:
+            # Verifica function_response (resposta da tool)
+            if hasattr(part, 'function_response') and part.function_response:
+                if part.function_response.name == 'criar_agendamento':
+                    response_dict = dict(part.function_response.response)
+                    result = str(response_dict.get('result', '')).lower()
+                    # Verifica se o retorno do backend foi positivo
+                    if 'sucesso' in result or 'criado com sucesso' in result:
+                        tool_executada_sucesso = True
+    
+    # 🚨 GHOST CALL DETECTADO: Confirmou mas não executou
+    if ia_confirmou and not tool_executada_sucesso:
+        logging.error(f"🚨 GHOST CALL DETECTADO: IA disse 'agendado' mas não chamou 'criar_agendamento' com sucesso!")
+        
+        resposta_segura = (
+            "⚠️ Ops! Tive um pequeno problema de sincronização no sistema. "
+            "Para garantir que seu horário fique salvo, por favor, "
+            "me confirme novamente o **Dia e Horário** que você deseja? 🙏"
+        )
+        
+        return True, resposta_segura
+    
+    return False, resposta_final
+
+# ==============================================================================
 # 🧠 PROMPT 1: MODO CLIENTE (O Original, preservado e renomeado)
 # ==============================================================================
 SYSTEM_INSTRUCTION_CLIENTE = """
