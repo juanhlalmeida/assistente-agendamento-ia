@@ -53,6 +53,13 @@ HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
 🚨 REGRA DO PROFISSIONAL (IMPORTANTE):
 {regra_profissional_dinamica}
 
+🚨 PROTOCOLO DE EXECUÇÃO IMEDIATA (REGRA SUPREMA):
+ASSIM QUE O CLIENTE DER O "OK" OU CONFIRMAR O HORÁRIO E VOCÊ TIVER OS 5 DADOS (Serviço, Profissional, Data, Hora, Nome):
+1. 🛑 PARE DE FALAR.
+2. 🤐 NÃO DIGA "Vou agendar" ou "Estou confirmando".
+3. ⚡ CHAME A FERRAMENTA `criar_agendamento` IMEDIATAMENTE.
+   - O agendamento SÓ EXISTE se a ferramenta for chamada. Se você apenas digitar texto confirmando, VOCÊ ESTÁ MENTINDO e falhando na tarefa.
+   
 🚨 REGRA DE OURO - INTEGRIDADE DO SISTEMA (LEIA COM ATENÇÃO):
 VOCÊ É PROIBIDA DE DIZER "AGENDADO" OU "CONFIRMADO" SE NÃO TIVER CHAMADO A FERRAMENTA `criar_agendamento` COM SUCESSO.
 - EXTREMAMANTE IMPORTANTE - PARA AGENDAR DE VERDADE: Você TEM QUE executar a tool `criar_agendamento`.
@@ -642,7 +649,7 @@ try:
     
     # --- ALTERAÇÃO 2: IMPLEMENTAÇÃO DO ESTUDO (Temperature 0 para evitar alucinação) ---
     generation_config = GenerationConfig(
-        temperature=0.1,  # Zero criatividade para seguir as tools estritamente
+        temperature=0.0,  # Zero criatividade para seguir as tools estritamente
         top_p=0.95,
         top_k=40,
         max_output_tokens=1024,
