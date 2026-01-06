@@ -1,6 +1,7 @@
 # app/services/ai_service.py
 # (CÓDIGO COMPLETO E OTIMIZADO - VERSÃO SENIOR COM CONTEXTO DE SERVIÇO)
 # ✅ IMPLEMENTAÇÃO DO DETECTOR DE GHOST CALL (Baseado em Paper Acadêmico 2026)
+# ✅ AJUSTADO: CORREÇÃO DE ORDEM DE DECLARAÇÃO E DETECÇÃO DE BLOQUEIO
 
 import os
 import logging
@@ -35,7 +36,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def detectar_ghost_call(resposta_final: str, historico_chat) -> tuple:
     """
-    Detecta se IA confirmou agendamento SEM executar a ferramenta.
+    Detecta se IA confirmou agendamento OU bloqueio SEM executar a ferramenta.
     
     Baseado em: "Análise de Falhas de Orquestração e Alucinação de Execução 
     em Agentes de IA" (2026) - Seção 3.4 e 5.3.1
@@ -56,41 +57,48 @@ def detectar_ghost_call(resposta_final: str, historico_chat) -> tuple:
         r'confirmei\s+(?:o|seu)\s+agendamento',
         r'✅.*agendamento',
         r'perfeito.*agendamento',
-        r'agendamento\s+realizado'
+        r'agendamento\s+realizado',
+        # Padrões de bloqueio (Novos)
+        r'agenda\s+bloqueada',
+        r'bloqueio\s+realizado',
+        r'horário.*fechado',
+        r'bloqueei\s+a\s+agenda'
     ]
     
-    # Verificar se IA disse que agendou
+    # Verificar se IA disse que agendou ou bloqueou
     ia_confirmou = any(re.search(p, resposta_final.lower()) for p in confirmacoes)
     
     if not ia_confirmou:
         return False, resposta_final
     
-    # ✅ VERIFICAR SE TOOL 'criar_agendamento' FOI REALMENTE CHAMADA E COM SUCESSO
+    # ✅ VERIFICAR SE TOOL 'criar_agendamento' OU 'bloquear_agenda_dono' FOI CHAMADA
     tool_executada = False
     
     try:
         for content in historico_chat:
             for part in content.parts:
                 if hasattr(part, 'function_response') and part.function_response:
-                    if part.function_response.name == 'criar_agendamento':
+                    # Verifica se foi agendamento OU bloqueio
+                    if part.function_response.name in ['criar_agendamento', 'bloquear_agenda_dono']:
                         response_dict = dict(part.function_response.response)
                         result = response_dict.get('result', '')
-                        if 'sucesso' in str(result).lower() or 'criado' in str(result).lower():
+                        # Verifica sucesso na resposta da tool (ambas retornam 'sucesso' ou texto positivo)
+                        if any(x in str(result).lower() for x in ['sucesso', 'criado', 'bloqueada', 'concluído']):
                             tool_executada = True
-                            logging.info(f"✅ Ferramenta 'criar_agendamento' foi executada com SUCESSO")
+                            logging.info(f"✅ Ferramenta '{part.function_response.name}' foi executada com SUCESSO")
                         else:
-                            logging.warning(f"⚠️ Ferramenta 'criar_agendamento' retornou: {result[:100]}")
+                            logging.warning(f"⚠️ Ferramenta '{part.function_response.name}' retornou erro/aviso: {result[:100]}")
     except Exception as e:
         logging.error(f"Erro ao verificar histórico de ghost call: {e}")
     
     # 🚨 GHOST CALL DETECTADO
     if ia_confirmou and not tool_executada:
-        logging.error(f"🚨 GHOST CALL DETECTADO: IA disse 'agendado' mas ferramenta NÃO foi executada!")
+        logging.error(f"🚨 GHOST CALL DETECTADO: IA disse 'confirmado/bloqueado' mas ferramenta NÃO foi executada!")
         
         resposta_segura = (
             "⚠️ Ops! Detectei um problema de sincronização. "
-            "Por favor, me envie novamente os dados do agendamento "
-            "(serviço, data e horário) para eu confirmar no sistema."
+            "Por favor, verifique se a ação foi concluída ou me envie os dados novamente "
+            "(data, horário e ação) para eu confirmar no sistema."
         )
         
         return True, resposta_segura
@@ -793,18 +801,7 @@ consultar_agenda_func = FunctionDeclaration(
     }
 )
 
-tools = Tool(
-    function_declarations=[
-        listar_profissionais_func,
-        listar_servicos_func,
-        calcular_horarios_disponiveis_func,
-        criar_agendamento_func,
-        cancelar_agendamento_func,
-        consultar_agenda_func,
-        bloquear_agenda_func
-    ]
-)
-
+# --- ✅ MOVIDO: DEFINIÇÃO DE BLOQUEIO ANTES DA LISTA TOOLS ---
 bloquear_agenda_func = FunctionDeclaration(
     name="bloquear_agenda_dono",
     description="Bloqueia um período da agenda (ex: médico, folga). Use APENAS se o dono pedir para fechar/bloquear a agenda.",
@@ -818,6 +815,18 @@ bloquear_agenda_func = FunctionDeclaration(
         },
         "required": ["data", "hora_inicio", "hora_fim"]
     }
+)
+
+tools = Tool(
+    function_declarations=[
+        listar_profissionais_func,
+        listar_servicos_func,
+        calcular_horarios_disponiveis_func,
+        criar_agendamento_func,
+        cancelar_agendamento_func,
+        consultar_agenda_func,
+        bloquear_agenda_func # ✅ Agora definido corretamente antes
+    ]
 )
 
 # --- Inicialização do Modelo Gemini (OTIMIZADO PARA FLASH) ---
@@ -1099,7 +1108,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 "criar_agendamento": criar_agendamento,
                 "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
                 "consultar_agenda_dono": consultar_agenda_dono,
-                "bloquear_agenda_dono": bloquear_agenda_dono  # <--- ADICIONE ESTA LINHA
+                "bloquear_agenda_dono": bloquear_agenda_dono  # ✅ Adicionado com vírgula correta
 
             }
 
