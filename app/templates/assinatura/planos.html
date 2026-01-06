@@ -41,51 +41,42 @@
 
           <ul role="list" class="flex-1 space-y-4 mb-8">
             <li class="flex items-start">
-              <div class="flex-shrink-0">
-                <span class="material-symbols-outlined text-green-500">check_circle</span>
-              </div>
+              <span class="material-symbols-outlined text-green-500">check_circle</span>
               <p class="ml-3 text-base text-gray-700 dark:text-gray-300">Agendamento via IA (WhatsApp)</p>
             </li>
-
             <li class="flex items-start">
-              <div class="flex-shrink-0">
-                <span class="material-symbols-outlined text-green-500">check_circle</span>
-              </div>
+              <span class="material-symbols-outlined text-green-500">check_circle</span>
+              <p class="ml-3 text-base text-gray-700 dark:text-gray-300">Até <strong>{{ plano.max_profissionais }} Profissionais</strong></p>
+            </li>
+            <li class="flex items-start">
+              <span class="material-symbols-outlined text-green-500">check_circle</span>
               <p class="ml-3 text-base text-gray-700 dark:text-gray-300">
-                Até <strong>{{ plano.max_profissionais }} Profissionais</strong>
+                 {% if plano.max_servicos > 100 %}Serviços Ilimitados{% else %}Até <strong>{{ plano.max_servicos }} Serviços</strong>{% endif %}
               </p>
+            </li>
+            
+            <li class="flex items-start">
+              <span class="material-symbols-outlined text-green-500">check_circle</span>
+              <p class="ml-3 text-base text-gray-700 dark:text-gray-300">Agenda Inteligente (Link)</p>
             </li>
 
             <li class="flex items-start">
-              <div class="flex-shrink-0">
+              {% if plano.tem_notificacao_whatsapp %}
                 <span class="material-symbols-outlined text-green-500">check_circle</span>
-              </div>
-              <p class="ml-3 text-base text-gray-700 dark:text-gray-300">
-                Até <strong>{{ plano.max_servicos }} Serviços</strong>
-              </p>
-            </li>
-
-            <li class="flex items-start">
-              <div class="flex-shrink-0">
-                {% if plano.tem_notificacao_whatsapp %}
-                  <span class="material-symbols-outlined text-green-500">check_circle</span>
-                {% else %}
-                  <span class="material-symbols-outlined text-gray-400">cancel</span>
-                {% endif %}
-              </div>
+              {% else %}
+                <span class="material-symbols-outlined text-gray-400">cancel</span>
+              {% endif %}
               <p class="ml-3 text-base {{ 'text-gray-700 dark:text-gray-300' if plano.tem_notificacao_whatsapp else 'text-gray-400 line-through' }}">
                 Notificações Automáticas
               </p>
             </li>
             
             <li class="flex items-start">
-              <div class="flex-shrink-0">
-                {% if plano.tem_ia_avancada %}
-                  <span class="material-symbols-outlined text-purple-500">auto_awesome</span>
-                {% else %}
-                  <span class="material-symbols-outlined text-gray-400">cancel</span>
-                {% endif %}
-              </div>
+              {% if plano.tem_ia_avancada %}
+                <span class="material-symbols-outlined text-purple-500">auto_awesome</span>
+              {% else %}
+                <span class="material-symbols-outlined text-gray-400">cancel</span>
+              {% endif %}
               <p class="ml-3 text-base {{ 'text-gray-700 dark:text-gray-300' if plano.tem_ia_avancada else 'text-gray-400 line-through' }}">
                 IA Avançada (Áudio/Imagem)
               </p>
@@ -98,7 +89,7 @@
                   <span class="material-symbols-outlined">verified</span> Seu Plano Atual
                </button>
             {% else %}
-              <form action="{{ url_for('assinaturas.criar_preferencia', plano_id=plano.id) }}" method="POST">
+              <form action="{{ url_for('assinaturas.assinar', plano_id=plano.id) }}" method="POST">
                 <button type="submit" 
                         class="w-full py-4 px-6 rounded-xl font-bold text-lg transition-all duration-200 transform hover:-translate-y-1 shadow-lg flex items-center justify-center gap-2
                         {% if is_premium %}
@@ -117,24 +108,13 @@
           </div>
 
         </div>
+      {% endfor %}
       
-      {% else %}
+      {% if not planos %}
         <div class="col-span-1 md:col-span-3 text-center py-12 bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700">
           <span class="material-symbols-outlined text-6xl text-gray-400 mb-4">search_off</span>
           <p class="text-xl text-gray-500 dark:text-gray-400 font-medium">Nenhum plano configurado no momento.</p>
-          <p class="text-sm mt-2 text-gray-400">Entre em contato com o suporte ou aguarde a atualização.</p>
         </div>
-      {% endfor %}
-      
-      {% if planos %}
-      <div class="flex flex-col p-8 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 items-center justify-center text-center h-full min-h-[400px]">
-        <span class="material-symbols-outlined text-6xl text-gray-400 mb-4">support_agent</span>
-        <h3 class="text-xl font-bold text-gray-900 dark:text-white">Precisa de algo maior?</h3>
-        <p class="mt-2 text-gray-500 dark:text-gray-400">
-          Para franquias ou redes de barbearias, temos planos Enterprise.
-        </p>
-        <a href="#" class="mt-6 text-blue-600 font-bold hover:underline">Falar com Consultor &rarr;</a>
-      </div>
       {% endif %}
 
     </div>
