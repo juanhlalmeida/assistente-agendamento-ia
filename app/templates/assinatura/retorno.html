@@ -14,7 +14,7 @@
             <p class="text-gray-600 dark:text-gray-300 mb-8">
                 Sua assinatura foi ativada com sucesso. Aproveite todas as funcionalidades da IA!
             </p>
-            <a href="{{ url_for('main.dashboard') }}" class="block w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition transform hover:scale-105 shadow-lg shadow-green-500/30">
+            <a href="{{ url_for('dashboard.index') }}" class="block w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition transform hover:scale-105 shadow-lg shadow-green-500/30">
                 Acessar Painel Agora
             </a>
 
@@ -26,7 +26,7 @@
             <p class="text-gray-600 dark:text-gray-300 mb-8">
                 Estamos aguardando a confirmação do pagamento. Isso pode levar alguns minutos.
             </p>
-            <a href="{{ url_for('main.dashboard') }}" class="block w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-6 rounded-xl transition">
+            <a href="{{ url_for('dashboard.index') }}" class="block w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-6 rounded-xl transition">
                 Voltar ao Dashboard
             </a>
 
@@ -42,7 +42,7 @@
                 <a href="{{ url_for('assinaturas.planos') }}" class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition">
                     Tentar Novamente
                 </a>
-                <a href="{{ url_for('main.dashboard') }}" class="block w-full text-gray-500 hover:text-white py-2 hover:underline">
+                <a href="{{ url_for('dashboard.index') }}" class="block w-full text-gray-500 hover:text-white py-2 hover:underline">
                     Cancelar e Voltar
                 </a>
             </div>
