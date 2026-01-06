@@ -243,7 +243,9 @@ SEU OBJETIVO:
 
 Ajudar o dono a gerenciar o dia.
 
-FERRAMENTA PRINCIPAL: `consultar_agenda_dono`
+1. BLOQUEAR AGENDA: Se o dono disser "Vou sair", "Fecha a agenda", "Bloqueia a tarde":
+2. FERRAMENTA PRINCIPAL: `consultar_agenda_dono`
+3. "bloquear_agenda_dono"
 
 - Para ver o dia de hoje: use data_inicio='hoje', data_fim='mesmo_dia'
 
@@ -666,6 +668,61 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
         current_app.logger.error(f"Erro na ferramenta 'cancelar_agendamento_por_telefone': {e}", exc_info=True)
         return f"Erro ao cancelar agendamento: {str(e)}"
 
+    # --- NOVA FUNÇÃO: BLOQUEAR AGENDA ---
+def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fim: str, motivo: str = "Bloqueio Admin") -> str:
+    """Bloqueia a agenda criando agendamentos fictícios no intervalo."""
+    try:
+        with current_app.app_context():
+            # 1. Converter datas e horas
+            data_dt = datetime.strptime(data, '%Y-%m-%d').date()
+            h_ini = datetime.strptime(hora_inicio, '%H:%M').time()
+            h_fim = datetime.strptime(hora_fim, '%H:%M').time()
+            
+            inicio_dt = datetime.combine(data_dt, h_ini)
+            fim_dt = datetime.combine(data_dt, h_fim)
+            
+            # 2. Identificar Profissional (Pega o primeiro/dono)
+            profissional = Profissional.query.filter_by(barbearia_id=barbearia_id).first()
+            if not profissional: return "Erro: Profissional não encontrado."
+            
+            # 3. Identificar Serviço para usar no bloqueio (Pega o primeiro disponível)
+            servico = Servico.query.filter_by(barbearia_id=barbearia_id).first()
+            if not servico: return "Erro: Precisa ter ao menos 1 serviço cadastrado para bloquear."
+
+            # 4. Loop para preencher os horários
+            intervalo = servico.duracao if servico.duracao > 0 else 30
+            cursor = inicio_dt
+            bloqueios = 0
+            
+            while cursor < fim_dt:
+                # Verifica se já está ocupado para não dar erro
+                ocupado = Agendamento.query.filter_by(
+                    barbearia_id=barbearia_id, 
+                    profissional_id=profissional.id, 
+                    data_hora=cursor
+                ).first()
+                
+                if not ocupado:
+                    bloqueio = Agendamento(
+                        nome_cliente=f"⛔ {motivo}",
+                        telefone_cliente="00000000000", # Telefone fictício
+                        data_hora=cursor,
+                        profissional_id=profissional.id,
+                        servico_id=servico.id,
+                        barbearia_id=barbearia_id
+                    )
+                    db.session.add(bloqueio)
+                    bloqueios += 1
+                
+                cursor += timedelta(minutes=intervalo)
+            
+            db.session.commit()
+            return f"SUCESSO: Agenda bloqueada das {hora_inicio} às {hora_fim}. ({bloqueios} horários fechados)."
+            
+    except Exception as e:
+        db.session.rollback()
+        return f"Erro ao bloquear: {str(e)}"
+
 # =====================================================================
 # DEFINIÇÃO DAS TOOLS
 # =====================================================================
@@ -743,8 +800,24 @@ tools = Tool(
         calcular_horarios_disponiveis_func,
         criar_agendamento_func,
         cancelar_agendamento_func,
-        consultar_agenda_func
+        consultar_agenda_func,
+        bloquear_agenda_func
     ]
+)
+
+bloquear_agenda_func = FunctionDeclaration(
+    name="bloquear_agenda_dono",
+    description="Bloqueia um período da agenda (ex: médico, folga). Use APENAS se o dono pedir para fechar/bloquear a agenda.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "data": {"type": "string", "description": "YYYY-MM-DD"},
+            "hora_inicio": {"type": "string", "description": "HH:MM"},
+            "hora_fim": {"type": "string", "description": "HH:MM"},
+            "motivo": {"type": "string", "description": "Motivo do bloqueio (ex: Médico)"}
+        },
+        "required": ["data", "hora_inicio", "hora_fim"]
+    }
 )
 
 # --- Inicialização do Modelo Gemini (OTIMIZADO PARA FLASH) ---
@@ -1021,16 +1094,12 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             tool_map = {
 
                 "listar_profissionais": listar_profissionais,
-
                 "listar_servicos": listar_servicos,
-
                 "calcular_horarios_disponiveis": calcular_horarios_disponiveis,
-
                 "criar_agendamento": criar_agendamento,
-
                 "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
-
-                "consultar_agenda_dono": consultar_agenda_dono
+                "consultar_agenda_dono": consultar_agenda_dono,
+                "bloquear_agenda_dono": bloquear_agenda_dono  # <--- ADICIONE ESTA LINHA
 
             }
 
