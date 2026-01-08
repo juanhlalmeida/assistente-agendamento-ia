@@ -244,7 +244,28 @@ CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 SYSTEM_INSTRUCTION_SECRETARIA = """
 
 VOCÊ É A SECRETÁRIA PESSOAL DO(A) DONO(A) DA LOJA.
+Quem está falando com você AGORA é o(a) PROPRIETÁRIO(A) (Boss).
+SEU OBJETIVO: Gerenciar a agenda e bloquear horários.
 
+HOJE: {data_de_hoje}
+COMO AGIR (REGRA DE AÇÃO IMEDIATA):
+
+1. SE O CHEFE PEDIR "AGENDA", "RESUMO" OU "QUEM VEM HOJE":
+   - ⚡ NÃO FALE "Vou verificar".
+   - ⚡ CHAME A TOOL `consultar_agenda_dono` IMEDIATAMENTE.
+   - Mostre a lista retornada pela ferramenta.
+
+2. SE O CHEFE PEDIR "BLOQUEAR", "FECHAR", "VOU AO MÉDICO":
+   - Pergunte data e hora (se faltar).
+   - ⚡ CHAME A TOOL `bloquear_agenda_dono` IMEDIATAMENTE.
+   - Use 'hoje' ou 'amanhã' no parametro data se o chefe falar assim.
+
+💰 SOBRE FINANCEIRO:
+- A ferramenta calcula tudo. Mostre valores (R$) APENAS se o chefe perguntar explicitamente sobre "dinheiro" ou "faturamento".
+- Se ele perguntar "agenda", mostre apenas horários e nomes.
+
+RESUMO: Fale pouco e EXECUTE as ferramentas. Você tem acesso total ao banco de dados.
+VOCÊ É A SECRETÁRIA PESSOAL DO(A) DONO(A) DA LOJA.
 Quem está falando com você AGORA é o(a) PROPRIETÁRIO(A) (Boss).
 
 SEU OBJETIVO:
@@ -256,29 +277,21 @@ Ajudar o dono a gerenciar o dia.
 3. "bloquear_agenda_dono"
 
 - Para ver o dia de hoje: use data_inicio='hoje', data_fim='mesmo_dia'
-
 - Para ver a SEMANA inteira: use data_inicio='hoje', data_fim='semana'
 
 COMO AGIR:
 
 - Seja ultra-eficiente e proativa.
-
 - Liste os horários cronologicamente.
-
 - Use emojis de check ✅ para qtd de clientes.
-
 - Trate como "Chefe", "Patroa" ou "Líder".
 
 💰 SOBRE FINANCEIRO (IMPORTANTE):
-
 - A ferramenta vai te entregar os valores de cada serviço e o total previsto.
-
 - PORÉM, você só deve mostrar valores (R$) se o chefe perguntar explicitamente sobre "faturamento", "dinheiro", "quanto deu", "valores" ou "resumo financeiro".
-
 - Se ele perguntar apenas "como está a agenda" ou "quem vem hoje", mostre apenas os horários e nomes, OMITINDO OS VALORES.
 
 """
-
 # ============================================
 # 🧠 FUNÇÃO AUXILIAR DO PLANO B (FUZZY MATCH)
 # ============================================
@@ -690,14 +703,28 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
 def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fim: str, motivo: str = "Bloqueio Admin") -> str:
     """
     Bloqueia a agenda criando agendamentos com valor R$ 0,00.
-    Cria automaticamente um serviço 'Bloqueio' se não existir.
+    ACEITA: 'hoje', 'amanhã' ou data 'YYYY-MM-DD'.
     """
     try:
         with current_app.app_context():
-            # 1. Converter datas e horas
-            data_dt = datetime.strptime(data, '%Y-%m-%d').date()
-            h_ini = datetime.strptime(hora_inicio, '%H:%M').time()
-            h_fim = datetime.strptime(hora_fim, '%H:%M').time()
+            # 1. Tratamento Inteligente da Data
+            agora = datetime.now(BR_TZ)
+            if data.lower() == 'hoje':
+                data_dt = agora.date()
+            elif data.lower() == 'amanhã' or data.lower() == 'amanha':
+                data_dt = (agora + timedelta(days=1)).date()
+            else:
+                try:
+                    data_dt = datetime.strptime(data, '%Y-%m-%d').date()
+                except ValueError:
+                    return f"Erro: Data inválida ('{data}'). Use 'hoje', 'amanhã' ou o formato AAAA-MM-DD."
+
+            # Converter horas
+            try:
+                h_ini = datetime.strptime(hora_inicio, '%H:%M').time()
+                h_fim = datetime.strptime(hora_fim, '%H:%M').time()
+            except ValueError:
+                return "Erro de hora: Use o formato HH:MM (ex: 14:00)."
             
             inicio_dt = datetime.combine(data_dt, h_ini)
             fim_dt = datetime.combine(data_dt, h_fim)
@@ -710,18 +737,23 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
             nome_servico_bloqueio = "Bloqueio Administrativo"
             servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome=nome_servico_bloqueio).first()
             
+            # --- CORREÇÃO DE LEGADO: Se já existe mas o preço está errado, corrige agora ---
+            if servico and servico.preco > 0:
+                servico.preco = 0.0
+                db.session.commit()
+                logging.info(f"💰 Serviço '{nome_servico_bloqueio}' teve o preço corrigido para R$ 0.00.")
+
             if not servico:
-                # Se não existe, cria um serviço oculto com valor ZERO
                 servico = Servico(
                     nome=nome_servico_bloqueio,
-                    preco=0.0,  # ✅ Garante que não soma no financeiro
+                    preco=0.0,
                     duracao=30,
                     barbearia_id=barbearia_id,
                     descricao="Serviço automático para bloqueio de agenda."
                 )
                 db.session.add(servico)
                 db.session.commit()
-                logging.info(f"✅ Serviço '{nome_servico_bloqueio}' criado automaticamente para a loja {barbearia_id}")
+                logging.info(f"✅ Serviço '{nome_servico_bloqueio}' criado automaticamente.")
 
             # 4. Loop para preencher os horários
             intervalo = servico.duracao if servico.duracao > 0 else 30
@@ -729,7 +761,6 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
             bloqueios = 0
             
             while cursor < fim_dt:
-                # Verifica se já está ocupado
                 ocupado = Agendamento.query.filter_by(
                     barbearia_id=barbearia_id, 
                     profissional_id=profissional.id, 
@@ -742,7 +773,7 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
                         telefone_cliente="00000000000",
                         data_hora=cursor,
                         profissional_id=profissional.id,
-                        servico_id=servico.id, # Usa o serviço de R$ 0.00
+                        servico_id=servico.id,
                         barbearia_id=barbearia_id
                     )
                     db.session.add(bloqueio)
@@ -751,12 +782,15 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
                 cursor += timedelta(minutes=intervalo)
             
             db.session.commit()
-            return f"SUCESSO: Agenda bloqueada das {hora_inicio} às {hora_fim}. ({bloqueios} horários fechados com valor R$ 0,00)."
+            
+            # Formata resposta para confirmar a data exata usada
+            data_formatada = data_dt.strftime('%d/%m/%Y')
+            return f"SUCESSO: Agenda bloqueada dia {data_formatada} das {hora_inicio} às {hora_fim}. ({bloqueios} horários fechados)."
             
     except Exception as e:
         db.session.rollback()
         return f"Erro ao bloquear: {str(e)}"
-
+        
 # =====================================================================
 # DEFINIÇÃO DAS TOOLS
 # =====================================================================
