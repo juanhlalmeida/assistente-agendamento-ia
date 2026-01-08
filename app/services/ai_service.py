@@ -472,7 +472,7 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
 def consultar_agenda_dono(barbearia_id: int, data_inicio: str, data_fim: str) -> str:
     """
     Retorna os agendamentos E O FATURAMENTO PREVISTO.
-    Aceita 'semana' no data_fim para calcular os próximos 7 dias automaticamente.
+    Ignora visualmente os bloqueios no cálculo financeiro explícito.
     """
     try:
         with current_app.app_context():
@@ -506,6 +506,7 @@ def consultar_agenda_dono(barbearia_id: int, data_inicio: str, data_fim: str) ->
 
             relatorio = [f"📅 RELATÓRIO DE {dt_ini.strftime('%d/%m')} A {dt_fim.strftime('%d/%m')}\n"]
             faturamento_total = 0.0
+            qtd_clientes_reais = 0
             dia_atual = ""
 
             for ag in agendamentos:
@@ -515,14 +516,23 @@ def consultar_agenda_dono(barbearia_id: int, data_inicio: str, data_fim: str) ->
                     dia_atual = data_ag_str
 
                 valor = ag.servico.preco if ag.servico else 0.0
-                faturamento_total += valor
-                linha = f" ⏰ {ag.data_hora.strftime('%H:%M')} - {ag.nome_cliente.split()[0]} ({ag.servico.nome}) [Valor: R$ {valor:.2f}] com {ag.profissional.nome}"
+                nome_cliente = ag.nome_cliente
+                nome_servico = ag.servico.nome if ag.servico else "Serviço"
+                
+                # Tratamento visual para bloqueios
+                if "bloqueio" in nome_cliente.lower() or "bloqueio" in nome_servico.lower() or valor == 0:
+                    linha = f" ⛔ {ag.data_hora.strftime('%H:%M')} - BLOQUEADO / INDISPONÍVEL"
+                else:
+                    faturamento_total += valor
+                    qtd_clientes_reais += 1
+                    linha = f" ⏰ {ag.data_hora.strftime('%H:%M')} - {nome_cliente.split()[0]} ({nome_servico}) [R$ {valor:.2f}]"
+                
                 relatorio.append(linha)
 
             relatorio.append("\n" + "="*20)
-            relatorio.append(f"📊 DADOS INTERNOS (Use apenas se solicitado):")
-            relatorio.append(f"✅ Total Clientes: {len(agendamentos)}")
-            relatorio.append(f"💰 Faturamento Total Previsto: R$ {faturamento_total:.2f}")
+            relatorio.append(f"📊 RESUMO FINANCEIRO:")
+            relatorio.append(f"✅ Clientes Agendados: {qtd_clientes_reais}")
+            relatorio.append(f"💰 Faturamento Previsto: R$ {faturamento_total:.2f}")
             relatorio.append("="*20)
 
             return "\n".join(relatorio)
@@ -678,7 +688,10 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
 
     # --- NOVA FUNÇÃO: BLOQUEAR AGENDA ---
 def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fim: str, motivo: str = "Bloqueio Admin") -> str:
-    """Bloqueia a agenda criando agendamentos fictícios no intervalo."""
+    """
+    Bloqueia a agenda criando agendamentos com valor R$ 0,00.
+    Cria automaticamente um serviço 'Bloqueio' se não existir.
+    """
     try:
         with current_app.app_context():
             # 1. Converter datas e horas
@@ -693,9 +706,22 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
             profissional = Profissional.query.filter_by(barbearia_id=barbearia_id).first()
             if not profissional: return "Erro: Profissional não encontrado."
             
-            # 3. Identificar Serviço para usar no bloqueio (Pega o primeiro disponível)
-            servico = Servico.query.filter_by(barbearia_id=barbearia_id).first()
-            if not servico: return "Erro: Precisa ter ao menos 1 serviço cadastrado para bloquear."
+            # 3. LÓGICA INTELIGENTE: Busca ou Cria Serviço de Bloqueio (R$ 0.00)
+            nome_servico_bloqueio = "Bloqueio Administrativo"
+            servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome=nome_servico_bloqueio).first()
+            
+            if not servico:
+                # Se não existe, cria um serviço oculto com valor ZERO
+                servico = Servico(
+                    nome=nome_servico_bloqueio,
+                    preco=0.0,  # ✅ Garante que não soma no financeiro
+                    duracao=30,
+                    barbearia_id=barbearia_id,
+                    descricao="Serviço automático para bloqueio de agenda."
+                )
+                db.session.add(servico)
+                db.session.commit()
+                logging.info(f"✅ Serviço '{nome_servico_bloqueio}' criado automaticamente para a loja {barbearia_id}")
 
             # 4. Loop para preencher os horários
             intervalo = servico.duracao if servico.duracao > 0 else 30
@@ -703,7 +729,7 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
             bloqueios = 0
             
             while cursor < fim_dt:
-                # Verifica se já está ocupado para não dar erro
+                # Verifica se já está ocupado
                 ocupado = Agendamento.query.filter_by(
                     barbearia_id=barbearia_id, 
                     profissional_id=profissional.id, 
@@ -713,10 +739,10 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
                 if not ocupado:
                     bloqueio = Agendamento(
                         nome_cliente=f"⛔ {motivo}",
-                        telefone_cliente="00000000000", # Telefone fictício
+                        telefone_cliente="00000000000",
                         data_hora=cursor,
                         profissional_id=profissional.id,
-                        servico_id=servico.id,
+                        servico_id=servico.id, # Usa o serviço de R$ 0.00
                         barbearia_id=barbearia_id
                     )
                     db.session.add(bloqueio)
@@ -725,7 +751,7 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
                 cursor += timedelta(minutes=intervalo)
             
             db.session.commit()
-            return f"SUCESSO: Agenda bloqueada das {hora_inicio} às {hora_fim}. ({bloqueios} horários fechados)."
+            return f"SUCESSO: Agenda bloqueada das {hora_inicio} às {hora_fim}. ({bloqueios} horários fechados com valor R$ 0,00)."
             
     except Exception as e:
         db.session.rollback()
