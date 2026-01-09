@@ -8,6 +8,8 @@ import logging
 import json
 import google.generativeai as genai
 import re
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
 from google.api_core.exceptions import NotFound, ResourceExhausted
 from google.generativeai.types import generation_types
 from datetime import datetime, timedelta
@@ -1013,11 +1015,12 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
 
     ⭐ AGORA COM DETECTOR DE GHOST CALL (Paper Acadêmico 2026)
     ✅ COMANDO RESET E AUTO-RECUPERAÇÃO IMPLEMENTADOS
+    🚨 MODO RESGATE SILENCIOSO: Assume o controle se a IA travar (Output 0)
     """
 
     if not model:
         logging.error("Modelo Gemini não inicializado. Abortando.")
-        return "Desculpe, meu cérebro (IA) está offline no momento. Tente novamente mais tarde."
+        return "O sistema está reiniciando rapidinho. Tente em 1 minuto! ⏳"
 
     cache_key = f"chat_history_{cliente_whatsapp}:{barbearia_id}"
 
@@ -1160,26 +1163,60 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         logging.info(f"Enviando mensagem para a IA: {user_message}")
 
-        # --- PROTEÇÃO CONTRA ERRO MALFORMED ---
+        # --- TENTATIVA DE COMUNICAÇÃO COM DETECÇÃO DE TRAVAMENTO ---
+        travou = False
+        response = None
 
         try:
-
             response = chat_session.send_message(user_message)
-
+            # Verifica se a IA respondeu VAZIO (O problema do Output 0)
+            if not response.candidates or not response.candidates[0].content.parts:
+                travou = True
+                logging.warning("⚠️ ALERTA: IA retornou Output 0 (Bloqueio de Segurança). Iniciando Resgate.")
+        
         except generation_types.StopCandidateException as e:
-
             logging.error(f"Erro Malformed Call: {e}")
-
-            return "Desculpe, tive um problema técnico ao processar seu pedido. Pode repetir por favor?"
-
+            travou = True
         except Exception as e:
-            # 2. 🚑 AUTO-RECUPERAÇÃO: Se der erro na comunicação, limpa o cache para destravar
-            logging.error(f"Erro ao enviar mensagem para a IA: {e}. Resetando histórico...", exc_info=True)
+            logging.error(f"Erro ao enviar mensagem para a IA: {e}")
+            travou = True
+
+        # ======================================================================
+        # 🚨 MODO RESGATE SILENCIOSO (HUMANIZADO)
+        # Se a IA travou, o Python assume e entrega o que o cliente quer.
+        # ======================================================================
+        if travou:
+            # Limpa o histórico corrompido para não travar a próxima mensagem
             cache.delete(cache_key)
-            return "Tive um pequeno lapso de memória. 😅 Pode repetir o que disse?"
+            msg_lower = user_message.lower()
+
+            # CASO 1: Cliente pediu PREÇO, VALOR, TABELA (Envia Imagem ou Lista)
+            if any(x in msg_lower for x in ['preço', 'preco', 'valor', 'quanto', 'tabela', 'custo']):
+                logging.info("🚨 RESGATE ATIVADO: Enviando tabela de preços manualmente.")
+                
+                # Se tiver imagem cadastrada, manda a imagem
+                if barbearia.url_tabela_precos:
+                    from app.routes import enviar_midia_whatsapp_meta
+                    enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                    return "Separei nossa tabela de valores para você dar uma olhada acima! 👆💖 Se quiser agendar, é só me falar."
+                
+                # Se não tiver imagem, manda a lista em texto
+                lista = listar_servicos(barbearia_id)
+                return f"Imagina! Aqui estão nossos valores atualizados: 👇\n\n{lista}\n\nQual deles você prefere?"
+
+            # CASO 2: Cliente pediu SERVIÇOS, OPÇÕES, QUAIS, LISTA
+            elif any(x in msg_lower for x in ['serviço', 'servico', 'opções', 'opcoes', 'quais', 'lista', 'fazem', 'trabalham']):
+                logging.info("🚨 RESGATE ATIVADO: Enviando lista de serviços manualmente.")
+                lista = listar_servicos(barbearia_id)
+                return f"Temos várias opções maravilhosas! ✨ Dá uma olhadinha nos nossos serviços:\n\n{lista}\n\nGostaria de agendar algum específico?"
+
+            # CASO 3: Travou em outra coisa (Mensagem Genérica Simpática)
+            else:
+                return "Oiê! Tive uma pequena oscilação no sinal aqui 📶. Pode me mandar a mensagem novamente, por favor? Estou prontinha para te atender! ✨"
+
+        # --- SE NÃO TRAVOU, SEGUE O FLUXO NORMAL DA IA ---
 
         # Lógica de Ferramentas
-
         while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
 
             function_call = response.candidates[0].content.parts[0].function_call
@@ -1239,8 +1276,8 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 except generation_types.StopCandidateException:
 
                     logging.error("Erro Malformed Call no retorno da tool")
-
-                    return "Tive um erro ao confirmar o agendamento. Por favor, tente novamente."
+                    # Se der erro na tool, também resgatamos
+                    return "Tive um probleminha técnico rápido ao confirmar. Tenta me pedir de novo? 🙏"
 
                 # -------------------------------------------
 
@@ -1328,7 +1365,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         # ==========================================================================
 
-        # 🕵️ INTERCEPTADOR DE COMANDOS (TABELA DE PREÇOS / FOTOS)
+        # 🕵️ INTERCEPTADOR DE COMANDOS (TABELA DE PREÇOS / FOTOS) - Mantido para fluxo normal
 
         if "[ENVIAR_TABELA]" in final_response_text:
 
@@ -1349,8 +1386,9 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 final_response_text = "Aqui está a nossa tabela! ✨"
 
             else:
-
-                final_response_text = "No momento estou sem a imagem da tabela aqui, mas me diga qual serviço quer saber que eu verifico o valor!"
+                # Se removeu a tag e ficou vazio ou estranho, ajusta o texto
+                if len(final_response_text) < 5:
+                     final_response_text = "Enviei a tabela acima! 👆💖"
 
         logging.info(f"Resposta final da IA: {final_response_text}")
 
@@ -1364,4 +1402,4 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             cache.delete(cache_key)
         except:
             pass
-        return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
+        return "Tive um problema técnico. Vamos tentar de novo do começo. O que você gostaria?"
