@@ -1001,6 +1001,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
     da conversa no cache (Redis) associado ao número do cliente.
 
     ⭐ AGORA COM DETECTOR DE GHOST CALL (Paper Acadêmico 2026)
+    ✅ COMANDO RESET E AUTO-RECUPERAÇÃO IMPLEMENTADOS
     """
 
     if not model:
@@ -1008,6 +1009,18 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         return "Desculpe, meu cérebro (IA) está offline no momento. Tente novamente mais tarde."
 
     cache_key = f"chat_history_{cliente_whatsapp}:{barbearia_id}"
+
+    # 1. 🛑 COMANDO DE RESET MANUAL (IMPLEMENTAÇÃO SEGURA)
+    # Se o usuário pedir reset, limpamos o cache antes de qualquer processamento pesado.
+    comandos_reset = ['reset', 'reiniciar', 'começar de novo', 'limpar', 'resetar']
+    if user_message.lower().strip() in comandos_reset:
+        try:
+            cache.delete(cache_key)
+            logging.info(f"🧹 Histórico resetado manualmente para {cliente_whatsapp}")
+            return "Conexão reiniciada! 🔄 Como posso ajudar você agora?"
+        except Exception as e:
+            logging.error(f"Erro ao tentar resetar cache: {e}")
+            return "Erro ao tentar reiniciar. Tente novamente."
 
     try:
         barbearia = Barbearia.query.get(barbearia_id)
@@ -1149,10 +1162,10 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             return "Desculpe, tive um problema técnico ao processar seu pedido. Pode repetir por favor?"
 
         except Exception as e:
-
-            logging.error(f"Erro ao enviar mensagem para a IA: {e}", exc_info=True)
-
-            return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
+            # 2. 🚑 AUTO-RECUPERAÇÃO: Se der erro na comunicação, limpa o cache para destravar
+            logging.error(f"Erro ao enviar mensagem para a IA: {e}. Resetando histórico...", exc_info=True)
+            cache.delete(cache_key)
+            return "Tive um pequeno lapso de memória. 😅 Pode repetir o que disse?"
 
         # Lógica de Ferramentas
 
@@ -1174,7 +1187,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 "criar_agendamento": criar_agendamento,
                 "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
                 "consultar_agenda_dono": consultar_agenda_dono,
-                "bloquear_agenda_dono": bloquear_agenda_dono  # ✅ Adicionado com vírgula correta
+                "bloquear_agenda_dono": bloquear_agenda_dono
 
             }
 
@@ -1334,6 +1347,10 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
     except Exception as e:
 
+        # 3. 🛡️ SEGURANÇA FINAL: Se explodir tudo, reseta o cache para não travar na próxima
         logging.error(f"Erro GRANDE ao processar com IA: {e}", exc_info=True)
-
+        try:
+            cache.delete(cache_key)
+        except:
+            pass
         return "Desculpe, tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
