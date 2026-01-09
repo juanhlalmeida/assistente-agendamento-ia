@@ -909,13 +909,24 @@ try:
         max_output_tokens=1024,
     )
 
+    # 👇 ADIÇÃO DE SEGURANÇA: Configurações para evitar bloqueio falso (Output: 0)
+    from google.generativeai.types import HarmCategory, HarmBlockThreshold
+
+    safety_settings = {
+        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+    }
+
     model = genai.GenerativeModel(
         model_name=model_name_to_use,
         tools=[tools],
-        generation_config=generation_config
+        generation_config=generation_config,
+        safety_settings=safety_settings  # ✅ APLICANDO A LIBERAÇÃO AQUI
     )
 
-    logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO!")
+    logging.info(f"✅ Modelo Gemini ('{model_name_to_use}') inicializado com SUCESSO e SEM FILTROS!")
 
 except NotFound as nf_error:
     logging.error(f"ERRO CRÍTICO: Modelo Gemini '{model_name_to_use}' não encontrado: {nf_error}", exc_info=True)
