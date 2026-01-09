@@ -387,10 +387,15 @@ def listar_profissionais(barbearia_id: int) -> str:
         return f"Erro ao listar profissionais: Ocorreu um erro interno."
 
 def listar_servicos(barbearia_id: int) -> str:
-    """Lista os serviços, adicionando '(a partir de)' para preços variáveis."""
+    """Lista os serviços, excluindo serviços internos de bloqueio."""
     try:
         with current_app.app_context():
-            servicos = Servico.query.filter_by(barbearia_id=barbearia_id).order_by(Servico.nome).all()
+            # ✅ ALTERAÇÃO: Filtra para NÃO mostrar o Bloqueio Administrativo
+            servicos = Servico.query.filter(
+                Servico.barbearia_id == barbearia_id,
+                Servico.nome != "Bloqueio Administrativo"
+            ).order_by(Servico.nome).all()
+
             if not servicos:
                 logging.warning(f"Ferramenta 'listar_servicos' (barbearia_id: {barbearia_id}): Nenhum serviço cadastrado.")
                 return "Nenhum serviço cadastrado para esta loja."
