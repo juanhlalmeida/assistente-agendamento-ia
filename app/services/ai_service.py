@@ -744,12 +744,12 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
                 logging.info(f"💰 Serviço '{nome_servico_bloqueio}' teve o preço corrigido para R$ 0.00.")
 
             if not servico:
+                # REMOVIDO O CAMPO 'descricao' QUE CAUSAVA O ERRO
                 servico = Servico(
                     nome=nome_servico_bloqueio,
                     preco=0.0,
                     duracao=30,
-                    barbearia_id=barbearia_id,
-                    descricao="Serviço automático para bloqueio de agenda."
+                    barbearia_id=barbearia_id
                 )
                 db.session.add(servico)
                 db.session.commit()
@@ -789,6 +789,7 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
             
     except Exception as e:
         db.session.rollback()
+        logging.error(f"❌ Erro crítico ao bloquear: {e}") # Adicionado log melhor
         return f"Erro ao bloquear: {str(e)}"
         
 # =====================================================================
