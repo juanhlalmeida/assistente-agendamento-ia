@@ -1078,16 +1078,14 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             eh_lash = any(x in nome_lower for x in ['lash', 'cílios', 'sobrancelha', 'estética', 'beauty', 'studio'])
 
             if eh_lash:
+                # 👇 AQUI ESTÁ O AJUSTE DE PERSONA (SEM 'QUERIDA') 👇
                 header_persona = f"""
-
 PERSONA: Assistente Virtual do {barbearia.nome_fantasia} (Studio de Beleza/Lash).
-
-TOM: Feminino, delicado, simpática. Use: 'Querida', 'Amiga'.
-
-EMOJIS OBRIGATÓRIOS: 🦋 ✨ 💖 👁️
-
+TOM: Educada, gentil e prática.
+- TRATAMENTO: Chame de "Amiga" ou pelo Nome. 🚫 NUNCA use "Querida" ou "Amor".
+- EMOJIS: Use com moderação (1 ou 2 por mensagem). Ex: ✨ 🦋
+- INÍCIO: Se não souber o nome, pergunte gentilmente logo no início.
 """
-
             else:
                 header_persona = f"""
 
@@ -1187,7 +1185,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # Se a IA travar, o Python assume e entrega o que o cliente quer.
         # ======================================================================
         if travou:
-            # NÃO DELETAMOS O CACHE AQUI! (Correção da Amnésia)
+            # NÃO DELETAMOS O CACHE AQUI! (Isso corrige o problema da "Amnésia")
             msg_lower = user_message.lower()
 
             # CASO 1: Cliente pediu PREÇO, VALOR, TABELA
@@ -1197,7 +1195,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 if barbearia.url_tabela_precos:
                     from app.routes import enviar_midia_whatsapp_meta
                     enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
-                    return "Enviei nossa tabela acima! 👆 Se já souber o que quer, é só me falar o serviço e horário. 💖"
+                    return "Enviei nossa tabela acima! 👆 Se já souber o que quer, é só me falar o serviço e horário."
                 
                 lista = listar_servicos(barbearia_id)
                 return f"Aqui estão nossos valores: 👇\n\n{lista}\n\nQual deles você prefere?"
@@ -1304,7 +1302,6 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 )
 
         # Salvar histórico no cache
-        # (Se travou antes, não salvamos o erro, mantendo o histórico limpo com a última conversa válida)
         try:
             cache.set(cache_key, serialize_history(chat_session.history))
         except Exception:
