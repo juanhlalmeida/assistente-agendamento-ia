@@ -1,4 +1,4 @@
-# app/integrations/google_calendar_service.py
+# app/google/google_calendar_service.py
 
 import os
 import logging
@@ -6,6 +6,11 @@ import datetime
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from app.google.calendar_events import CALENDAR_CONFIG
+
+# --- MUDANÇA: Estas variáveis devem ficar AQUI FORA (Escopo Global) ---
+SCOPES = ['https://www.googleapis.com/auth/calendar']
+CLIENT_SECRET_FILE = 'client_secret.json'
+# ---------------------------------------------------------------------
 
 # Configura logger específico
 logger = logging.getLogger(__name__)
@@ -28,7 +33,7 @@ class GoogleCalendarService:
                 token_uri="https://oauth2.googleapis.com/token",
                 client_id=os.getenv('GOOGLE_CLIENT_ID'),
                 client_secret=os.getenv('GOOGLE_CLIENT_SECRET'),
-                scopes=CALENDAR_CONFIG['SCOPES']
+                scopes=SCOPES # Usa a variável global
             )
             self.service = build('calendar', 'v3', credentials=creds)
         except Exception as e:
@@ -68,9 +73,7 @@ class GoogleCalendarService:
             raise e
 
     def delete_event(self, google_event_id):
-        """Remove um evento do Google Agenda"""
         if not self.service or not google_event_id: return False
-
         try:
             self.service.events().delete(
                 calendarId=CALENDAR_CONFIG['DEFAULT_CALENDAR_ID'],
