@@ -29,6 +29,9 @@ from app.extensions import db
 import time
 from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponiveis_util
 from thefuzz import process
+# Importando da pasta 'google'
+from app.google.calendar_hooks import trigger_google_calendar_sync, CalendarAction
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -621,6 +624,14 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
 
             db.session.add(novo_agendamento)
             db.session.commit()
+
+            # 🔥 GATILHO GOOGLE CALENDAR (Blindado)
+            # Rota ajustada para app.google
+            try:
+                logging.info(f"📅 Disparando sincronização Google para Agendamento {novo_agendamento.id}")
+                trigger_google_calendar_sync(novo_agendamento.id, CalendarAction.CREATE)
+            except Exception as e:
+                logging.error(f"⚠️ Erro ao disparar sync Google: {e}")
 
             # 🔔 NOTIFICAÇÃO AUTOMÁTICA PRO DONO
             try:
