@@ -3,7 +3,7 @@
 import logging
 from app.extensions import db
 from app.models.tables import Agendamento, Barbearia
-from app.integrations.google_calendar_service import GoogleCalendarService
+from app.google.google_calendar_service import GoogleCalendarService
 from app.google.google_calendar_service import CalendarAction
 
 logger = logging.getLogger(__name__)
