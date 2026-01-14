@@ -199,5 +199,4 @@ def create_app(config_class=Config) -> Flask:
     from app.google.routesgoogle import bp as google_bp
     app.register_blueprint(google_bp)
 
-    import app.google.calendar_hooks    
     return app
