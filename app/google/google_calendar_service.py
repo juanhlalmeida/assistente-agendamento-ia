@@ -5,7 +5,7 @@ import logging
 import datetime
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from app.integrations.calendar_events import CALENDAR_CONFIG
+from app.google.calendar_events import CALENDAR_CONFIG
 
 # Configura logger específico
 logger = logging.getLogger(__name__)
