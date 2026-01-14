@@ -220,3 +220,23 @@ class Pagamento(db.Model):
     data_vencimento = db.Column(db.DateTime)
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # app/models/tables.py ---
+
+class AgendamentoGoogleSync(db.Model):
+    __tablename__ = 'agendamento_google_sync'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    agendamento_id = db.Column(db.Integer, db.ForeignKey('agendamento.id'), nullable=False)
+    google_event_id = db.Column(db.String(255), nullable=True) # ID do evento lá no Google
+    action = db.Column(db.String(20), nullable=False) # 'create', 'delete'
+    status = db.Column(db.String(20), nullable=False) # 'success', 'failed'
+    error_message = db.Column(db.Text, nullable=True)
+    attempted_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    # Relacionamento (Opcional, ajuda na consulta)
+    agendamento = db.relationship('Agendamento', backref=db.backref('google_syncs', lazy=True))
+
+
+
+
