@@ -6,6 +6,7 @@ from flask_login import login_required, current_user
 from google_auth_oauthlib.flow import Flow
 from app.models.tables import Barbearia
 from app.extensions import db
+from app.google.google_calendar_service import CLIENT_SECRET_FILE, SCOPES
 
 # Define o Blueprint
 bp = Blueprint('google_auth', __name__, url_prefix='/google')
