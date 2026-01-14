@@ -195,5 +195,8 @@ def create_app(config_class=Config) -> Flask:
         from app.models import tables
 
     _create_super_admin(app)
+
+    from app.google.routesgoogle import bp as google_bp
+    app.register_blueprint(google_bp)
     
     return app
