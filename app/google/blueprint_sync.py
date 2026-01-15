@@ -3,29 +3,40 @@
 import logging
 from flask import Blueprint
 from sqlalchemy import event
-from app.models.tables import Agendamento
+from app.models.tables import Agendamento, Profissional # <--- Adicionado Profissional
 from app.google.google_calendar_service import GoogleCalendarService
+from app.extensions import db # <--- Adicionado db para fazer consulta
 
-# Define um Blueprint (como se fosse uma 'rota', mas serve só para carregar o código)
+# Define o Blueprint
 bp = Blueprint('google_sync_worker', __name__)
 
 logger = logging.getLogger(__name__)
 
 def enviar_para_google(mapper, connection, target):
     """
-    Esta função roda automaticamente toda vez que um Agendamento é salvo no banco.
-    'target' é o agendamento que acabou de ser criado.
+    Roda automaticamente após salvar um Agendamento.
+    target = O agendamento que acabou de ser salvo.
     """
     try:
-        logger.info(f"🔄 [SYNC] Novo agendamento detectado (ID: {target.id}). Preparando envio Google...")
+        logger.info(f"🔄 [SYNC] Novo agendamento detectado (ID: {target.id}). Buscando dados...")
         
-        # 1. Descobrir qual a barbearia responsável
-        # O target.profissional pode não estar carregado ainda, então usamos o relacionamento
-        if target.profissional and target.profissional.barbearia:
-            barbearia = target.profissional.barbearia
+        # --- CORREÇÃO: BUSCA MANUAL DO PROFISSIONAL ---
+        # Não confiamos no target.profissional direto, pois pode estar vazio na memória.
+        # Usamos o ID para buscar no banco com certeza.
+        
+        profissional = None
+        if target.profissional_id:
+            # Importação local para evitar ciclos, se necessário, ou usar a query direta
+            session = db.session
+            profissional = session.get(Profissional, target.profissional_id)
+        
+        if profissional and profissional.barbearia:
+            barbearia = profissional.barbearia
+            logger.info(f"📍 [SYNC] Barbearia encontrada: {barbearia.nome_fantasia}")
         else:
-            logger.warning("⚠️ [SYNC] Não foi possível achar a barbearia do profissional.")
+            logger.warning(f"⚠️ [SYNC] Não foi possível achar a barbearia para o Profissional ID {target.profissional_id}.")
             return
+        # ---------------------------------------------
 
         # 2. Conectar e Enviar
         service = GoogleCalendarService(barbearia)
@@ -35,9 +46,7 @@ def enviar_para_google(mapper, connection, target):
             logger.info(f"✅ [SYNC] Sucesso! Evento Google criado ID: {google_id}")
         
     except Exception as e:
-        # Importante: Se der erro AQUI, a gente só loga. NÃO travamos o site.
         logger.error(f"❌ [SYNC] Erro ao sincronizar (Site continua funcionando): {str(e)}")
 
-# Aqui ligamos o "ouvido" do SQLAlchemy
-# Sempre que a tabela Agendamento tiver um 'after_insert' (inserção), roda a função acima.
+# Liga o ouvido do SQLAlchemy
 event.listen(Agendamento, 'after_insert', enviar_para_google)
