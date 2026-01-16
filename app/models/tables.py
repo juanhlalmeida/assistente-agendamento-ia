@@ -16,6 +16,10 @@ class Barbearia(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     nome_fantasia = db.Column(db.String(100), nullable=False)
+
+    # --- ADICIONE ESTAS DUAS LINHAS AQUI ---
+    google_access_token = db.Column(db.String(500), nullable=True)
+    google_refresh_token = db.Column(db.String(500), nullable=True)
     
     # --- CONTROLE DE ASSINATURA ---
     # Unifiquei os campos de status aqui para não haver duplicidade
