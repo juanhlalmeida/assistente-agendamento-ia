@@ -240,6 +240,19 @@ class AgendamentoGoogleSync(db.Model):
 
     # Relacionamento (Opcional, ajuda na consulta)
     agendamento = db.relationship('Agendamento', backref=db.backref('google_syncs', lazy=True))
+    
+class ChatLog(db.Model):
+    __tablename__ = 'chat_logs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearias.id'))
+    cliente_telefone = db.Column(db.String(30)) # Quem está falando
+    mensagem = db.Column(db.Text)               # O que foi dito
+    tipo = db.Column(db.String(10))             # 'cliente' ou 'ia'
+    data_hora = db.Column(db.DateTime, default=datetime.now)
+
+    # Relacionamento opcional se quiser filtrar por loja
+    barbearia = db.relationship('Barbearia', backref='chats')
 
 
 
