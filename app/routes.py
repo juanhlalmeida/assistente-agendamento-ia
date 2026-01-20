@@ -1113,7 +1113,7 @@ def monitor_chat():
     # Inverte para a mais antiga ficar em cima (igual whats)
     msgs = msgs[::-1]
     
-return render_template('monitor.html', msgs=msgs)
+    return render_template('monitor.html', msgs=msgs)
 
 # ============================================
 # 🔒 ROTAS PERIGOSAS - PROTEGIDAS
