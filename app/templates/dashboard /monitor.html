@@ -1,1 +1,58 @@
+{% extends 'base.html' %}
 
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>📱 Espelho de Conversas (Ao Vivo)</h3>
+        <a href="{{ url_for('main.monitor_chat') }}" class="btn btn-success btn-sm">
+            🔄 Atualizar Conversas
+        </a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white">
+            <small class="text-muted">Mostrando as últimas 50 mensagens trocadas com a IA.</small>
+        </div>
+        <div class="card-body" style="background-color: #e5ddd5; height: 600px; overflow-y: auto; display: flex; flex-direction: column-reverse;">
+            
+            {% if not msgs %}
+                <div class="text-center text-muted mt-5">
+                    <p>Nenhuma conversa registrada ainda... 🦗</p>
+                    <small>As mensagens aparecerão aqui assim que seus clientes falarem no WhatsApp.</small>
+                </div>
+            {% endif %}
+
+            {% for msg in msgs %}
+                <div class="d-flex mb-3 {{ 'justify-content-start' if msg.tipo == 'ia' else 'justify-content-end' }}">
+                    
+                    <div class="p-3 rounded shadow-sm position-relative" 
+                         style="max-width: 75%; 
+                                border-radius: 15px;
+                                min-width: 150px;
+                                background-color: {{ '#ffffff' if msg.tipo == 'ia' else '#dcf8c6' }};">
+                        
+                        <div class="d-flex justify-content-between mb-1">
+                            <small class="fw-bold" style="color: {{ '#075e54' if msg.tipo == 'ia' else '#128c7e' }};">
+                                {% if msg.tipo == 'ia' %} 
+                                    🤖 Assistente IA 
+                                {% else %} 
+                                    👤 {{ msg.cliente_telefone }} 
+                                {% endif %}
+                            </small>
+                        </div>
+                        
+                        <span style="font-size: 1rem; color: #303030; white-space: pre-wrap;">{{ msg.mensagem }}</span>
+                        
+                        <div class="text-end mt-1">
+                            <small class="text-muted" style="font-size: 0.7em;">
+                                {{ msg.data_hora.strftime('%d/%m %H:%M') }}
+                            </small>
+                        </div>
+                    </div>
+
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
