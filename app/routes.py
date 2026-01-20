@@ -1106,6 +1106,8 @@ def atualizar_planos_db():
 # Certifique-se de importar 'func' do sqlalchemy lá em cima, junto com os outros imports:
 # from sqlalchemy import func
 
+# No app/routes.py (Substitua a função monitor_chat inteira)
+
 @bp.route('/dashboard/monitor')
 @login_required
 def monitor_chat():
@@ -1113,9 +1115,7 @@ def monitor_chat():
         flash("Você precisa ter uma barbearia para ver o chat.", "warning")
         return redirect(url_for('main.agenda'))
 
-    # 1. PEGAR LISTA DE CONTATOS (CLIENTES ÚNICOS)
-    # Agrupa pelo telefone para não repetir o mesmo cliente na lista lateral
-    # Ordena pelos que falaram por último
+    # 1. PEGAR LISTA DE CONTATOS (Agrupados)
     subquery = db.session.query(
         ChatLog.cliente_telefone,
         func.max(ChatLog.data_hora).label('ultima_interacao')
@@ -1126,27 +1126,56 @@ def monitor_chat():
 
     lista_contatos = []
     for item in subquery:
+        phone = item.cliente_telefone
+        display_name = phone # Padrão é o telefone
+
+        # 🕵️‍♂️ BUSCA INTELIGENTE DE NOME
+        # Procura no histórico de agendamentos se esse telefone tem um nome
+        cliente_conhecido = Agendamento.query.filter_by(
+            barbearia_id=current_user.barbearia_id,
+            telefone_cliente=phone
+        ).order_by(Agendamento.id.desc()).first()
+
+        if cliente_conhecido and cliente_conhecido.nome_cliente:
+            # Pega o primeiro nome e capitaliza (Ex: "MARIA SILVA" -> "Maria")
+            nome_parts = cliente_conhecido.nome_cliente.split()
+            display_name = nome_parts[0].capitalize()
+            if len(nome_parts) > 1: # Adiciona sobrenome se tiver
+                display_name += " " + nome_parts[-1].capitalize()
+
         lista_contatos.append({
-            'telefone': item.cliente_telefone,
+            'telefone': phone,
+            'nome_exibicao': display_name, # Manda o nome descoberto
             'hora': item.ultima_interacao
         })
 
-    # 2. VERIFICAR SE TEM ALGUM SELECIONADO NA URL
+    # 2. CARREGAR CONVERSA
     telefone_selecionado = request.args.get('telefone')
     mensagens = []
+    nome_selecionado = telefone_selecionado # Padrão
 
     if telefone_selecionado:
-        # Busca conversa completa desse telefone específico
+        # Busca nome do selecionado também
+        for c in lista_contatos:
+            if c['telefone'] == telefone_selecionado:
+                nome_selecionado = c['nome_exibicao']
+                break
+
         mensagens = ChatLog.query.filter_by(
             barbearia_id=current_user.barbearia_id,
             cliente_telefone=telefone_selecionado
-        ).order_by(ChatLog.data_hora.asc()).all() # .asc() para vir na ordem cronológica (antiga -> nova)
+        ).order_by(ChatLog.data_hora.asc()).all()
+
+    # Se for uma requisição AJAX (Automática), retorna só o pedaço do chat
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return render_template('monitor_partial.html', msgs=mensagens)
 
     return render_template(
         'monitor.html', 
         contatos=lista_contatos, 
         msgs=mensagens, 
-        selecionado=telefone_selecionado
+        selecionado=telefone_selecionado,
+        nome_selecionado=nome_selecionado
     )
 # ============================================
 # 🔒 ROTAS PERIGOSAS - PROTEGIDAS
