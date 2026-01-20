@@ -11,6 +11,7 @@ from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
 from sqlalchemy.orm import joinedload
 from app.models.tables import ChatLog, db # Certifique-se que db está importado também
+from sqlalchemy import func
 
 # Importações de modelos (ADICIONADO Assinatura e Pagamento)
 from app.models.tables import Agendamento, Profissional, Servico, User, Barbearia, Plano, Assinatura, Pagamento, ChatLog
