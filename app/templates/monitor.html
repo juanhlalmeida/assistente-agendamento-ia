@@ -7,9 +7,13 @@
         
         <div class="p-4 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
             <h3 class="font-bold text-gray-700 text-lg">Conversas</h3>
-            <a href="{{ url_for('main.monitor_chat') }}" class="text-sm text-green-600 hover:text-green-800 font-medium cursor-pointer" title="Atualizar Lista">
-                <span class="material-symbols-outlined align-middle">sync</span>
-            </a>
+            <div class="flex items-center gap-2">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+                <span class="text-xs text-green-600 font-medium">Ao Vivo</span>
+            </div>
         </div>
 
         <div class="flex-1 overflow-y-auto custom-scrollbar">
@@ -25,16 +29,16 @@
                           {% if selecionado == contato.telefone %}bg-green-50 border-l-4 border-l-green-500{% endif %}">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white">
-                                <span class="material-symbols-outlined text-xl">person</span>
+                            <div class="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-white font-bold">
+                                {{ contato.nome_exibicao[0] }}
                             </div>
                             <div>
-                                <p class="font-semibold text-gray-800 text-sm">{{ contato.telefone }}</p>
-                                <p class="text-xs text-gray-500">Toque para ver o histórico</p>
+                                <p class="font-bold text-gray-800 text-sm">{{ contato.nome_exibicao }}</p>
+                                <p class="text-xs text-gray-400">{{ contato.telefone }}</p>
                             </div>
                         </div>
                         <div class="text-xs text-gray-400">
-                            {{ contato.hora.strftime('%d/%m') }}
+                            {{ contato.hora.strftime('%H:%M') }}
                         </div>
                     </div>
                 </a>
@@ -46,27 +50,26 @@
         
         {% if selecionado %}
             <div class="p-3 bg-[#f0f2f5] border-b border-gray-200 flex items-center gap-3 shadow-sm z-10">
-                <div class="w-9 h-9 rounded-full bg-gray-400 flex items-center justify-center text-white">
-                    <span class="material-symbols-outlined text-lg">person</span>
+                <div class="w-9 h-9 rounded-full bg-gray-400 flex items-center justify-center text-white font-bold">
+                    {{ nome_selecionado[0] }}
                 </div>
                 <div>
-                    <h4 class="font-bold text-gray-800">{{ selecionado }}</h4>
-                    <span class="text-xs text-green-600 font-medium">Histórico gravado</span>
+                    <h4 class="font-bold text-gray-800">{{ nome_selecionado }}</h4>
+                    <span class="text-xs text-green-600 font-medium">Online via IA</span>
                 </div>
-                <a href="{{ url_for('main.monitor_chat', telefone=selecionado) }}" class="ml-auto text-gray-500 hover:text-gray-700">
-                    <span class="material-symbols-outlined">refresh</span>
-                </a>
             </div>
 
             <div id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                 {% for msg in msgs %}
+                    {% include 'monitor_partial.html' %} 
+                    {# ⚠️ OBS: Se der erro aqui, é porque precisamos criar esse arquivinho. Leia abaixo. #}
+                    {# Para simplificar e não criar outro arquivo, vou colar o código direto aqui embaixo no loop #}
                     <div class="flex {{ 'justify-start' if msg.tipo == 'ia' else 'justify-end' }}">
-                        
                         <div class="relative max-w-[70%] p-2 px-3 rounded-lg shadow-sm text-sm
                                     {{ 'bg-white rounded-tl-none' if msg.tipo == 'ia' else 'bg-[#d9fdd3] rounded-tr-none' }}">
                             
                             <p class="text-[10px] font-bold mb-1 {{ 'text-orange-500' if msg.tipo == 'ia' else 'text-gray-500' }}">
-                                {% if msg.tipo == 'ia' %} 🤖 Assistente {% else %} 👤 Cliente {% endif %}
+                                {% if msg.tipo == 'ia' %} 🤖 Assistente {% else %} 👤 {{ nome_selecionado }} {% endif %}
                             </p>
 
                             <p class="text-gray-800 whitespace-pre-wrap leading-relaxed">{{ msg.mensagem }}</p>
@@ -82,41 +85,61 @@
                 {% endfor %}
             </div>
 
+            <div class="p-3 bg-[#f0f2f5] flex items-center gap-2 text-gray-400 text-sm">
+                <span class="material-symbols-outlined">sentiment_satisfied</span>
+                <div class="flex-1 bg-white p-2 rounded-lg border border-gray-200 cursor-not-allowed">
+                    Apenas monitoramento (A IA responde automaticamente)
+                </div>
+                <span class="material-symbols-outlined">mic</span>
+            </div>
+
         {% else %}
             <div class="flex-1 flex flex-col items-center justify-center bg-[#f0f2f5] border-b-[6px] border-green-500">
                 <div class="bg-white p-6 rounded-full shadow-sm mb-4">
                      <span class="material-symbols-outlined text-6xl text-gray-300">chat</span>
                 </div>
-                <h2 class="text-xl font-light text-gray-600">Espelho do WhatsApp</h2>
-                <p class="text-sm text-gray-400 mt-2">Selecione uma conversa ao lado para monitorar.</p>
-                <p class="text-xs text-gray-400 mt-10 flex items-center gap-1">
-                    <span class="material-symbols-outlined text-xs">lock</span> Protegido por criptografia de ponta-a-ponta
-                </p>
+                <h2 class="text-xl font-light text-gray-600">Monitoramento Inteligente</h2>
+                <p class="text-sm text-gray-400 mt-2">Selecione uma conversa para ver em tempo real.</p>
             </div>
         {% endif %}
     </div>
 </div>
 
 <script>
-    window.onload = function() {
+    // Rola para baixo ao carregar
+    function scrollToBottom() {
         var chatContainer = document.getElementById("chat-container");
         if(chatContainer) {
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
     }
+    window.onload = scrollToBottom;
+
+    // Atualização Automática (A cada 3 segundos)
+    const telefoneAtual = "{{ selecionado }}";
+    
+    if (telefoneAtual && telefoneAtual !== "None") {
+        setInterval(() => {
+            fetch(window.location.href, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(response => response.text())
+            .then(html => {
+                // Só atualiza se o conteúdo mudou (simulação simples)
+                const container = document.getElementById("chat-container");
+                // Verifica se o tamanho do texto mudou para evitar flicker desnecessário
+                if (container.innerHTML.length !== html.length) {
+                    container.innerHTML = html;
+                    scrollToBottom(); // Rola pra baixo se chegar msg nova
+                }
+            })
+            .catch(err => console.log('Erro no auto-update:', err));
+        }, 3000); // 3000ms = 3 segundos
+    }
 </script>
 
 <style>
-    /* Estilo barra de rolagem fina estilo Mac/WhatsApp */
-    .custom-scrollbar::-webkit-scrollbar {
-        width: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-        background-color: rgba(0,0,0,0.2);
-        border-radius: 20px;
-    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.2); border-radius: 20px; }
 </style>
 {% endblock %}
