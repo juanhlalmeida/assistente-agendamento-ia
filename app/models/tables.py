@@ -245,7 +245,7 @@ class ChatLog(db.Model):
     __tablename__ = 'chat_logs'
 
     id = db.Column(db.Integer, primary_key=True)
-    barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearias.id'))
+    barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearia.id'))
     cliente_telefone = db.Column(db.String(30)) # Quem está falando
     mensagem = db.Column(db.Text)               # O que foi dito
     tipo = db.Column(db.String(10))             # 'cliente' ou 'ia'
