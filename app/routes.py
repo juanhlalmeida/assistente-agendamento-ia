@@ -10,9 +10,10 @@ from werkzeug.utils import secure_filename
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
 from sqlalchemy.orm import joinedload
+from app.models.tables import ChatLog, db # Certifique-se que db está importado também
 
 # Importações de modelos (ADICIONADO Assinatura e Pagamento)
-from app.models.tables import Agendamento, Profissional, Servico, User, Barbearia, Plano, Assinatura, Pagamento
+from app.models.tables import Agendamento, Profissional, Servico, User, Barbearia, Plano, Assinatura, Pagamento, ChatLog
 from app.extensions import db
 
 # ============================================
@@ -617,12 +618,45 @@ def webhook_meta():
                 # TEXTO
                 if msg_type == 'text':
                     mensagem_recebida = message_data['text']['body']
+                    # TEXTO
+                if msg_type == 'text':
+                    mensagem_recebida = message_data['text']['body']
+                    
+                    # ✅ NOVO: ESPIÃO DO CLIENTE (SALVA O QUE ELE FALOU)
+                    try:
+                        log_cliente = ChatLog(
+                            barbearia_id=barbearia.id,
+                            cliente_telefone=remetente,
+                            mensagem=mensagem_recebida,
+                            tipo='cliente'
+                        )
+                        db.session.add(log_cliente)
+                        db.session.commit()
+                    except Exception as e:
+                        logging.error(f"Erro ao salvar log cliente: {e}")
+                    # ----------------------------------------------------
+
                     resposta_ia = ai_service.processar_ia_gemini(
                         user_message=mensagem_recebida,
                         barbearia_id=barbearia.id,
                         cliente_whatsapp=remetente
                     )
+                    
                     if resposta_ia:
+                        # ✅ NOVO: ESPIÃO DA IA (SALVA O QUE ELA RESPONDEU)
+                        try:
+                            log_ia = ChatLog(
+                                barbearia_id=barbearia.id,
+                                cliente_telefone=remetente,
+                                mensagem=resposta_ia,
+                                tipo='ia'
+                            )
+                            db.session.add(log_ia)
+                            db.session.commit()
+                        except Exception as e:
+                            logging.error(f"Erro ao salvar log IA: {e}")
+                        # ------------------------------------------------
+
                         enviar_mensagem_whatsapp_meta(remetente, resposta_ia, barbearia)
                 
                 # ÁUDIO
@@ -1063,7 +1097,23 @@ def atualizar_planos_db():
     except Exception as e:
         db.session.rollback()
         return f"❌ Erro ao atualizar planos: {str(e)}", 500
+        
+        # --- ROTA DE MONITORAMENTO (ESPELHO) ---
+@bp.route('/dashboard/monitor')
+@login_required
+def monitor_chat():
+    if not current_user.barbearia_id:
+        flash("Você precisa ter uma barbearia para ver o chat.", "warning")
+        return redirect(url_for('main.agenda'))
 
+    # Busca as últimas 50 mensagens dessa loja
+    msgs = ChatLog.query.filter_by(barbearia_id=current_user.barbearia_id)\
+        .order_by(ChatLog.data_hora.desc()).limit(50).all()
+    
+    # Inverte para a mais antiga ficar em cima (igual whats)
+    msgs = msgs[::-1]
+    
+    return render_template('dashboard/monitor.html', msgs=msgs)
 
 # ============================================
 # 🔒 ROTAS PERIGOSAS - PROTEGIDAS
