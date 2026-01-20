@@ -1099,6 +1099,12 @@ def atualizar_planos_db():
         return f"❌ Erro ao atualizar planos: {str(e)}", 500
         
         # --- ROTA DE MONITORAMENTO (ESPELHO) ---
+
+# app/routes.py
+
+# Certifique-se de importar 'func' do sqlalchemy lá em cima, junto com os outros imports:
+# from sqlalchemy import func
+
 @bp.route('/dashboard/monitor')
 @login_required
 def monitor_chat():
@@ -1106,15 +1112,41 @@ def monitor_chat():
         flash("Você precisa ter uma barbearia para ver o chat.", "warning")
         return redirect(url_for('main.agenda'))
 
-    # Busca as últimas 50 mensagens dessa loja
-    msgs = ChatLog.query.filter_by(barbearia_id=current_user.barbearia_id)\
-        .order_by(ChatLog.data_hora.desc()).limit(50).all()
-    
-    # Inverte para a mais antiga ficar em cima (igual whats)
-    msgs = msgs[::-1]
-    
-    return render_template('monitor.html', msgs=msgs)
+    # 1. PEGAR LISTA DE CONTATOS (CLIENTES ÚNICOS)
+    # Agrupa pelo telefone para não repetir o mesmo cliente na lista lateral
+    # Ordena pelos que falaram por último
+    subquery = db.session.query(
+        ChatLog.cliente_telefone,
+        func.max(ChatLog.data_hora).label('ultima_interacao')
+    ).filter_by(barbearia_id=current_user.barbearia_id)\
+     .group_by(ChatLog.cliente_telefone)\
+     .order_by(func.max(ChatLog.data_hora).desc())\
+     .all()
 
+    lista_contatos = []
+    for item in subquery:
+        lista_contatos.append({
+            'telefone': item.cliente_telefone,
+            'hora': item.ultima_interacao
+        })
+
+    # 2. VERIFICAR SE TEM ALGUM SELECIONADO NA URL
+    telefone_selecionado = request.args.get('telefone')
+    mensagens = []
+
+    if telefone_selecionado:
+        # Busca conversa completa desse telefone específico
+        mensagens = ChatLog.query.filter_by(
+            barbearia_id=current_user.barbearia_id,
+            cliente_telefone=telefone_selecionado
+        ).order_by(ChatLog.data_hora.asc()).all() # .asc() para vir na ordem cronológica (antiga -> nova)
+
+    return render_template(
+        'monitor.html', 
+        contatos=lista_contatos, 
+        msgs=mensagens, 
+        selecionado=telefone_selecionado
+    )
 # ============================================
 # 🔒 ROTAS PERIGOSAS - PROTEGIDAS
 # ============================================
