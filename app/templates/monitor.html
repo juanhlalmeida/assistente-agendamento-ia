@@ -1,43 +1,56 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="h-[85vh] md:h-[calc(100vh-100px)] flex flex-col md:flex-row bg-white rounded-xl shadow-2xl overflow-hidden border border-gray-200">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
+<div class="h-[100dvh] md:h-[calc(100vh-100px)] flex flex-col md:flex-row bg-white md:rounded-xl md:shadow-2xl overflow-hidden md:border border-gray-200 relative">
     
-    <div class="{{ 'hidden md:flex' if selecionado else 'flex' }} w-full md:w-1/3 bg-white border-r border-gray-200 flex-col">
+    <div id="lista-contatos" class="{{ 'hidden md:flex' if selecionado else 'flex' }} w-full md:w-1/3 bg-white border-r border-gray-200 flex-col h-full z-10">
         
-        <div class="p-4 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
-            <h3 class="font-bold text-gray-700 text-lg">Conversas</h3>
+        <div class="p-4 bg-gray-100 border-b border-gray-200 flex justify-between items-center shrink-0">
             <div class="flex items-center gap-2">
-                <span class="relative flex h-3 w-3">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                </span>
-                <span class="text-xs text-green-600 font-medium">Ao Vivo</span>
+                <div class="w-8 h-8 rounded-full bg-gray-300 overflow-hidden">
+                    <span class="material-symbols-outlined text-gray-500 p-1">person</span>
+                </div>
+                <h3 class="font-bold text-gray-700 text-lg">Conversas</h3>
+            </div>
+            <div class="flex items-center gap-3">
+                 <div class="flex items-center gap-1 bg-green-100 px-2 py-1 rounded-full border border-green-200">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    <span class="text-[10px] text-green-700 font-bold uppercase tracking-wider">Ao Vivo</span>
+                </div>
             </div>
         </div>
 
-        <div class="flex-1 overflow-y-auto custom-scrollbar">
+        <div class="flex-1 overflow-y-auto custom-scrollbar bg-white">
             {% if not contatos %}
-                <div class="p-5 text-center text-gray-400 text-sm">
-                    Nenhum cliente entrou em contato ainda.
+                <div class="flex flex-col items-center justify-center h-full text-gray-400 opacity-50">
+                    <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                    <p class="text-sm">Nenhuma conversa iniciada.</p>
                 </div>
             {% endif %}
 
             {% for contato in contatos %}
                 <a href="{{ url_for('main.monitor_chat', telefone=contato.telefone) }}" 
-                   class="block p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer
-                          {% if selecionado == contato.telefone %}bg-green-50 border-l-4 border-l-green-500{% endif %}">
+                   class="block group relative p-3 border-b border-gray-50 hover:bg-gray-50 transition-all cursor-pointer select-none
+                          {% if selecionado == contato.telefone %}bg-[#f0f2f5] border-l-4 border-l-green-500{% endif %}">
+                    
                     <div class="flex justify-between items-center">
-                        <div class="flex items-center gap-3">
-                            <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-lg">
+                        <div class="flex items-center gap-3 overflow-hidden">
+                            <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-lg shrink-0 group-hover:scale-105 transition-transform">
                                 {{ contato.nome_exibicao[0] }}
                             </div>
-                            <div>
-                                <p class="font-bold text-gray-800 text-base">{{ contato.nome_exibicao }}</p>
-                                <p class="text-sm text-gray-500 truncate w-40">{{ contato.telefone }}</p>
+                            <div class="min-w-0">
+                                <p class="font-bold text-gray-800 text-base truncate">{{ contato.nome_exibicao }}</p>
+                                <p class="text-sm text-gray-500 truncate w-40 group-hover:text-green-600 transition-colors">
+                                    {{ contato.telefone }}
+                                </p>
                             </div>
                         </div>
-                        <div class="text-xs text-gray-400">
+                        <div class="text-[10px] text-gray-400 font-medium whitespace-nowrap">
                             {{ contato.hora.strftime('%H:%M') }}
                         </div>
                     </div>
@@ -46,82 +59,130 @@
         </div>
     </div>
 
-    <div class="{{ 'flex' if selecionado else 'hidden md:flex' }} w-full md:w-2/3 flex-col bg-[#efeae2]" style="background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); opacity: 0.95;">
+    <div id="area-chat" class="{{ 'flex' if selecionado else 'hidden md:flex' }} w-full md:w-2/3 flex-col bg-[#efeae2] h-full relative z-20" 
+         style="background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); opacity: 1;">
         
+        <div class="absolute inset-0 bg-[#efeae2] opacity-90 pointer-events-none"></div>
+
         {% if selecionado %}
-            <div class="p-3 bg-[#f0f2f5] border-b border-gray-200 flex items-center gap-3 shadow-sm z-10">
+            <div class="relative shrink-0 p-2 px-3 bg-[#f0f2f5] border-b border-gray-300 flex items-center gap-3 shadow-sm z-30">
                 
-                <a href="{{ url_for('main.monitor_chat') }}" class="md:hidden mr-1 text-gray-600 p-2 rounded-full hover:bg-gray-200">
-                    <span class="material-symbols-outlined align-middle">arrow_back</span>
+                <a href="{{ url_for('main.monitor_chat') }}" class="md:hidden text-[#00a884] p-1 -ml-1">
+                    <span class="material-symbols-outlined text-2xl">arrow_back</span>
                 </a>
 
-                <div class="w-10 h-10 rounded-full bg-gray-400 flex items-center justify-center text-white font-bold">
+                <div class="w-9 h-9 rounded-full bg-gray-400 flex items-center justify-center text-white font-bold shrink-0">
                     {{ nome_selecionado[0] }}
                 </div>
-                <div class="flex-1">
-                    <h4 class="font-bold text-gray-800 text-sm md:text-base">{{ nome_selecionado }}</h4>
-                    <span class="text-xs text-green-600 font-medium flex items-center gap-1">
-                        <span class="w-2 h-2 rounded-full bg-green-500"></span> Online via IA
-                    </span>
+                <div class="flex-1 overflow-hidden cursor-default">
+                    <h4 class="font-bold text-gray-800 text-sm md:text-base truncate">{{ nome_selecionado }}</h4>
+                    <p class="text-xs text-gray-500 truncate">
+                        online via <span class="font-semibold text-green-600">Assistente IA</span>
+                    </p>
+                </div>
+                <div class="flex gap-4 text-[#54656f]">
+                     <span class="material-symbols-outlined text-xl cursor-not-allowed opacity-50">videocam</span>
+                     <span class="material-symbols-outlined text-xl cursor-not-allowed opacity-50">call</span>
+                     <span class="material-symbols-outlined text-xl cursor-not-allowed opacity-50">search</span>
                 </div>
             </div>
 
-            <div id="chat-container" class="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+            <div id="chat-container" class="relative flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar z-20 pb-24 scroll-smooth">
                 {% for msg in msgs %}
-                    {% include 'monitor_partial.html' %} 
-                    {# Caso não tenha criado o arquivo partial, o código abaixo serve de fallback #}
-                    <div class="flex {{ 'justify-start' if msg.tipo == 'ia' else 'justify-end' }}">
-                        <div class="relative max-w-[85%] md:max-w-[70%] p-2 px-3 rounded-lg shadow-sm text-sm
+                    <div class="msg-box flex w-full {{ 'justify-start' if msg.tipo == 'ia' else 'justify-end' }} opacity-0 translate-y-4">
+                        <div class="relative max-w-[85%] md:max-w-[65%] p-1.5 px-2 rounded-lg shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] text-sm
                                     {{ 'bg-white rounded-tl-none' if msg.tipo == 'ia' else 'bg-[#d9fdd3] rounded-tr-none' }}">
                             
-                            <p class="text-[10px] font-bold mb-1 {{ 'text-orange-500' if msg.tipo == 'ia' else 'text-gray-500' }}">
-                                {% if msg.tipo == 'ia' %} 🤖 Assistente {% else %} 👤 {{ nome_selecionado }} {% endif %}
+                            <div class="absolute top-0 {{ '-left-[8px]' if msg.tipo == 'ia' else '-right-[8px]' }}">
+                                <svg viewBox="0 0 8 13" height="13" width="8" preserveAspectRatio="xMidYMid slice" fit="" version="1.1">
+                                    <path opacity="0.13" fill="#0000000" d="{{ 'M-2.36847578e-15,0 L-2.36847578e-15,13.5 L9.26853107e-16,13.5 L8,0 L-2.36847578e-15,0 Z' if msg.tipo == 'ia' else 'M5.11672322e-16,0 L5.11672322e-16,13.5 L-2.00063634e-16,13.5 L8,0 L5.11672322e-16,0 Z' }}"></path>
+                                    <path fill="{{ '#ffffff' if msg.tipo == 'ia' else '#d9fdd3' }}" d="{{ 'M1.98592144e-16,0 L-5.26620708e-16,12.5 L6.87879443e-16,12.5 L8,0 L1.98592144e-16,0 Z' if msg.tipo == 'ia' else 'M5.87522435e-16,0 L5.87522435e-16,12.5 L2.57147715e-16,12.5 L8,0 L5.87522435e-16,0 Z' }}"></path>
+                                </svg>
+                            </div>
+
+                            <p class="text-[10px] font-bold mb-0.5 leading-tight {{ 'text-[#e542a3]' if msg.tipo == 'ia' else 'text-[#1fa855]' }}">
+                                {% if msg.tipo == 'ia' %} 🤖 IA {% else %} Você {% endif %}
                             </p>
 
-                            <p class="text-gray-800 whitespace-pre-wrap leading-relaxed text-sm">{{ msg.mensagem }}</p>
+                            <p class="text-[#111b21] whitespace-pre-wrap leading-[1.3] text-[14.2px]">{{ msg.mensagem }}</p>
                             
-                            <p class="text-[9px] text-gray-400 text-right mt-1">
-                                {{ msg.data_hora.strftime('%H:%M') }}
+                            <div class="flex justify-end items-end -mt-1 gap-1">
+                                <span class="text-[10px] text-[#667781] min-w-fit pt-1">
+                                    {{ msg.data_hora.strftime('%H:%M') }}
+                                </span>
                                 {% if msg.tipo == 'cliente' %}
-                                    <span class="material-symbols-outlined text-[10px] align-middle text-blue-500">done_all</span>
+                                    <span class="material-symbols-outlined text-[14px] text-[#53bdeb]" style="font-size: 14px;">done_all</span>
                                 {% endif %}
-                            </p>
+                            </div>
                         </div>
                     </div>
                 {% endfor %}
             </div>
 
-            <div class="p-3 bg-[#f0f2f5] flex items-center gap-2 text-gray-400 text-sm mb-safe">
-                <div class="flex-1 bg-white p-3 rounded-full border border-gray-200 text-center text-xs">
-                    🔒 Monitoramento (IA responde)
+            <div class="relative shrink-0 p-2 bg-[#f0f2f5] flex items-center gap-2 z-30 mb-safe border-t border-gray-200">
+                <span class="material-symbols-outlined text-[#54656f] p-2 cursor-not-allowed">sentiment_satisfied</span>
+                <span class="material-symbols-outlined text-[#54656f] p-2 cursor-not-allowed">add</span>
+                
+                <div class="flex-1 bg-white py-2 px-4 rounded-lg border border-white flex items-center">
+                    <p class="text-[#54656f] text-sm select-none">Mensagem</p>
                 </div>
+                
+                <span class="material-symbols-outlined text-[#54656f] p-2 cursor-not-allowed">mic</span>
             </div>
 
         {% else %}
-            <div class="hidden md:flex flex-1 flex-col items-center justify-center bg-[#f0f2f5] border-b-[6px] border-green-500">
-                <div class="bg-white p-6 rounded-full shadow-sm mb-4">
-                     <span class="material-symbols-outlined text-6xl text-gray-300">chat</span>
+            <div class="relative hidden md:flex flex-1 flex-col items-center justify-center bg-[#f0f2f5] border-b-[6px] border-[#00a884] z-20">
+                <div class="mb-8">
+                     <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" class="w-20 h-20 opacity-20 filter grayscale">
                 </div>
-                <h2 class="text-xl font-light text-gray-600">Monitoramento Inteligente</h2>
-                <p class="text-sm text-gray-400 mt-2">Selecione uma conversa para ver em tempo real.</p>
+                <h2 class="text-3xl font-light text-[#41525d]">Project Mirror Web</h2>
+                <p class="text-sm text-[#667781] mt-4">Envie e receba mensagens sem precisar manter seu celular conectado.</p>
+                <div class="absolute bottom-10 flex items-center gap-2 text-[#8696a0] text-xs">
+                    <span class="material-symbols-outlined text-xs">lock</span> Protegido de ponta-a-ponta
+                </div>
             </div>
             
-            <div class="md:hidden flex-1 flex items-center justify-center p-10 text-center text-gray-500">
-                Carregando conversas...
+            <div class="relative md:hidden flex-1 flex items-center justify-center p-10 text-center text-gray-500 z-20">
+                <div class="animate-pulse flex flex-col items-center">
+                    <div class="h-4 w-32 bg-gray-200 rounded mb-2"></div>
+                    <div class="h-3 w-24 bg-gray-200 rounded"></div>
+                </div>
             </div>
         {% endif %}
     </div>
 </div>
 
 <script>
+    // 1. ANIMAÇÃO DE ENTRADA (MENSAGENS)
+    document.addEventListener('DOMContentLoaded', () => {
+        // Anima as mensagens aparecendo (efeito cascata)
+        anime({
+            targets: '.msg-box',
+            opacity: [0, 1],
+            translateY: [20, 0],
+            easing: 'easeOutExpo',
+            duration: 800,
+            delay: anime.stagger(50) // Uma depois da outra
+        });
+        
+        scrollToBottom();
+    });
+
+    // 2. FUNÇÃO DE ROLAGEM SUAVE
     function scrollToBottom() {
         var chatContainer = document.getElementById("chat-container");
         if(chatContainer) {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            // Usa anime.js para rolar suavemente
+            anime({
+                targets: chatContainer,
+                scrollTop: chatContainer.scrollHeight,
+                duration: 500,
+                easing: 'easeOutQuad'
+            });
         }
     }
-    window.onload = scrollToBottom;
 
+    // 3. AUTO UPDATE SILENCIOSO
     const telefoneAtual = "{{ selecionado }}";
     
     if (telefoneAtual && telefoneAtual !== "None") {
@@ -132,20 +193,36 @@
             .then(response => response.text())
             .then(html => {
                 const container = document.getElementById("chat-container");
-                if (container && container.innerHTML.length !== html.length) {
+                // Remove espaços em branco para comparação justa
+                const currentContent = container.innerHTML.replace(/\s/g, '');
+                const newContent = html.replace(/\s/g, '');
+
+                if (currentContent.length !== newContent.length) {
+                    // Pega a posição atual antes de atualizar
+                    const isAtBottom = container.scrollHeight - container.scrollTop === container.clientHeight;
+                    
                     container.innerHTML = html;
-                    scrollToBottom();
+                    
+                    // Se o usuário estava lá embaixo, rola para a nova mensagem
+                    if(isAtBottom) {
+                        scrollToBottom();
+                        // Toca som pop suave (opcional)
+                        // new Audio('https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.m4a').play();
+                    }
                 }
             })
-            .catch(err => console.log('Erro no auto-update:', err));
+            .catch(err => console.log('Erro sync:', err));
         }, 3000);
     }
 </script>
 
 <style>
-    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.2); border-radius: 20px; }
-    /* Ajuste para iPhone X e novos (Safe Area) */
+    /* Estilo barra de rolagem fina estilo WhatsApp */
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: rgba(0,0,0,0.2); }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    
+    /* Proteção para área segura do iPhone (barra preta embaixo) */
     .mb-safe { margin-bottom: env(safe-area-inset-bottom); }
 </style>
 {% endblock %}
