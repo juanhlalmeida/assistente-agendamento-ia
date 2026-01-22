@@ -1195,3 +1195,93 @@ def reset_database(secret_key):
         return "Banco de dados recriado com sucesso!", 200
     except Exception as e:
         return f"Ocorreu um erro: {str(e)}", 500
+
+# ==============================================================================
+# 🚀 ÁREA DO SUPER ADMIN 2.0 (NOVAS ROTAS - SEGURANÇA TOTAL)
+# ==============================================================================
+
+@bp.route('/admin/painel-novo')
+@login_required
+def admin_painel_novo():
+    # 1. Segurança: Só o dono do SaaS (Super Admin) pode entrar aqui
+    if current_user.role != 'super_admin':
+        flash('Acesso restrito à diretoria.', 'danger')
+        return redirect(url_for('main.agenda'))
+
+    # 2. Métricas Básicas
+    total_lojas = Barbearia.query.count()
+    lojas_ativas = Barbearia.query.filter_by(assinatura_ativa=True).count()
+    
+    # 3. Métricas de Tempo (Mês Atual)
+    hoje = datetime.now()
+    inicio_mes = datetime(hoje.year, hoje.month, 1)
+    
+    total_agendamentos = Agendamento.query.filter(Agendamento.data_hora >= inicio_mes).count()
+    total_msgs_ia = ChatLog.query.filter(ChatLog.data_hora >= inicio_mes).count()
+
+    # 4. Cálculo Inteligente de MRR (Faturamento)
+    # Tenta somar o valor dos planos das assinaturas ativas
+    # Se a loja foi ativada manualmente e não tem assinatura, assumimos R$ 89,90 (Premium)
+    mrr_real = db.session.query(func.sum(Plano.preco_mensal))\
+        .join(Assinatura)\
+        .join(Barbearia)\
+        .filter(Barbearia.assinatura_ativa == True)\
+        .scalar()
+    
+    if mrr_real is None:
+        mrr_real = 0
+        
+    # MRR Estimado (Para cobrir ativações manuais que não geraram registro na tabela Assinatura)
+    # Se o MRR Real for muito baixo, usamos uma estimativa baseada nas lojas ativas
+    mrr_estimado = lojas_ativas * 89.90
+    mrr_final = max(mrr_real, mrr_estimado)
+
+    # 5. Lista de Lojas (Ordenada pelas mais novas)
+    barbearias = Barbearia.query.order_by(Barbearia.id.desc()).all()
+
+    return render_template(
+        'superadmin/dashboard_v2.html', 
+        total_lojas=total_lojas,
+        lojas_ativas=lojas_ativas,
+        total_agendamentos=total_agendamentos,
+        total_msgs=total_msgs_ia,
+        mrr=mrr_final,
+        barbearias=barbearias
+    )
+
+@bp.route('/admin/planos', methods=['GET', 'POST'])
+@login_required
+def admin_planos():
+    # Segurança
+    if current_user.role != 'super_admin':
+        flash('Acesso restrito.', 'danger')
+        return redirect(url_for('main.agenda'))
+
+    if request.method == 'POST':
+        try:
+            plano_id = request.form.get('plano_id')
+            novo_nome = request.form.get('novo_nome')
+            novo_preco = request.form.get('novo_preco')
+            
+            plano = Plano.query.get(plano_id)
+            if plano:
+                if novo_nome:
+                    plano.nome = novo_nome
+                if novo_preco:
+                    # Troca vírgula por ponto para o banco aceitar
+                    plano.preco_mensal = float(novo_preco.replace(',', '.'))
+                
+                db.session.commit()
+                flash(f'✅ Plano "{plano.nome}" atualizado com sucesso!', 'success')
+            else:
+                flash('❌ Plano não encontrado.', 'danger')
+                
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao atualizar: {str(e)}', 'danger')
+        
+        return redirect(url_for('main.admin_planos'))
+
+    # Listar Planos (Ordenados pelo preço)
+    planos = Plano.query.order_by(Plano.preco_mensal.asc()).all()
+    return render_template('superadmin/planos.html', planos=planos)
