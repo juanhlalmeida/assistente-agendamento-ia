@@ -158,63 +158,94 @@
             </button>
         </div>
         
-        <nav class="flex flex-col gap-3 flex-1">
-          
-          {# Link Agendamentos #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.agenda') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-             href="{{ url_for('main.agenda') }}">
-            <span class="material-symbols-outlined">calendar_today</span>
-            <p class="text-base">Agendamentos</p>
-          </a>
-          
-          {# Link Dashboard #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('dashboard.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}"
-             href="{{ url_for('dashboard.index') }}">
-            <span class="material-symbols-outlined">dashboard</span>
-            <p class="text-base">Dashboard</p>
-          </a>
+<nav class="flex flex-col gap-3 flex-1">
           
           {# ============================================================ #}
-          {# 💬 NOVO BOTÃO: MONITORAMENTO IA (Espelho WhatsApp)         #}
+          {# 🕵️‍♂️ MENU EXCLUSIVO DO SUPER ADMIN (DONO DO SAAS)            #}
           {# ============================================================ #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint == 'main.monitor_chat' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-             href="{{ url_for('main.monitor_chat') }}"> 
-            <span class="material-symbols-outlined">chat</span>
-            <p class="text-base">Monitoramento IA</p>
-          </a>
-          {# ============================================================ #}
+          {% if current_user.role == 'super_admin' %}
+            
+            <div class="px-4 py-2">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Gestão SaaS</span>
+            </div>
 
-               
-          {# Link Profissionais #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-             href="{{ url_for('profissionais.index') }}"> 
-            <span class="material-symbols-outlined">group</span>
-            <p class="text-base">Profissionais</p>
-          </a>
+            {# 1. Painel Novo (Centro de Comando) #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'main.admin_painel_novo' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+               href="{{ url_for('main.admin_painel_novo') }}">
+              <span class="material-symbols-outlined">monitoring</span>
+              <p class="text-base">Centro de Comando</p>
+            </a>
 
-          {# Link Serviços #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-             href="{{ url_for('servicos.index') }}"> 
-            <span class="material-symbols-outlined">cut</span>
-            <p class="text-base">Serviços</p>
-          </a>
+            {# 2. Gerenciar Clientes (Lojas) #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'main.admin_barbearias' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+               href="{{ url_for('main.admin_painel_novo') }}"> 
+               {# OBS: Apontei para o painel novo pois ele já tem a lista embaixo, mas pode mudar para admin_barbearias se preferir #}
+              <span class="material-symbols-outlined">store</span>
+              <p class="text-base">Clientes / Lojas</p>
+            </a>
 
-          {# Link Clientes #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('clientes.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-             href="{{ url_for('clientes.index') }}"> 
-            <span class="material-symbols-outlined">person_search</span>
-            <p class="text-base">Clientes</p>
-          </a>
+            {# 3. Planos e Preços #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'main.admin_planos' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+               href="{{ url_for('main.admin_planos') }}"> 
+              <span class="material-symbols-outlined">payments</span>
+              <p class="text-base">Planos e Preços</p>
+            </a>
 
           {# ============================================================ #}
-          {# ⚙️ NOVO BOTÃO: CONFIGURAÇÕES (Horários, Cores, etc.)       #}
+          {# 💈 MENU DO CLIENTE (DONO DA BARBEARIA)                       #}
           {# ============================================================ #}
-          <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.configuracoes') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-             href="{{ url_for('main.configuracoes') }}"> 
-            <span class="material-symbols-outlined">settings</span>
-            <p class="text-base">Configurações</p>
-          </a>
-          {# ============================================================ #}
+          {% else %}
+
+            {# Link Agendamentos #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.agenda') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+               href="{{ url_for('main.agenda') }}">
+              <span class="material-symbols-outlined">calendar_today</span>
+              <p class="text-base">Agendamentos</p>
+            </a>
+            
+            {# Link Dashboard #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('dashboard.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}"
+               href="{{ url_for('dashboard.index') }}">
+              <span class="material-symbols-outlined">dashboard</span>
+              <p class="text-base">Dashboard</p>
+            </a>
+
+            {# Monitoramento IA #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint == 'main.monitor_chat' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+               href="{{ url_for('main.monitor_chat') }}"> 
+              <span class="material-symbols-outlined">chat</span>
+              <p class="text-base">Monitoramento IA</p>
+            </a>
+            
+            {# Link Profissionais #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+               href="{{ url_for('profissionais.index') }}"> 
+              <span class="material-symbols-outlined">group</span>
+              <p class="text-base">Profissionais</p>
+            </a>
+
+            {# Link Serviços #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+               href="{{ url_for('servicos.index') }}"> 
+              <span class="material-symbols-outlined">cut</span>
+              <p class="text-base">Serviços</p>
+            </a>
+
+            {# Link Clientes #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('clientes.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+               href="{{ url_for('clientes.index') }}"> 
+              <span class="material-symbols-outlined">person_search</span>
+              <p class="text-base">Clientes</p>
+            </a>
+
+            {# Link Configurações #}
+            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.configuracoes') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
+               href="{{ url_for('main.configuracoes') }}"> 
+              <span class="material-symbols-outlined">settings</span>
+              <p class="text-base">Configurações</p>
+            </a>
+
+          {% endif %} {# Fim da verificação de Super Admin #}
 
         </nav>
         
