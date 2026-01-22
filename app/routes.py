@@ -222,7 +222,12 @@ def processar_audio_background(audio_id, wa_id, access_token, phone_number_id, b
 
 @bp.route('/', methods=['GET', 'POST'])
 def login():
+    # 1. Se o usuário já estiver logado quando entra na página de login:
     if current_user.is_authenticated:
+        # Se for Super Admin, joga pro Painel Novo
+        if getattr(current_user, 'role', 'admin') == 'super_admin':
+            return redirect(url_for('main.admin_painel_novo'))
+        # Se for Cliente comum, joga pro Dashboard normal
         return redirect(url_for('dashboard.index'))
     
     if request.method == 'POST':
@@ -236,10 +241,21 @@ def login():
             if user.check_password(password):
                 current_app.logger.info(f"Senha CORRETA para {user.email}. Realizando login.")
                 login_user(user, remember=request.form.get('remember-me') is not None)
+                flash('Login realizado com sucesso!', 'success')
+
+                # ============================================================
+                # 🚀 AQUI ESTÁ A MÁGICA DO REDIRECIONAMENTO INTELIGENTE
+                # ============================================================
+                
+                # VERIFICAÇÃO 1: É o Chefe (Você)? Vai para o Centro de Comando
+                if getattr(user, 'role', 'admin') == 'super_admin':
+                    return redirect(url_for('main.admin_painel_novo'))
+                
+                # VERIFICAÇÃO 2: É Cliente? Segue o fluxo normal (Dashboard ou página anterior)
                 next_page = request.args.get('next')
                 if not next_page or not next_page.startswith('/'):
                     next_page = url_for('dashboard.index')
-                flash('Login realizado com sucesso!', 'success')
+                
                 return redirect(next_page)
             else:
                 current_app.logger.warning(f"Senha INCORRETA para o email: {email}")
