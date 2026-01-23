@@ -1,32 +1,30 @@
-<!DOCTYPE html>
-{# LISTA DE BARBEARIAS (CORRIGIDO) #}
-<html class="dark" lang="pt-br">
-<head>
-  <meta charset="utf-8"/>
-  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  <title>Super Admin - Gerir Barbearias</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  <link href="https://fonts.googleapis.com" rel="preconnect"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
-  <script>
-    tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#00A6FB", "background-dark": "#121212", "surface-dark": "#1E1E1E", "text-primary-dark": "#FFFFFF", "text-secondary-dark": "#A0A0A0" }, fontFamily: { "display": ["Inter", "sans-serif"] } } } }
-  </script>
-  <style> .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24 } </style>
-</head>
-<body class="bg-background-dark font-display text-text-primary-dark min-h-screen">
+{% extends 'base.html' %}
 
-  <div class="container mx-auto p-8">
-    <div class="flex justify-between items-center mb-8 pb-4 border-b border-gray-700">
-      <h1 class="text-3xl font-bold">Super Admin</h1>
-      {% if current_user.is_authenticated %}
-        <div class="text-right">
-            <p class="text-sm">Logado como: {{ current_user.email }}</p>
-            <a href="{{ url_for('main.logout') }}" class="text-sm text-primary hover:underline">Sair</a>
+{% block title %}Gerenciar Barbearias{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Gerenciar Barbearias</h1>
+            <p class="text-gray-400 text-sm">Painel de Cadastro e Edição (Legado)</p>
         </div>
-      {% endif %}
+        
+        <div class="flex gap-2">
+            <a href="{{ url_for('main.admin_painel_novo') }}" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors">
+                <span class="material-symbols-outlined">rocket_launch</span>
+                Voltar ao Comando
+            </a>
+            
+            {% if 'superadmin.nova_barbearia' in url_for.__globals__ %}
+            <a href="{{ url_for('superadmin.nova_barbearia') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors">
+                <span class="material-symbols-outlined">add_business</span>
+                Nova Barbearia
+            </a>
+            {% endif %}
+        </div>
     </div>
-    
+
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
@@ -37,15 +35,8 @@
       {% endif %}
     {% endwith %}
 
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold">Barbearias Cadastradas</h2>
-      <a href="{{ url_for('superadmin.nova_barbearia') }}" class="flex items-center gap-2 px-5 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition font-bold">
-        <span class="material-symbols-outlined">add_business</span> Nova Barbearia
-      </a>
-    </div>
-
     <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden border border-gray-800">
-      <table class="w-full text-left">
+      <table class="w-full text-left border-collapse">
         <thead class="bg-surface-dark border-b border-gray-700 text-text-secondary-dark uppercase text-sm">
           <tr>
             <th class="p-4 font-semibold">Nome Fantasia</th>
@@ -56,9 +47,9 @@
         </thead>
         <tbody>
           {% for barbearia in barbearias %}
-            <tr class="border-b border-gray-700 hover:bg-white/5 transition-colors">
+            <tr class="border-b border-gray-700 hover:bg-white/5 transition-colors group">
               <td class="p-4 font-bold text-white">{{ barbearia.nome_fantasia }}</td>
-              <td class="p-4 text-gray-300">{{ barbearia.telefone_whatsapp }}</td>
+              <td class="p-4 text-gray-300 font-mono">{{ barbearia.telefone_whatsapp }}</td>
               <td class="p-4">
                 {% if barbearia.assinatura_ativa %}
                   <span class="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-bold border border-green-500/30">ATIVA</span>
@@ -67,19 +58,21 @@
                 {% endif %}
               </td>
               <td class="p-4 text-center">
-                {# O PULO DO GATO: Aponta para main.admin_editar_barbearia (onde criamos a lógica de senha) #}
                 <a href="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) }}" 
-                   class="inline-flex p-2 text-primary hover:text-white hover:bg-primary rounded-lg transition-all mx-1" title="Editar">
+                   class="inline-flex p-2 bg-blue-500/10 text-blue-400 hover:text-white hover:bg-blue-500 rounded-lg transition-all mx-1 shadow-lg shadow-blue-500/20" title="Editar">
                   <span class="material-symbols-outlined">edit_square</span>
                 </a>
               </td>
             </tr>
           {% else %}
-            <tr><td colspan="4" class="p-8 text-center text-gray-500">Nenhuma barbearia encontrada.</td></tr>
+            <tr>
+                <td colspan="4" class="p-8 text-center text-gray-500">
+                    Nenhuma barbearia encontrada.
+                </td>
+            </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
-  </div>
-</body>
-</html>
+</div>
+{% endblock %}
