@@ -1213,46 +1213,81 @@ def reset_database(secret_key):
         return f"Ocorreu um erro: {str(e)}", 500
 
 # ==============================================================================
-# 🚀 ÁREA DO SUPER ADMIN 2.0 (NOVAS ROTAS - SEGURANÇA TOTAL)
+# 📊 CÉREBRO FINANCEIRO (PRECISÃO GEMINI FLASH)
 # ==============================================================================
-
 @bp.route('/admin/painel-novo')
 @login_required
 def admin_painel_novo():
-    # 1. Segurança: Só o dono do SaaS (Super Admin) pode entrar aqui
-    if current_user.role != 'super_admin':
+    # 1. Segurança Absoluta
+    if getattr(current_user, 'role', 'admin') != 'super_admin':
         flash('Acesso restrito à diretoria.', 'danger')
         return redirect(url_for('main.agenda'))
 
-    # 2. Métricas Básicas
+    # 2. Métricas de Volume
     total_lojas = Barbearia.query.count()
     lojas_ativas = Barbearia.query.filter_by(assinatura_ativa=True).count()
     
-    # 3. Métricas de Tempo (Mês Atual)
     hoje = datetime.now()
     inicio_mes = datetime(hoje.year, hoje.month, 1)
     
     total_agendamentos = Agendamento.query.filter(Agendamento.data_hora >= inicio_mes).count()
-    total_msgs_ia = ChatLog.query.filter(ChatLog.data_hora >= inicio_mes).count()
-
-    # 4. Cálculo Inteligente de MRR (Faturamento)
-    # Tenta somar o valor dos planos das assinaturas ativas
-    # Se a loja foi ativada manualmente e não tem assinatura, assumimos R$ 89,90 (Premium)
-    mrr_real = db.session.query(func.sum(Plano.preco_mensal))\
-        .join(Assinatura)\
-        .join(Barbearia)\
-        .filter(Barbearia.assinatura_ativa == True)\
-        .scalar()
     
-    if mrr_real is None:
-        mrr_real = 0
-        
-    # MRR Estimado (Para cobrir ativações manuais que não geraram registro na tabela Assinatura)
-    # Se o MRR Real for muito baixo, usamos uma estimativa baseada nas lojas ativas
+    # 3. CONTABILIZADOR DE TOKENS (AUDITORIA DE CUSTO)
+    # A IA cobra por "Token". 
+    # Média da Indústria: 1 Token ≈ 4 Caracteres (Português/Inglês)
+    
+    # Soma caracteres que o CLIENTE enviou (Input - Mais barato)
+    chars_input = db.session.query(func.sum(func.length(ChatLog.mensagem)))\
+        .filter(ChatLog.data_hora >= inicio_mes, ChatLog.tipo == 'cliente').scalar() or 0
+    
+    # Soma caracteres que a IA respondeu (Output - Mais caro)
+    chars_output = db.session.query(func.sum(func.length(ChatLog.mensagem)))\
+        .filter(ChatLog.data_hora >= inicio_mes, ChatLog.tipo == 'ia').scalar() or 0
+    
+    # Conversão para Tokens
+    tokens_input = int(chars_input / 4)
+    tokens_output = int(chars_output / 4)
+    total_tokens = tokens_input + tokens_output
+    
+    # 4. Faturamento (MRR)
+    # Soma planos reais + estimativa para manuais
+    mrr_real = db.session.query(func.sum(Plano.preco_mensal))\
+        .join(Assinatura).join(Barbearia)\
+        .filter(Barbearia.assinatura_ativa == True).scalar() or 0
+    
     mrr_estimado = lojas_ativas * 89.90
     mrr_final = max(mrr_real, mrr_estimado)
 
-    # 5. Lista de Lojas (Ordenada pelas mais novas)
+    # =================================================================
+    # 💰 CALCULADORA DE CUSTOS (TABELA GEMINI FLASH & META)
+    # =================================================================
+    DOLAR_HOJE = 6.10 
+    
+    # A. CUSTO META (WHATSAPP API)
+    # Categoria "Utility" (Notificações de agendamento): $0.008 USD
+    # As conversas de "Service" (Chat da IA) são GRÁTIS na janela de 24h.
+    custo_meta_usd = total_agendamentos * 0.008
+    
+    # B. CUSTO IA (GEMINI FLASH - PREÇO PAY-AS-YOU-GO)
+    # Tabela Oficial Google Cloud (Vertex AI / Studio):
+    # Input: $0.075 por 1 Milhão de tokens
+    # Output: $0.30 por 1 Milhão de tokens
+    custo_input_usd = (tokens_input / 1_000_000) * 0.075
+    custo_output_usd = (tokens_output / 1_000_000) * 0.30
+    custo_ia_usd = custo_input_usd + custo_output_usd
+    
+    # C. CUSTO INFRA (RENDER)
+    # Web Service ($7) + Postgres ($7) = $14.00 Fixo
+    custo_render_usd = 14.00
+    
+    # CONSOLIDAÇÃO (EM REAIS)
+    custo_variavel_brl = (custo_meta_usd + custo_ia_usd) * DOLAR_HOJE
+    custo_fixo_brl = custo_render_usd * DOLAR_HOJE
+    custo_total_brl = custo_fixo_brl + custo_variavel_brl
+    
+    lucro_liquido = mrr_final - custo_total_brl
+
+    # Lista de Lojas para a tabela
     barbearias = Barbearia.query.order_by(Barbearia.id.desc()).all()
 
     return render_template(
@@ -1260,44 +1295,14 @@ def admin_painel_novo():
         total_lojas=total_lojas,
         lojas_ativas=lojas_ativas,
         total_agendamentos=total_agendamentos,
-        total_msgs=total_msgs_ia,
+        # Dados de IA para o Gráfico
+        total_tokens=total_tokens,
+        tokens_input=tokens_input,
+        tokens_output=tokens_output,
+        custo_ia_brl=custo_ia_usd * DOLAR_HOJE,
+        # Financeiro
         mrr=mrr_final,
+        custo_total=custo_total_brl,
+        lucro_liquido=lucro_liquido,
         barbearias=barbearias
     )
-
-@bp.route('/admin/planos', methods=['GET', 'POST'])
-@login_required
-def admin_planos():
-    # Segurança
-    if current_user.role != 'super_admin':
-        flash('Acesso restrito.', 'danger')
-        return redirect(url_for('main.agenda'))
-
-    if request.method == 'POST':
-        try:
-            plano_id = request.form.get('plano_id')
-            novo_nome = request.form.get('novo_nome')
-            novo_preco = request.form.get('novo_preco')
-            
-            plano = Plano.query.get(plano_id)
-            if plano:
-                if novo_nome:
-                    plano.nome = novo_nome
-                if novo_preco:
-                    # Troca vírgula por ponto para o banco aceitar
-                    plano.preco_mensal = float(novo_preco.replace(',', '.'))
-                
-                db.session.commit()
-                flash(f'✅ Plano "{plano.nome}" atualizado com sucesso!', 'success')
-            else:
-                flash('❌ Plano não encontrado.', 'danger')
-                
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Erro ao atualizar: {str(e)}', 'danger')
-        
-        return redirect(url_for('main.admin_planos'))
-
-    # Listar Planos (Ordenados pelo preço)
-    planos = Plano.query.order_by(Plano.preco_mensal.asc()).all()
-    return render_template('superadmin/planos.html', planos=planos)
