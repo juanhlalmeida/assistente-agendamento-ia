@@ -6,73 +6,76 @@
     <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
             <h1 class="text-3xl font-bold text-white">Centro de Comando 🚀</h1>
-            <p class="text-gray-400">Visão Geral do seu SaaS</p>
+            <p class="text-gray-400">Visão Geral e Financeira do seu SaaS</p>
         </div>
         <div class="flex gap-3">
              <a href="{{ url_for('main.admin_planos') }}" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium">
                 <span class="material-symbols-outlined">payments</span>
                 Gerenciar Preços
             </a>
-            <a href="{{ url_for('main.admin_barbearias') }}" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors text-sm">
-                Voltar p/ Lista Antiga
+            <a href="{{ url_for('main.admin_barbearias') }}" class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors text-sm flex items-center gap-2">
+                <span class="material-symbols-outlined">list</span>
+                Lista Antiga (Cadastro)
             </a>
         </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         
         <div class="bg-surface-dark p-6 rounded-2xl border border-white/10 shadow-lg relative overflow-hidden group">
             <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <span class="material-symbols-outlined text-6xl text-green-500">attach_money</span>
             </div>
-            <div class="flex justify-between items-start mb-4">
-                <div class="p-3 bg-green-500/20 rounded-xl">
-                    <span class="material-symbols-outlined text-green-500">attach_money</span>
-                </div>
+            <div class="flex justify-between items-start mb-2">
+                <div class="p-2 bg-green-500/20 rounded-lg"><span class="material-symbols-outlined text-green-500">attach_money</span></div>
             </div>
-            <h3 class="text-gray-400 text-sm font-medium">Faturamento Mensal (MRR)</h3>
-            <p class="text-3xl font-bold text-white mt-1">R$ {{ "%.2f"|format(mrr)|replace('.', ',') }}</p>
-        </div>
-
-        <div class="bg-surface-dark p-6 rounded-2xl border border-white/10 shadow-lg relative overflow-hidden group">
-            <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <span class="material-symbols-outlined text-6xl text-blue-500">store</span>
-            </div>
-            <div class="flex justify-between items-start mb-4">
-                <div class="p-3 bg-blue-500/20 rounded-xl">
-                    <span class="material-symbols-outlined text-blue-500">store</span>
-                </div>
-            </div>
-            <h3 class="text-gray-400 text-sm font-medium">Lojas Ativas</h3>
-            <p class="text-3xl font-bold text-white mt-1">{{ lojas_ativas }} <span class="text-lg text-gray-500 font-normal">/ {{ total_lojas }}</span></p>
+            <h3 class="text-gray-400 text-xs font-bold uppercase tracking-wider">Faturamento (MRR)</h3>
+            <p class="text-2xl font-bold text-white mt-1">R$ {{ "%.2f"|format(mrr)|replace('.', ',') }}</p>
         </div>
 
         <div class="bg-surface-dark p-6 rounded-2xl border border-white/10 shadow-lg relative overflow-hidden group">
             <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                 <span class="material-symbols-outlined text-6xl text-orange-500">event</span>
             </div>
-            <div class="flex justify-between items-start mb-4">
-                <div class="p-3 bg-orange-500/20 rounded-xl">
-                    <span class="material-symbols-outlined text-orange-500">event_available</span>
-                </div>
-                <span class="text-xs font-bold text-orange-400 bg-orange-400/10 px-2 py-1 rounded-full">Este Mês</span>
+            <div class="flex justify-between items-start mb-2">
+                <div class="p-2 bg-orange-500/20 rounded-lg"><span class="material-symbols-outlined text-orange-500">event_available</span></div>
             </div>
-            <h3 class="text-gray-400 text-sm font-medium">Agendamentos Realizados</h3>
-            <p class="text-3xl font-bold text-white mt-1">{{ total_agendamentos }}</p>
+            <h3 class="text-gray-400 text-xs font-bold uppercase tracking-wider">Agendamentos</h3>
+            <p class="text-2xl font-bold text-white mt-1">{{ total_agendamentos }}</p>
         </div>
-        
-        <div class="bg-surface-dark p-6 rounded-2xl border border-white/10 shadow-lg relative overflow-hidden group">
+
+        <div class="bg-surface-dark p-6 rounded-2xl border border-purple-500/30 shadow-lg relative overflow-hidden group">
             <div class="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <span class="material-symbols-outlined text-6xl text-purple-500">chat</span>
+                <span class="material-symbols-outlined text-5xl text-purple-500">neurology</span>
             </div>
-            <div class="flex justify-between items-start mb-4">
-                <div class="p-3 bg-purple-500/20 rounded-xl">
-                    <span class="material-symbols-outlined text-purple-500">smart_toy</span>
+            <div class="flex justify-between items-start mb-2">
+                <div class="p-2 bg-purple-500/20 rounded-lg"><span class="material-symbols-outlined text-purple-500">token</span></div>
+                <span class="text-[10px] font-bold text-purple-400 bg-purple-400/10 px-2 py-1 rounded-full">Flash Model</span>
+            </div>
+            <h3 class="text-gray-400 text-xs font-bold uppercase tracking-wider">Consumo Tokens</h3>
+            <p class="text-2xl font-bold text-white mt-1">{{ "{:,}".format(total_tokens).replace(',', '.') }}</p>
+            
+            <div class="flex items-center gap-2 mt-2">
+                <div class="flex items-center gap-1 text-[10px] text-gray-400 bg-black/20 px-2 py-0.5 rounded" title="Input (Entrada)">
+                    <span class="material-symbols-outlined text-[10px]">arrow_downward</span> {{ "{:,}".format(tokens_input) }}
                 </div>
-                <span class="text-xs font-bold text-purple-400 bg-purple-400/10 px-2 py-1 rounded-full">Este Mês</span>
+                <div class="flex items-center gap-1 text-[10px] text-gray-400 bg-black/20 px-2 py-0.5 rounded" title="Output (Saída)">
+                    <span class="material-symbols-outlined text-[10px]">arrow_upward</span> {{ "{:,}".format(tokens_output) }}
+                </div>
             </div>
-            <h3 class="text-gray-400 text-sm font-medium">Mensagens da IA</h3>
-            <p class="text-3xl font-bold text-white mt-1">{{ total_msgs }}</p>
+        </div>
+
+        <div class="bg-gradient-to-br from-green-900/40 to-surface-dark p-6 rounded-2xl border border-green-500/30 shadow-lg relative overflow-hidden">
+            <div class="absolute -right-6 -top-6 w-24 h-24 bg-green-500/10 rounded-full blur-xl"></div>
+            
+            <div class="flex justify-between items-start mb-2 relative z-10">
+                <div class="p-2 bg-green-500/20 rounded-lg border border-green-500/20"><span class="material-symbols-outlined text-green-400">savings</span></div>
+            </div>
+            <h3 class="text-green-400 text-xs font-bold uppercase tracking-wider relative z-10">Lucro Líquido Real</h3>
+            <p class="text-2xl font-black text-white mt-1 relative z-10">R$ {{ "%.2f"|format(lucro_liquido)|replace('.', ',') }}</p>
+            <p class="text-[10px] text-gray-400 mt-1 opacity-70 relative z-10">
+                Custos Totais: R$ {{ "%.2f"|format(custo_total)|replace('.', ',') }}
+            </p>
         </div>
     </div>
 
