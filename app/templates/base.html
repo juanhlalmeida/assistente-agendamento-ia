@@ -177,9 +177,9 @@
             </a>
 
             {# 2. Gerenciar Clientes (Lojas) #}
+            {# CORREÇÃO: Aponta para a lista antiga onde tem o CRUD de edição #}
             <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'main.admin_barbearias' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('main.admin_painel_novo') }}"> 
-               {# OBS: Apontei para o painel novo pois ele já tem a lista embaixo, mas pode mudar para admin_barbearias se preferir #}
+               href="{{ url_for('main.admin_barbearias') }}"> 
               <span class="material-symbols-outlined">store</span>
               <p class="text-base">Clientes / Lojas</p>
             </a>
