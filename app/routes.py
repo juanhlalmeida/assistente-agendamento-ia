@@ -1306,3 +1306,40 @@ def admin_painel_novo():
         lucro_liquido=lucro_liquido,
         barbearias=barbearias
     )
+
+@bp.route('/admin/planos', methods=['GET', 'POST'])
+@login_required
+def admin_planos():
+    # Segurança: Só Super Admin
+    if getattr(current_user, 'role', 'admin') != 'super_admin':
+        flash('Acesso restrito.', 'danger')
+        return redirect(url_for('main.agenda'))
+
+    if request.method == 'POST':
+        try:
+            plano_id = request.form.get('plano_id')
+            novo_nome = request.form.get('novo_nome')
+            novo_preco = request.form.get('novo_preco')
+            
+            plano = Plano.query.get(plano_id)
+            if plano:
+                if novo_nome:
+                    plano.nome = novo_nome
+                if novo_preco:
+                    # Troca vírgula por ponto para o banco aceitar
+                    plano.preco_mensal = float(novo_preco.replace(',', '.'))
+                
+                db.session.commit()
+                flash(f'✅ Plano "{plano.nome}" atualizado com sucesso!', 'success')
+            else:
+                flash('❌ Plano não encontrado.', 'danger')
+                
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erro ao atualizar: {str(e)}', 'danger')
+        
+        return redirect(url_for('main.admin_planos'))
+
+    # Listar Planos (Ordenados pelo preço)
+    planos = Plano.query.order_by(Plano.preco_mensal.asc()).all()
+    return render_template('superadmin/planos.html', planos=planos)
