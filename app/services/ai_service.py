@@ -8,6 +8,7 @@ import logging
 import json
 import google.generativeai as genai
 import re
+import urllib.parse
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 from google.api_core.exceptions import NotFound, ResourceExhausted
@@ -34,6 +35,24 @@ from app.google.calendar_hooks import trigger_google_calendar_sync, CalendarActi
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def gerar_link_google_calendar(inicio: datetime, fim: datetime, titulo: str, descricao: str, local: str):
+    """
+    Gera um link clicável que abre a agenda do Google do cliente já preenchida.
+    """
+    fmt = '%Y%m%dT%H%M%S'
+    datas = f"{inicio.strftime(fmt)}/{fim.strftime(fmt)}"
+    
+    base_url = "https://www.google.com/calendar/render?action=TEMPLATE"
+    params = {
+        'text': titulo,
+        'dates': datas,
+        'details': descricao,
+        'location': local,
+        'sf': 'true',
+        'output': 'xml'
+    }
+    return f"{base_url}&{urllib.parse.urlencode(params)}"
 
 # ==============================================================================
 # ⭐ FUNÇÃO DE DETECÇÃO DE GHOST CALL (PAPER ACADÊMICO 2026 - SEÇÃO 5.3.1)
@@ -624,6 +643,43 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
 
             db.session.add(novo_agendamento)
             db.session.commit()
+
+            # =================================================================
+            # 📢 NOTIFICAÇÃO 1: PARA O CLIENTE (LINK MÁGICO ✨)
+            # =================================================================
+            try:
+                # Importa aqui para evitar erro de ciclo
+                from app.routes import enviar_mensagem_whatsapp_meta 
+                
+                barbearia_atual = profissional.barbearia
+                if barbearia_atual.assinatura_ativa:
+                    
+                    # Gera Link
+                    link_agenda = gerar_link_google_calendar(
+                        inicio=data_hora_dt,
+                        fim=novo_fim,
+                        titulo=f"Agendamento: {servico.nome}",
+                        descricao=f"Profissional: {profissional.nome}\nLocal: {barbearia_atual.nome_fantasia}",
+                        local=barbearia_atual.nome_fantasia
+                    )
+                    
+                    # Mensagem para o cliente
+                    msg_cliente = (
+                        f"✅ *Agendamento Confirmado!*\n\n"
+                        f"🗓 {data_hora_dt.strftime('%d/%m')} às {data_hora_dt.strftime('%H:%M')}\n"
+                        f"👤 {servico.nome} com {profissional.nome}\n\n"
+                        f"👇 *Toque abaixo para salvar na sua agenda:*\n"
+                        f"{link_agenda}"
+                    )
+                    
+                    # Envia
+                    enviar_mensagem_whatsapp_meta(telefone_cliente, msg_cliente, barbearia_atual)
+                    logging.info(f"✅ Link Mágico enviado para cliente via IA: {telefone_cliente}")
+
+            except Exception as e_client:
+                logging.error(f"Erro ao notificar cliente na tool: {e_client}")
+
+            
 
             # 🔥 GATILHO GOOGLE CALENDAR (Blindado)
             # Rota ajustada para app.google
