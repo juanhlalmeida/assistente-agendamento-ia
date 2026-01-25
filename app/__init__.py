@@ -1,5 +1,5 @@
 # app/__init__.py
-# (CÓDIGO COMPLETO E CORRIGIDO)
+# (VERSÃO FINAL: COMPLETA, SEGURA E COM TODOS OS MÓDULOS)
 from __future__ import annotations
 
 import os
@@ -10,6 +10,7 @@ from app.extensions import db, cache
 from flask_migrate import Migrate
 from flask_login import LoginManager
 from flask import current_app 
+# Importação global do SuperAdmin (mantida conforme seu padrão)
 from app.blueprints.superadmin.routes import bp as superadmin_bp
 from werkzeug.security import generate_password_hash 
 
@@ -182,6 +183,32 @@ def create_app(config_class=Config) -> Flask:
         print(f"❌ [ASSINATURAS] ERRO: {e}\n")
         logging.error(f"ERRO blueprint assinaturas: {e}", exc_info=True)
 
+    # ==========================================================
+    # 🔌 INTEGRAÇÃO GOOGLE (AUTH & SYNC) - COM LOGS SEGUROS
+    # ==========================================================
+
+    # BLUEPRINT: GOOGLE AUTH (Login)
+    try:
+        print("🔍 [GOOGLE AUTH] Importando...")
+        from app.google.routesgoogle import bp as google_auth_bp
+        print(f"✅ [GOOGLE AUTH] Import OK! Nome: {google_auth_bp.name}")
+        app.register_blueprint(google_auth_bp)
+        print("✅ [GOOGLE AUTH] Registrado com SUCESSO!\n")
+    except Exception as e:
+        print(f"❌ [GOOGLE AUTH] ERRO: {e}\n")
+        logging.error(f"ERRO blueprint google auth: {e}", exc_info=True)
+
+    # BLUEPRINT: GOOGLE SYNC (Robô)
+    try:
+        print("🔍 [GOOGLE SYNC] Importando...")
+        from app.google.blueprint_sync import bp as google_sync_bp
+        print(f"✅ [GOOGLE SYNC] Import OK! Nome: {google_sync_bp.name}")
+        app.register_blueprint(google_sync_bp)
+        print("✅ [GOOGLE SYNC] Registrado com SUCESSO!\n")
+    except Exception as e:
+        print(f"❌ [GOOGLE SYNC] ERRO: {e}\n")
+        logging.error(f"ERRO blueprint google sync: {e}", exc_info=True)
+
     print("=" * 60)
     print("✅ REGISTRO DE BLUEPRINTS FINALIZADO")
     print("=" * 60 + "\n")
@@ -195,11 +222,5 @@ def create_app(config_class=Config) -> Flask:
         from app.models import tables
 
     _create_super_admin(app)
-
-    from app.google.routesgoogle import bp as google_bp
-    app.register_blueprint(google_bp)
-
-    from app.google.blueprint_sync import bp as sync_bp
-    app.register_blueprint(sync_bp)
 
     return app
