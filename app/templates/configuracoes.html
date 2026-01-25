@@ -10,7 +10,6 @@
         <p class="text-text-secondary-dark">Personalize horários, cores e a inteligência artificial.</p>
     </div>
 
-    {# ATENÇÃO: Adicionado enctype="multipart/form-data" para permitir upload de arquivos #}
     <form method="POST" enctype="multipart/form-data" class="space-y-6">
         
         {# --- CARTÃO 1: HORÁRIOS & CONTATO --- #}
@@ -20,99 +19,118 @@
                 Horários de Atendimento
             </h2>
             
-            {# Alterado de grid-cols-2 para grid-cols-3 para caber o Sábado #}
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
                     <label class="block text-sm font-medium text-text-secondary-dark mb-1">Abertura</label>
-                    <input type="time" name="horario_abertura" value="{{ barbearia.horario_abertura or '09:00' }}" required
-                           class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
+                    <input type="time" name="horario_abertura" value="{{ barbearia.horario_abertura or '09:00' }}" class="w-full bg-background-dark border border-gray-700 rounded-lg p-2.5 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Fechamento (Seg-Sex)</label>
-                    <input type="time" name="horario_fechamento" value="{{ barbearia.horario_fechamento or '19:00' }}" required
-                           class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Fechamento (Semana)</label>
+                    <input type="time" name="horario_fechamento" value="{{ barbearia.horario_fechamento or '19:00' }}" class="w-full bg-background-dark border border-gray-700 rounded-lg p-2.5 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-text-secondary-dark mb-1">Fechamento (Sábado)</label>
-                    <input type="time" name="horario_fechamento_sabado" value="{{ barbearia.horario_fechamento_sabado or '14:00' }}" required
-                           class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors border-dashed border-gray-600">
+                    <input type="time" name="horario_fechamento_sabado" value="{{ barbearia.horario_fechamento_sabado or '14:00' }}" class="w-full bg-background-dark border border-gray-700 rounded-lg p-2.5 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
                 </div>
             </div>
 
-            <div class="mb-6">
-                <label class="block text-sm font-medium text-text-secondary-dark mb-1">Dias de Funcionamento (Texto)</label>
-                <input type="text" name="dias_funcionamento" value="{{ barbearia.dias_funcionamento }}" placeholder="Ex: Terça a Sábado"
-                       class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
-                <p class="text-xs text-gray-500 mt-2">ℹ️ A IA usará este texto exato para responder aos clientes.</p>
-            </div>
-
-            <hr class="border-gray-700 my-4">
-
-            {# CAMPO NOVO: TELEFONE DO DONO #}
             <div>
-                 <label class="block text-sm font-medium text-text-secondary-dark mb-1">Telefone do Dono (Para Notificações)</label>
-                 <div class="flex gap-2">
-                     <span class="bg-primary/20 text-primary p-3 rounded-lg material-symbols-outlined flex items-center justify-center">notifications_active</span>
-                     <input type="text" name="telefone_admin" value="{{ barbearia.telefone_admin or '' }}" placeholder="Ex: 5511999999999"
-                            class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
-                 </div>
-                 <p class="text-xs text-gray-500 mt-1">Coloque o número com código do país (55) e DDD. O Robô avisará aqui quando tiver agendamento.</p>
+                <label class="block text-sm font-medium text-text-secondary-dark mb-1">Dias de Funcionamento</label>
+                <select name="dias_funcionamento" class="w-full bg-background-dark border border-gray-700 rounded-lg p-2.5 text-white focus:border-primary outline-none">
+                    <option value="Segunda a Sexta" {% if barbearia.dias_funcionamento == 'Segunda a Sexta' %}selected{% endif %}>Segunda a Sexta</option>
+                    <option value="Segunda a Sábado" {% if barbearia.dias_funcionamento == 'Segunda a Sábado' %}selected{% endif %}>Segunda a Sábado</option>
+                    <option value="Terça a Sábado" {% if barbearia.dias_funcionamento == 'Terça a Sábado' %}selected{% endif %}>Terça a Sábado (Padrão)</option>
+                    <option value="Terça a Sexta" {% if barbearia.dias_funcionamento == 'Terça a Sexta' %}selected{% endif %}>Terça a Sexta</option>
+                </select>
+            </div>
+            
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-text-secondary-dark mb-1">Telefone do Admin (Notificações)</label>
+                <input type="tel" name="telefone_admin" value="{{ barbearia.telefone_admin or '' }}" placeholder="Ex: 5511999999999" class="w-full bg-background-dark border border-gray-700 rounded-lg p-2.5 text-white focus:border-primary outline-none">
             </div>
         </div>
 
-        {# --- CARTÃO 2: TABELA DE PREÇOS (UPLOAD) --- #}
-        <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5">
-             <h2 class="text-xl font-bold text-primary flex items-center gap-2 mb-4">
-                <span class="material-symbols-outlined">image</span>
-                Tabela de Preços (Imagem)
-            </h2>
-            
-            <div class="flex flex-col md:flex-row items-center gap-4">
-                {# Pré-visualização se já tiver imagem #}
-                {% if barbearia.url_tabela_precos %}
-                <div class="relative group shrink-0">
-                    <img src="{{ barbearia.url_tabela_precos }}" class="h-24 w-24 object-cover rounded-lg border border-gray-600 shadow-sm">
-                    <span class="absolute bottom-0 left-0 bg-green-500 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded-bl-lg rounded-tr-lg">Salva</span>
-                </div>
-                {% endif %}
+        {# --- CARTÃO 2: INTEGRAÇÃO GOOGLE AGENDA (NOVO!) --- #}
+        <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5 relative overflow-hidden">
+             <div class="absolute top-0 right-0 p-4 opacity-5">
+                <span class="material-symbols-outlined text-8xl">calendar_month</span>
+             </div>
 
-                <div class="flex-1 w-full">
-                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Enviar Nova Imagem</label>
-                    <input type="file" name="arquivo_tabela" accept="image/*"
-                           class="block w-full text-sm text-gray-400
-                                  file:mr-4 file:py-2 file:px-4
-                                  file:rounded-lg file:border-0
-                                  file:text-sm file:font-semibold
-                                  file:bg-primary file:text-white
-                                  hover:file:brightness-110 cursor-pointer
-                                  bg-background-dark rounded-lg border border-gray-700">
-                    <p class="text-xs text-gray-500 mt-2">Formatos: JPG ou PNG. Será enviada automaticamente quando o cliente pedir "preço" ou "tabela".</p>
+            <h2 class="text-xl font-bold text-blue-400 flex items-center gap-2 mb-2">
+                <span class="material-symbols-outlined">sync_alt</span>
+                Google Agenda
+            </h2>
+            <p class="text-gray-400 text-sm mb-6 max-w-lg">
+                Conecte sua agenda pessoal para evitar conflitos. Quando você tiver um compromisso no Google, a IA não agendará clientes nesse horário.
+            </p>
+
+            {% if barbearia.google_refresh_token %}
+                <div class="flex items-center justify-between p-4 bg-green-500/10 border border-green-500/20 rounded-xl relative z-10">
+                    <div class="flex items-center gap-4">
+                        <div class="bg-white p-2 rounded-full">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg" class="w-6 h-6">
+                        </div>
+                        <div>
+                            <p class="text-green-400 font-bold text-sm">Conectado com Sucesso</p>
+                            <p class="text-green-300/60 text-xs">Sincronização automática ativa</p>
+                        </div>
+                    </div>
+                    </div>
+            {% else %}
+                <div class="relative z-10">
+                    <a href="{{ url_for('google_auth.connect') }}" class="inline-flex items-center gap-3 bg-white text-gray-800 px-6 py-3 rounded-xl font-bold hover:bg-gray-100 transition-all shadow-lg transform hover:scale-105 group">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/c/c1/Google_%22G%22_logo.svg" class="w-5 h-5 group-hover:rotate-12 transition-transform">
+                        Conectar Google Agenda
+                    </a>
                 </div>
-            </div>
+            {% endif %}
         </div>
 
         {# --- CARTÃO 3: PERSONALIZAÇÃO VISUAL --- #}
         <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5">
-            <h2 class="text-xl font-bold text-primary flex items-center gap-2 mb-4">
+            <h2 class="text-xl font-bold text-pink-400 flex items-center gap-2 mb-4">
                 <span class="material-symbols-outlined">palette</span>
-                Visual e IA
+                Visual & Identidade
             </h2>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="space-y-6">
                 <div>
-                    <label class="block text-sm font-medium text-text-secondary-dark mb-2">Cor Principal do Painel</label>
-                    <div class="flex items-center gap-3">
-                        <input type="color" name="cor_primaria" value="{{ barbearia.cor_primaria or '#00A6FB' }}" 
-                               class="h-12 w-20 rounded cursor-pointer border-0 bg-transparent p-0">
-                        <span class="text-sm text-gray-400">Clique na cor para alterar.</span>
-                    </div>
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-2">Tabela de Preços (Imagem)</label>
+                    
+                    {% if barbearia.url_tabela_precos %}
+                        <div class="mb-3 relative group w-fit">
+                            <img src="{{ barbearia.url_tabela_precos }}" class="h-24 w-auto rounded-lg border border-gray-700">
+                            <div class="absolute inset-0 bg-black/50 hidden group-hover:flex items-center justify-center rounded-lg text-xs text-white">
+                                Atual
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <input type="file" name="arquivo_tabela" accept="image/*" class="block w-full text-sm text-gray-400
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-primary file:text-white
+                        hover:file:bg-blue-600
+                        cursor-pointer">
+                    <p class="text-xs text-gray-500 mt-1">Envie uma nova imagem para substituir a atual.</p>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-medium text-text-secondary-dark mb-2">Emojis da IA (Personalidade)</label>
-                    <input type="text" name="emojis_sistema" value="{{ barbearia.emojis_sistema or '✂️💈👊' }}" 
-                           class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors text-2xl">
-                    <p class="text-xs text-gray-500 mt-2">Estes emojis serão usados em todas as mensagens do Bot.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="block text-sm font-medium text-text-secondary-dark mb-2">Cor do Sistema</label>
+                        <div class="flex items-center gap-3">
+                            <input type="color" name="cor_primaria" value="{{ barbearia.cor_primaria or '#00A6FB' }}" 
+                                   class="h-12 w-20 rounded cursor-pointer border-0 bg-transparent p-0">
+                            <span class="text-sm text-gray-400">Clique na cor para alterar.</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-text-secondary-dark mb-2">Emojis da IA</label>
+                        <input type="text" name="emojis_sistema" value="{{ barbearia.emojis_sistema or '✂️💈👊' }}" 
+                               class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors text-2xl">
+                    </div>
                 </div>
             </div>
         </div>
@@ -121,7 +139,7 @@
         <div class="pt-2 pb-10">
             <button type="submit" class="w-full bg-primary text-white font-bold py-4 rounded-xl hover:brightness-110 transition-all shadow-lg shadow-primary/20 text-lg flex items-center justify-center gap-2">
                 <span class="material-symbols-outlined">save</span>
-                Salvar Configurações
+                Salvar Configurações Globais
             </button>
         </div>
 
