@@ -31,6 +31,24 @@ except ImportError as e:
     logging.warning(f"⚠️ Twilio/WhatsAppClient não disponível: {e}. Webhook Twilio desabilitado.")
 # ============================================
 
+def gerar_link_google_calendar(inicio: datetime, fim: datetime, titulo: str, descricao: str, local: str):
+    """Gera um link clicável para adicionar ao Google Agenda"""
+    # Formato exigido pelo Google: YYYYMMDDTHHMMSSZ (UTC)
+    # Como estamos simplificando, vamos usar o horário local sem o 'Z' no final para ele pegar o fuso do celular da pessoa
+    fmt = '%Y%m%dT%H%M%S'
+    datas = f"{inicio.strftime(fmt)}/{fim.strftime(fmt)}"
+    
+    base_url = "https://www.google.com/calendar/render?action=TEMPLATE"
+    params = {
+        'text': titulo,
+        'dates': datas,
+        'details': descricao,
+        'location': local,
+        'sf': 'true',
+        'output': 'xml'
+    }
+    return f"{base_url}&{urllib.parse.urlencode(params)}"
+
 # ✅ Tenta importar Serviço de Pagamento (Mercado Pago)
 try:
     from app.services.mercadopago_service import mercadopago_service
