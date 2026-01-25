@@ -6,6 +6,7 @@ import logging
 import json
 import requests
 import threading
+import urllib.parse
 from werkzeug.utils import secure_filename
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
@@ -365,6 +366,41 @@ def agenda():
                 )
                 db.session.add(novo_agendamento)
                 db.session.commit()
+
+                # 1. Gerar o Link Mágico
+                novo_fim = novo_inicio + timedelta(minutes=servico.duracao)
+                link_agenda = gerar_link_google_calendar(
+                    inicio=novo_inicio,
+                    fim=novo_fim,
+                    titulo=f"Agendamento: {servico.nome}",
+                    descricao=f"Profissional: {profissional.nome}\nLocal: {profissional.barbearia.nome_fantasia}",
+                    local=profissional.barbearia.nome_fantasia
+                )
+
+                # 2. Enviar WhatsApp para o CLIENTE (Com o Link)
+                try:
+                    # Formata mensagem amigável
+                    msg_cliente = (
+                        f"✅ *Agendamento Confirmado!*\n\n"
+                        f"🗓 {novo_inicio.strftime('%d/%m')} às {novo_inicio.strftime('%H:%M')}\n"
+                        f"💇 {servico.nome} com {profissional.nome}\n\n"
+                        f"👇 *Toque abaixo para salvar na sua agenda:*\n"
+                        f"{link_agenda}"
+                    )
+                    
+                    # Usa a função que já existe no seu código
+                    # IMPORTANTE: Se o telefone do cliente não tiver o código do país (55), adicione.
+                    tel_destino = telefone_cliente
+                    if len(tel_destino) <= 11: # Ex: 11999999999
+                        tel_destino = "55" + tel_destino
+                        
+                    # Pega a barbearia atual para usar o token dela
+                    barbearia_atual = Barbearia.query.get(barbearia_id_logada)
+                    
+                    enviar_mensagem_whatsapp_meta(tel_destino, msg_cliente, barbearia_atual)
+                    
+                except Exception as e:
+                    current_app.logger.error(f"Erro ao enviar Zap para cliente: {e}")
                 
                 # =================================================================
                 # 🔔 NOTIFICAÇÃO PARA O DONO (COM TEMA DINÂMICO LASH/BARBER)
