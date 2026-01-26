@@ -377,30 +377,32 @@ def agenda():
                     local=profissional.barbearia.nome_fantasia
                 )
 
-                # 2. Enviar WhatsApp para o CLIENTE (Com o Link)
+                # =================================================================
+                # 📢 NOTIFICAÇÃO 1: PARA O CLIENTE (LINK CURTO 🔗)
+                # =================================================================
                 try:
-                    # Formata mensagem amigável
-                    msg_cliente = (
-                        f"✅ *Agendamento Confirmado!*\n\n"
-                        f"🗓 {novo_inicio.strftime('%d/%m')} às {novo_inicio.strftime('%H:%M')}\n"
-                        f"💇 {servico.nome} com {profissional.nome}\n\n"
-                        f"👇 *Toque abaixo para salvar na sua agenda:*\n"
-                        f"{link_agenda}"
-                    )
-                    
-                    # Usa a função que já existe no seu código
-                    # IMPORTANTE: Se o telefone do cliente não tiver o código do país (55), adicione.
-                    tel_destino = telefone_cliente
-                    if len(tel_destino) <= 11: # Ex: 11999999999
-                        tel_destino = "55" + tel_destino
-                        
-                    # Pega a barbearia atual para usar o token dela
                     barbearia_atual = Barbearia.query.get(barbearia_id_logada)
                     
-                    enviar_mensagem_whatsapp_meta(tel_destino, msg_cliente, barbearia_atual)
-                    
-                except Exception as e:
-                    current_app.logger.error(f"Erro ao enviar Zap para cliente: {e}")
+                    if barbearia_atual.assinatura_ativa:
+                        
+                        # GERAR LINK CURTO (Aponta para a rota que criamos no Passo 1)
+                        link_curto = url_for('main.redirect_gcal', agendamento_id=novo_agendamento.id, _external=True)
+                        
+                        # Mensagem mais limpa
+                        msg_cliente = (
+                            f"✅ *Agendamento Confirmado!*\n\n"
+                            f"🗓 {novo_inicio.strftime('%d/%m')} às {novo_inicio.strftime('%H:%M')}\n"
+                            f"💇 {servico.nome}\n\n"
+                            f"📅 *Salvar na Agenda:* 👇\n{link_curto}"
+                        )
+                        
+                        tel_destino = telefone_cliente
+                        if len(tel_destino) <= 11: tel_destino = "55" + tel_destino
+                        
+                        enviar_mensagem_whatsapp_meta(tel_destino, msg_cliente, barbearia_atual)
+
+                except Exception as e_client:
+                    current_app.logger.error(f"Erro ao notificar cliente: {e_client}")
                 
                 # =================================================================
                 # 🔔 NOTIFICAÇÃO PARA O DONO (COM TEMA DINÂMICO LASH/BARBER)
@@ -1397,3 +1399,39 @@ def admin_planos():
     # Listar Planos (Ordenados pelo preço)
     planos = Plano.query.order_by(Plano.preco_mensal.asc()).all()
     return render_template('superadmin/planos.html', planos=planos)
+    
+    # --- NOVO: ROTA ENCURTADORA PARA O GOOGLE CALENDAR ---
+@bp.route('/gcal/<int:agendamento_id>')
+def redirect_gcal(agendamento_id):
+    """
+    Cria o link longo do Google dinamicamente e redireciona.
+    Isso permite enviar um link curto (seuapp.com/gcal/123) no WhatsApp.
+    """
+    try:
+        ag = Agendamento.query.get_or_404(agendamento_id)
+        
+        # Recria a lógica do link longo aqui
+        fmt = '%Y%m%dT%H%M%S'
+        inicio = ag.data_hora
+        fim = inicio + timedelta(minutes=ag.servico.duracao)
+        datas = f"{inicio.strftime(fmt)}/{fim.strftime(fmt)}"
+        
+        # Se quiser adicionar 'Z' para UTC, precisa ajustar o fuso. 
+        # Mantendo local para simplicidade conforme sua lógica anterior.
+        
+        base_url = "https://www.google.com/calendar/render?action=TEMPLATE"
+        params = {
+            'text': f"Agendamento: {ag.servico.nome}",
+            'dates': datas,
+            'details': f"Profissional: {ag.profissional.nome}\nLocal: {ag.barbearia.nome_fantasia}",
+            'location': ag.barbearia.nome_fantasia,
+            'sf': 'true',
+            'output': 'xml'
+        }
+        
+        final_url = f"{base_url}&{urllib.parse.urlencode(params)}"
+        return redirect(final_url)
+        
+    except Exception as e:
+        current_app.logger.error(f"Erro no redirecionamento GCal: {e}")
+        return "Erro ao gerar link da agenda."
