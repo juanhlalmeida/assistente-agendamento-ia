@@ -430,7 +430,7 @@ def listar_servicos(barbearia_id: int) -> str:
                 "Platinado", "Luzes", "Coloração", "Pigmentação",
                 "Selagem", "Escova Progressiva", "Relaxamento",
                 "Alisamento", "Hidratação", "Reconstrução",
-                "Volume Brasileiro", "Volume Russo", "Mega Volume"
+                "Volume Brasileiro", "Volume Russo", "Mega Volume", "Remoção", "Remoção de Cílios"
             ]
 
             for s in servicos:
