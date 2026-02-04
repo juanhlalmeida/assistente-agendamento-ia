@@ -1404,26 +1404,34 @@ def admin_planos():
 @bp.route('/gcal/<int:agendamento_id>')
 def redirect_gcal(agendamento_id):
     """
-    Cria o link longo do Google dinamicamente e redireciona.
-    Isso permite enviar um link curto (seuapp.com/gcal/123) no WhatsApp.
+    Cria o link do Google com o Emoji correto (Lash ou Barber) no título do evento.
     """
     try:
         ag = Agendamento.query.get_or_404(agendamento_id)
         
-        # Recria a lógica do link longo aqui
+        # 1. DETECÇÃO DE TEMA (IGUAL FIZEMOS NA NOTIFICAÇÃO)
+        nome_loja = ag.barbearia.nome_fantasia.lower()
+        palavras_lash = ['lash', 'studio', 'cílios', 'sobrancelha', 'beleza', 'estética', 'lima', 'mulher', 'lady']
+        is_lash = any(x in nome_loja for x in palavras_lash)
+        
+        # Define o Emoji do Título
+        if is_lash:
+            emoji_titulo = "🦋"
+        else:
+            emoji_titulo = "✂️"
+
+        # 2. MONTAGEM DO LINK
         fmt = '%Y%m%dT%H%M%S'
         inicio = ag.data_hora
         fim = inicio + timedelta(minutes=ag.servico.duracao)
         datas = f"{inicio.strftime(fmt)}/{fim.strftime(fmt)}"
         
-        # Se quiser adicionar 'Z' para UTC, precisa ajustar o fuso. 
-        # Mantendo local para simplicidade conforme sua lógica anterior.
-        
         base_url = "https://www.google.com/calendar/render?action=TEMPLATE"
         params = {
-            'text': f"Agendamento: {ag.servico.nome}",
+            # AQUI ESTÁ A MUDANÇA: O EMOJI VAI NO TÍTULO
+            'text': f"{emoji_titulo} {ag.servico.nome} - {ag.barbearia.nome_fantasia}",
             'dates': datas,
-            'details': f"Profissional: {ag.profissional.nome}\nLocal: {ag.barbearia.nome_fantasia}",
+            'details': f"Profissional: {ag.profissional.nome}\nCliente: {ag.nome_cliente}\nTel: {ag.telefone_cliente}",
             'location': ag.barbearia.nome_fantasia,
             'sf': 'true',
             'output': 'xml'
