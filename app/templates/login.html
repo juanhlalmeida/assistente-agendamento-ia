@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
   <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
   
   <script>
     tailwind.config = {
@@ -16,104 +17,94 @@
       theme: {
         extend: {
           colors: {
-            "primary": "#00A6FB",
-            "primary-dark": "#0086CA",
-            "background-dark": "#0F172A", /* Azul muito escuro (mais moderno que preto puro) */
-            "surface-dark": "#1E293B",    /* Cinza azulado para o cartão */
-            "border-dark": "#334155",
-            "text-primary-dark": "#F8FAFC",
-            "text-secondary-dark": "#94A3B8",
+            "background-dark": "#0F172A", 
+            "surface-dark": "#1E293B",    
+            "primary-purple": "#8B5CF6", /* Roxo do botão */
+            "primary-blue": "#3B82F6",   /* Azul do botão */
           },
           fontFamily: { "display": ["Inter", "sans-serif"] },
         },
       },
     }
   </script>
-
-  <style>
-    input:-webkit-autofill,
-    input:-webkit-autofill:hover, 
-    input:-webkit-autofill:focus, 
-    input:-webkit-autofill:active{
-        -webkit-box-shadow: 0 0 0 30px #1E293B inset !important;
-        -webkit-text-fill-color: white !important;
-        transition: background-color 5000s ease-in-out 0s;
-    }
-  </style>
 </head>
-<body class="bg-background-dark font-display text-text-primary-dark antialiased">
+<body class="bg-background-dark font-display antialiased text-slate-200">
 
   <div class="flex min-h-screen flex-col items-center justify-center p-4">
     
-    <div class="w-full max-w-md rounded-2xl bg-surface-dark shadow-2xl border border-border-dark">
-      <div class="p-8 md:p-10">
-        
-        <div class="mb-8 text-center">
-          <h1 class="text-3xl font-extrabold tracking-tight text-white">Bem-vindo de volta</h1>
-          <p class="mt-2 text-sm text-text-secondary-dark">Sistema de Gestão</p>
+    <div class="w-full max-w-md rounded-2xl bg-surface-dark p-8 shadow-2xl border border-slate-700/50 relative overflow-hidden">
+      
+      <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-purple to-primary-blue"></div>
+
+      <div class="mb-8 text-center flex flex-col items-center">
+        <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-blue to-primary-purple shadow-lg shadow-purple-500/20">
+          <span class="material-symbols-rounded text-4xl text-white">smart_toy</span>
         </div>
+        
+        <h1 class="text-2xl font-bold text-white">Painel de Controle</h1>
+        <p class="mt-1 text-sm text-slate-400">Gerencie sua agenda com inteligência.</p>
+      </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              {% set color = 'bg-blue-500/10 text-blue-400 border-blue-500/20' %}
-              {% if category == 'danger' %}{% set color = 'bg-red-500/10 text-red-400 border-red-500/20' %}{% endif %}
-              <div class="{{ color }} mb-6 rounded-lg border p-3 text-center text-sm font-medium backdrop-blur-sm">
-                {{ message }}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            {% set color = 'bg-blue-500/10 text-blue-400 border-blue-500/20' %}
+            {% if category == 'danger' %}{% set color = 'bg-red-500/10 text-red-400 border-red-500/20' %}{% endif %}
+            <div class="{{ color }} mb-6 rounded-lg border p-3 text-center text-sm font-medium">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST" action="{{ url_for('main.login', next=request.args.get('next')) }}">
+        <div class="flex flex-col gap-5">
+          
+          <div>
+            <label for="email" class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">E-mail</label>
+            <div class="relative">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <span class="material-symbols-rounded text-slate-400">mail</span>
               </div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
-
-        <form method="POST" action="{{ url_for('main.login', next=request.args.get('next')) }}">
-          <div class="flex flex-col gap-5">
-            
-            <div>
-              <label for="email" class="mb-2 block text-sm font-medium text-text-secondary-dark">Email</label>
               <input 
                 type="email" 
                 id="email" 
                 name="email" 
-                class="block w-full rounded-xl border border-border-dark bg-surface-dark p-3 text-white placeholder-gray-500 shadow-sm focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" 
+                class="block w-full rounded-lg border-0 bg-slate-100 p-3 pl-10 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-primary-purple sm:text-sm shadow-inner" 
                 placeholder="seu@email.com" 
                 required>
             </div>
-            
-            <div>
-              <label for="password" class="mb-2 block text-sm font-medium text-text-secondary-dark">Senha</label>
+          </div>
+          
+          <div>
+            <label for="password" class="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-400">Senha</label>
+            <div class="relative">
+              <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                <span class="material-symbols-rounded text-slate-400">lock</span>
+              </div>
               <input 
                 type="password" 
                 id="password" 
                 name="password" 
-                class="block w-full rounded-xl border border-border-dark bg-surface-dark p-3 text-white placeholder-gray-500 shadow-sm focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" 
-                placeholder="••••••••"
+                class="block w-full rounded-lg border-0 bg-slate-100 p-3 pl-10 text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-primary-purple sm:text-sm shadow-inner" 
+                placeholder="••••••"
                 required>
             </div>
-            
-            <div class="flex items-center justify-between">
-              <div class="flex items-start">
-                <div class="flex h-5 items-center">
-                  <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 rounded border-border-dark bg-surface-dark text-primary focus:ring-primary focus:ring-offset-surface-dark">
-                </div>
-                <div class="ml-3 text-sm">
-                  <label for="remember-me" class="font-medium text-text-secondary-dark hover:text-white cursor-pointer transition-colors">Lembrar-me</label>
-                </div>
-              </div>
-            </div>
-            
-            <button 
-              type="submit" 
-              class="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-primary to-blue-500 px-6 text-base font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02] hover:shadow-blue-500/30 active:scale-[0.98]">
-              Entrar no Painel
-            </button>
-            
           </div>
-        </form>
-      </div>
+          
+          <button 
+            type="submit" 
+            class="group mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-primary-blue to-primary-purple px-6 text-base font-bold text-white shadow-lg shadow-purple-500/25 transition-all hover:opacity-90 active:scale-[0.98]">
+            Acessar Sistema
+            <span class="material-symbols-rounded transition-transform group-hover:translate-x-1">arrow_forward</span>
+          </button>
+          
+        </div>
+      </form>
     </div>
     
-    <div class="mt-8 text-center text-xs text-slate-600">
-      &copy; 2026 Sistema de Gestão. Todos os direitos reservados.
+    <div class="mt-8 text-center text-xs text-slate-500">
+      &copy; 2026 AI Scheduler System. Todos os direitos reservados.
     </div>
 
   </div>
