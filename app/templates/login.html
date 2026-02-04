@@ -9,7 +9,6 @@
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
   <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
   
   <script>
     tailwind.config = {
@@ -18,34 +17,48 @@
         extend: {
           colors: {
             "primary": "#00A6FB",
-            "background-dark": "#121212",
-            "surface-dark": "#1E1E1E",
-            "text-primary-dark": "#FFFFFF",
-            "text-secondary-dark": "#A0A0A0",
+            "primary-dark": "#0086CA",
+            "background-dark": "#0F172A", /* Azul muito escuro (mais moderno que preto puro) */
+            "surface-dark": "#1E293B",    /* Cinza azulado para o cartão */
+            "border-dark": "#334155",
+            "text-primary-dark": "#F8FAFC",
+            "text-secondary-dark": "#94A3B8",
           },
           fontFamily: { "display": ["Inter", "sans-serif"] },
         },
       },
     }
   </script>
+
+  <style>
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover, 
+    input:-webkit-autofill:focus, 
+    input:-webkit-autofill:active{
+        -webkit-box-shadow: 0 0 0 30px #1E293B inset !important;
+        -webkit-text-fill-color: white !important;
+        transition: background-color 5000s ease-in-out 0s;
+    }
+  </style>
 </head>
-<body class="bg-background-dark font-display text-text-primary-dark">
+<body class="bg-background-dark font-display text-text-primary-dark antialiased">
 
   <div class="flex min-h-screen flex-col items-center justify-center p-4">
     
-    <div class="w-full max-w-md rounded-xl bg-surface-dark shadow-lg">
-      <div class="p-8">
-        <div class="mb-6 text-center">
-          <h1 class="text-3xl font-bold text-white">Login do Painel</h1>
-          <p class="text-text-secondary-dark">Sistema de Gestão</p>
+    <div class="w-full max-w-md rounded-2xl bg-surface-dark shadow-2xl border border-border-dark">
+      <div class="p-8 md:p-10">
+        
+        <div class="mb-8 text-center">
+          <h1 class="text-3xl font-extrabold tracking-tight text-white">Bem-vindo de volta</h1>
+          <p class="mt-2 text-sm text-text-secondary-dark">Sistema de Gestão</p>
         </div>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
-              {% set color = 'bg-blue-500' %}
-              {% if category == 'danger' %}{% set color = 'bg-red-500' %}{% endif %}
-              <div class="{{ color }} mb-4 rounded-lg p-3 text-center text-sm font-medium text-white">
+              {% set color = 'bg-blue-500/10 text-blue-400 border-blue-500/20' %}
+              {% if category == 'danger' %}{% set color = 'bg-red-500/10 text-red-400 border-red-500/20' %}{% endif %}
+              <div class="{{ color }} mb-6 rounded-lg border p-3 text-center text-sm font-medium backdrop-blur-sm">
                 {{ message }}
               </div>
             {% endfor %}
@@ -53,44 +66,45 @@
         {% endwith %}
 
         <form method="POST" action="{{ url_for('main.login', next=request.args.get('next')) }}">
-          <div class="flex flex-col gap-4">
+          <div class="flex flex-col gap-5">
             
             <div>
-              <label for="email" class="mb-1 block text-sm font-medium text-text-secondary-dark">Email</label>
+              <label for="email" class="mb-2 block text-sm font-medium text-text-secondary-dark">Email</label>
               <input 
                 type="email" 
                 id="email" 
                 name="email" 
-                class="block w-full rounded-lg border border-gray-700 bg-background-dark p-2.5 text-white focus:border-primary focus:ring-primary" 
+                class="block w-full rounded-xl border border-border-dark bg-surface-dark p-3 text-white placeholder-gray-500 shadow-sm focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" 
                 placeholder="seu@email.com" 
                 required>
             </div>
             
             <div>
-              <label for="password" class="mb-1 block text-sm font-medium text-text-secondary-dark">Senha</label>
+              <label for="password" class="mb-2 block text-sm font-medium text-text-secondary-dark">Senha</label>
               <input 
                 type="password" 
                 id="password" 
                 name="password" 
-                class="block w-full rounded-lg border border-gray-700 bg-background-dark p-2.5 text-white focus:border-primary focus:ring-primary" 
+                class="block w-full rounded-xl border border-border-dark bg-surface-dark p-3 text-white placeholder-gray-500 shadow-sm focus:border-primary focus:ring-1 focus:ring-primary sm:text-sm" 
+                placeholder="••••••••"
                 required>
             </div>
             
             <div class="flex items-center justify-between">
               <div class="flex items-start">
                 <div class="flex h-5 items-center">
-                  <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 rounded border-gray-700 bg-gray-700 text-primary focus:ring-2 focus:ring-primary">
+                  <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 rounded border-border-dark bg-surface-dark text-primary focus:ring-primary focus:ring-offset-surface-dark">
                 </div>
                 <div class="ml-3 text-sm">
-                  <label for="remember-me" class="text-text-secondary-dark">Lembrar-me</label>
+                  <label for="remember-me" class="font-medium text-text-secondary-dark hover:text-white cursor-pointer transition-colors">Lembrar-me</label>
                 </div>
               </div>
             </div>
             
             <button 
               type="submit" 
-              class="h-12 w-full rounded-lg bg-primary px-6 text-base font-bold text-white transition-colors hover:bg-primary/90">
-              Entrar
+              class="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-r from-primary to-blue-500 px-6 text-base font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:scale-[1.02] hover:shadow-blue-500/30 active:scale-[0.98]">
+              Entrar no Painel
             </button>
             
           </div>
@@ -98,6 +112,10 @@
       </div>
     </div>
     
+    <div class="mt-8 text-center text-xs text-slate-600">
+      &copy; 2026 Sistema de Gestão. Todos os direitos reservados.
+    </div>
+
   </div>
 
 </body>
