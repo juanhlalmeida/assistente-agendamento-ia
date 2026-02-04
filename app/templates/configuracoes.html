@@ -41,6 +41,14 @@
                     <option value="Segunda a Sábado" {% if barbearia.dias_funcionamento == 'Segunda a Sábado' %}selected{% endif %}>Segunda a Sábado</option>
                     <option value="Terça a Sábado" {% if barbearia.dias_funcionamento == 'Terça a Sábado' %}selected{% endif %}>Terça a Sábado (Padrão)</option>
                     <option value="Terça a Sexta" {% if barbearia.dias_funcionamento == 'Terça a Sexta' %}selected{% endif %}>Terça a Sexta</option>
+
+                    <option value="Carol: Terça a Sábado (Misto)" {% if barbearia.dias_funcionamento == 'Carol: Terça a Sábado (Misto)' %}selected{% endif %}>
+                        ⚡ Carol: Terça a Sábado (Horários Mistos)
+                    </option>
+                    <option value="Carol: Segunda a Sexta (Misto)" {% if barbearia.dias_funcionamento == 'Carol: Segunda a Sexta (Misto)' %}selected{% endif %}>
+                        ⚡ Carol: Segunda a Sexta (Semana de Curso)
+                    </option>
+                    
                 </select>
             </div>
             
