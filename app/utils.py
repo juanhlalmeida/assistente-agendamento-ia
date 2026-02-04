@@ -1,4 +1,5 @@
 # app/utils.py
+
 import pytz
 from datetime import datetime, time, timedelta
 from sqlalchemy.orm import joinedload
@@ -9,15 +10,12 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
     """
     Calcula horários disponíveis respeitando RIGOROSAMENTE as configurações da Barbearia.
     
-    ATUALIZAÇÃO SÊNIOR:
-    1. Bloqueia datas passadas (anos anteriores).
-    2. Padrão 'duracao=90' para limpar o painel visual de horários insuficientes.
+    ATUALIZAÇÃO: Inclui lógica Híbrida (Carol Lash) sem remover a lógica padrão.
     """
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
     agora = datetime.now(sao_paulo_tz)
     
     # 🛑 TRAVA DE PASSADO: Se o dia for antes de hoje -> BLOQUEIA IMEDIATAMENTE
-    # Isso resolve o problema da IA aceitar 2025 ou datas passadas.
     if dia_selecionado.date() < agora.date():
         return [] 
 
@@ -29,59 +27,74 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
     h_fecha_padrao = getattr(barbearia, 'horario_fechamento', '19:00') or '19:00'
     h_fecha_sabado = getattr(barbearia, 'horario_fechamento_sabado', '14:00') or '14:00'
     
-    # Texto dos dias (ex: "Terça a Sexta")
-    dias_func_str = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado').lower()
+    # Texto dos dias (ex: "Terça a Sexta" ou "Carol: Terça a Sábado (Misto)")
+    dias_func_str = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado') # Mantém case original para comparação exata
 
     # 2. Definição do dia da semana (0=Seg, 5=Sáb, 6=Dom)
     dia_semana_int = dia_selecionado.weekday()
 
+    # Variáveis de Controle (serão definidas abaixo)
+    dia_aberto = False
+    h_fecha_str = h_fecha_padrao # Começa com o padrão, ajusta se necessário
+
     # ==============================================================================
-    # 🔒 TRAVAS DE SEGURANÇA ABSOLUTAS (HARD LOCKS)
-    # Se o dia não estiver escrito explicitamente no texto, bloqueia antes de tudo.
+    # 🧠 LÓGICA DE DECISÃO DE HORÁRIOS (CAROL LASH + PADRÃO)
     # ==============================================================================
     
-    # TRAVA DE SÁBADO
-    if dia_semana_int == 5:
-        if 'sábado' not in dias_func_str and 'sabado' not in dias_func_str:
-            return [] # Retorna vazio = Dia Fechado
+    # CENÁRIO 1: CAROL MISTO (Terça a Sábado)
+    if dias_func_str == 'Carol: Terça a Sábado (Misto)':
+        if dia_semana_int in [1, 2, 3, 4, 5]: # Ter a Sab
+            dia_aberto = True
             
-    # TRAVA DE DOMINGO
-    if dia_semana_int == 6:
-        if 'domingo' not in dias_func_str:
-            return []
+            if dia_semana_int == 5: # Sábado
+                h_fecha_str = h_fecha_sabado
+            elif dia_semana_int in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
+                h_fecha_str = '20:30'
+            elif dia_semana_int in [2, 4]: # Quarta (2) e Sexta (4) -> Reduzido
+                h_fecha_str = '17:30'
 
-    # TRAVA DE SEGUNDA
-    if dia_semana_int == 0:
-        if 'segunda' not in dias_func_str:
-            return []
+    # CENÁRIO 2: CAROL SEMANA DE CURSO (Segunda a Sexta)
+    elif dias_func_str == 'Carol: Segunda a Sexta (Misto)':
+        if dia_semana_int in [0, 1, 2, 3, 4]: # Seg a Sex (Sáb/Dom FECHADOS)
+            dia_aberto = True
+            
+            if dia_semana_int in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
+                h_fecha_str = '20:30'
+            else: # Seg(0), Qua(2), Sex(4) -> Reduzido
+                h_fecha_str = '17:30'
 
-    # ==============================================================================
-
-    # 3. Lógica de Intervalos (Para preencher os dias do meio, ex: Quarta/Quinta)
-    dias_permitidos = []
-    
-    if 'segunda' in dias_func_str and 'sábado' in dias_func_str: # "Segunda a Sábado"
-        dias_permitidos = [0, 1, 2, 3, 4, 5]
-    elif 'terça' in dias_func_str and 'sábado' in dias_func_str: # "Terça a Sábado"
-        dias_permitidos = [1, 2, 3, 4, 5]
-    elif 'segunda' in dias_func_str and 'sexta' in dias_func_str: # "Segunda a Sexta"
-        dias_permitidos = [0, 1, 2, 3, 4]
-    elif 'terça' in dias_func_str and 'sexta' in dias_func_str: # "Terça a Sexta" (SEU CASO)
-        dias_permitidos = [1, 2, 3, 4]
+    # CENÁRIO 3: PADRÃO (Lógica Original Mantida para outras lojas)
     else:
-        # Padrão genérico (caso a IA não entenda o intervalo)
-        dias_permitidos = [1, 2, 3, 4, 5]
+        dias_lower = dias_func_str.lower()
+        
+        # Lógica de Intervalos Genérica
+        if 'segunda a sexta' in dias_lower and dia_semana_int < 5:
+            dia_aberto = True
+        elif 'segunda a sábado' in dias_lower and dia_semana_int < 6:
+            dia_aberto = True
+            if dia_semana_int == 5: h_fecha_str = h_fecha_sabado
+        elif 'terça a sábado' in dias_lower and 0 < dia_semana_int < 6:
+            dia_aberto = True
+            if dia_semana_int == 5: h_fecha_str = h_fecha_sabado
+        elif 'terça a sexta' in dias_lower and 0 < dia_semana_int < 5:
+            dia_aberto = True
+        
+        # Travas de Segurança Extras (Do seu código original)
+        if dia_semana_int == 5 and 'sábado' not in dias_lower and 'sabado' not in dias_lower:
+            dia_aberto = False
+        if dia_semana_int == 6 and 'domingo' not in dias_lower:
+            dia_aberto = False
+        if dia_semana_int == 0 and 'segunda' not in dias_lower:
+            dia_aberto = False
 
-    # Se o dia passou pelas travas mas não está na lista permitida do intervalo
-    if dia_semana_int not in dias_permitidos:
+    # SE O DIA ESTIVER FECHADO, RETORNA VAZIO IMEDIATAMENTE
+    if not dia_aberto:
         return []
 
-    # 4. Define horário de fechamento correto (Sábado vs Dia de Semana)
-    if dia_semana_int == 5: # Sábado
-        h_fecha_str = h_fecha_sabado
-    else: # Outros dias
-        h_fecha_str = h_fecha_padrao
-
+    # ==============================================================================
+    # ⚙️ CÁLCULO MATEMÁTICO (Mantido Original 100%)
+    # ==============================================================================
+    
     # 5. Converte horários para inteiros
     try:
         h_inicio, m_inicio = map(int, h_abre_str.split(':'))
