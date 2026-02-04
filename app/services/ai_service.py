@@ -467,6 +467,75 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
             dia_semana = dia_dt.weekday()
             dias_proibidos = []
 
+            dia_semana = dia_dt.weekday() # 0=Seg, 1=Ter, 2=Qua, 3=Qui, 4=Sex, 5=Sab, 6=Dom
+            dias_config = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado')
+            
+            # Variável para controlar o horário limite do dia (fechamento)
+            # Padrão: Pega do banco ou usa 19:00 se não tiver
+            hora_limite_str = barbearia.horario_fechamento or '19:00'
+            
+            # =================================================================
+            # 🧠 LÓGICA INTELIGENTE DE DIAS & HORÁRIOS (CAROL LASH)
+            # =================================================================
+            
+            dia_valido = False
+
+            # CENÁRIO 1: CAROL NORMAL (Terça a Sábado Misto)
+            if dias_config == 'Carol: Terça a Sábado (Misto)':
+                if dia_semana in [1, 2, 3, 4, 5]: # Ter, Qua, Qui, Sex, Sab
+                    dia_valido = True
+                    
+                    if dia_semana == 5: # Sábado
+                        hora_limite_str = barbearia.horario_fechamento_sabado or '14:00'
+                    
+                    elif dia_semana in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
+                        hora_limite_str = '20:30'
+                        
+                    elif dia_semana in [2, 4]: # Quarta (2) e Sexta (4) -> Reduzido
+                        hora_limite_str = '17:30'
+
+            # CENÁRIO 2: CAROL SEMANA DE CURSO (Segunda a Sexta Misto)
+            elif dias_config == 'Carol: Segunda a Sexta (Misto)':
+                if dia_semana in [0, 1, 2, 3, 4]: # Seg a Sex (Sáb/Dom bloqueados)
+                    dia_valido = True
+                    
+                    if dia_semana in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
+                        hora_limite_str = '20:30'
+                        
+                    elif dia_semana in [0, 2, 4]: # Seg(0), Qua(2), Sex(4) -> Reduzido
+                        hora_limite_str = '17:30'
+
+            # CENÁRIO 3: PADRÃO (Para as outras lojas funcionarem normal)
+            else:
+                if 'segunda a sexta' in dias_config.lower() and dia_semana < 5:
+                    dia_valido = True
+                elif 'segunda a sábado' in dias_config.lower() and dia_semana < 6:
+                    dia_valido = True
+                    if dia_semana == 5: hora_limite_str = barbearia.horario_fechamento_sabado or '14:00'
+                elif 'terça a sábado' in dias_config.lower() and 0 < dia_semana < 6:
+                    dia_valido = True
+                    if dia_semana == 5: hora_limite_str = barbearia.horario_fechamento_sabado or '14:00'
+                elif 'terça a sexta' in dias_config.lower() and 0 < dia_semana < 5:
+                    dia_valido = True
+
+            if not dia_valido:
+                return f"A loja não abre neste dia ({dia_dt.strftime('%A')})."
+
+            # =================================================================
+            # 🕰️ GERAÇÃO DOS SLOTS (Agora usando a hora_limite_str dinâmica)
+            # =================================================================
+            
+            # Define hora de abertura
+            hora_abre_str = barbearia.horario_abertura or '09:00'
+            
+            # Converte strings para objetos time
+            h_abre = datetime.strptime(hora_abre_str, '%H:%M').time()
+            h_fecha = datetime.strptime(hora_limite_str, '%H:%M').time() # <--- AQUI ESTÁ O SEGREDO
+            
+            # Define inicio e fim do dia
+            inicio_dia = datetime.combine(dia_dt, h_abre)
+            fim_dia = datetime.combine(dia_dt, h_fecha) # <--- TERMINA AQUI O CODIGO IMPLEMENTADO
+
             if 'terça' in dias_txt and 'sábado' in dias_txt:
                 dias_proibidos = [0, 6]
             elif 'segunda' in dias_txt and 'sexta' in dias_txt:
