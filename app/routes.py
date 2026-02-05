@@ -839,22 +839,13 @@ def admin_barbearias():
     # Garante que carrega o template correto da LISTA
     return render_template('admin_barbearias.html', barbearias=barbearias)
 
-# ============================================
-# ✅ ROTA 1: EXIBIR O PAINEL DE CRIAÇÃO (GET)
-# ============================================
-@bp.route('/admin/barbearia/painel-criacao', methods=['GET'])
+@bp.route('/admin/barbearia/editar/<int:barbearia_id>', methods=['GET', 'POST'])
 @login_required
-def admin_painel_criacao():
-    if getattr(current_user, 'role', 'admin') != 'super_admin':
-        return redirect(url_for('main.agenda'))
-    # Renderiza o novo.html vazio para você preencher
-    return render_template('dashboard/novo.html', barbearia=None)
+# COLOQUE ISTO NO SEU routes.py (Pode ser antes de admin_editar_barbearia)
 
-# ==============================================================================
-# 1. ROTA DE CRIAR NOVA LOJA (POST)
-# ==============================================================================
 @bp.route('/admin/barbearia/nova', methods=['POST'])
 @login_required
+
 def admin_nova_barbearia():
     # 1. Segurança: Só Super Admin
     if getattr(current_user, 'role', 'admin') != 'super_admin':
@@ -862,19 +853,17 @@ def admin_nova_barbearia():
         return redirect(url_for('main.agenda'))
 
     try:
-        # --- DADOS ---
+        # --- DADOS DA BARBEARIA/POUSADA ---
         nome_fantasia = request.form.get('nome_fantasia')
         telefone_zap = request.form.get('telefone_whatsapp')
-        
-        # 🏨 AQUI A MÁGICA (Captura se é Pousada ou Barbearia)
-        tipo_negocio = request.form.get('business_type', 'barbershop') 
+        tipo_negocio = request.form.get('business_type', 'barbershop') # <--- AQUI A MÁGICA 🏨
         
         # Dados Opcionais
         meta_id = request.form.get('meta_phone_number_id')
         meta_token = request.form.get('meta_access_token')
         status_assinatura = request.form.get('status_assinatura', 'inativa')
         
-        # Configurações Visuais
+        # Configurações
         h_abre = request.form.get('horario_abertura', '09:00')
         h_fecha = request.form.get('horario_fechamento', '19:00')
         h_sabado = request.form.get('horario_fechamento_sabado', '14:00')
@@ -890,17 +879,17 @@ def admin_nova_barbearia():
         # Validações Básicas
         if not nome_fantasia or not telefone_zap or not email_admin or not senha_admin:
             flash('Preencha os campos obrigatórios (*)', 'warning')
-            return redirect(url_for('main.admin_painel_criacao'))
+            return redirect(url_for('main.admin_painel_novo'))
 
         if User.query.filter_by(email=email_admin).first():
             flash('Este email de admin já está em uso.', 'danger')
-            return redirect(url_for('main.admin_painel_criacao'))
+            return redirect(url_for('main.admin_painel_novo'))
 
-        # 2. Cria a Barbearia/Pousada
+        # 1. Cria a Barbearia/Pousada
         nova_loja = Barbearia(
             nome_fantasia=nome_fantasia,
-            telefone_whatsapp=telefone_zap, 
-            business_type=tipo_negocio,     # <--- SALVA O TIPO NO BANCO
+            telefone_whatsapp=telefone_zap, # Número do Robô
+            business_type=tipo_negocio,     # <--- SALVANDO NO BANCO
             
             # Configs
             meta_phone_number_id=meta_id,
@@ -922,14 +911,14 @@ def admin_nova_barbearia():
             nova_loja.assinatura_expira_em = datetime.now() + timedelta(days=dias)
         
         db.session.add(nova_loja)
-        db.session.flush() # Gera o ID da loja
+        db.session.flush() # Gera o ID da loja para usar no usuário
 
-        # 3. Cria o Usuário Dono
+        # 2. Cria o Usuário Dono vinculado à Loja
         novo_usuario = User(
             email=email_admin,
             nome=f"Admin {nome_fantasia}",
             role='admin',
-            barbearia_id=nova_loja.id 
+            barbearia_id=nova_loja.id # Vincula aqui
         )
         novo_usuario.set_password(senha_admin)
         
@@ -945,15 +934,9 @@ def admin_nova_barbearia():
         flash(f'Erro ao criar: {str(e)}', 'danger')
         return redirect(url_for('main.admin_barbearias'))
 
-
-# ==============================================================================
-# 2. ROTA DE EDITAR LOJA EXISTENTE (GET e POST)
-# ==============================================================================
-@bp.route('/admin/barbearia/editar/<int:barbearia_id>', methods=['GET', 'POST'])
-@login_required
 def admin_editar_barbearia(barbearia_id):
     # 1. Segurança
-    if getattr(current_user, 'role', 'admin') != 'super_admin':
+    if current_user.role != 'super_admin':
         flash('Acesso restrito.', 'danger')
         return redirect(url_for('main.login'))
 
@@ -963,9 +946,6 @@ def admin_editar_barbearia(barbearia_id):
         # 2. Atualiza dados da empresa
         barbearia.nome_fantasia = request.form.get('nome_fantasia')
         
-        # ✅ PERMITE MUDAR DE BARBEARIA PARA POUSADA (E VICE-VERSA)
-        barbearia.business_type = request.form.get('business_type', 'barbershop')
-        
         raw_tel = request.form.get('telefone_whatsapp')
         if raw_tel:
             barbearia.telefone_admin = ''.join(filter(str.isdigit, raw_tel))
@@ -973,17 +953,21 @@ def admin_editar_barbearia(barbearia_id):
         barbearia.meta_phone_number_id = request.form.get('meta_phone_number_id')
         barbearia.meta_access_token = request.form.get('meta_access_token')
         
-        # Lógica de Assinatura na Edição
+        # ✅ AQUI ESTÁ A CORREÇÃO CRÍTICA DO STATUS E DATA ✅
         status_input = request.form.get('status_assinatura')
+        
         if status_input:
             barbearia.status_assinatura = status_input
+            
+            # Normaliza para letras minúsculas e sem espaços
             status_clean = str(status_input).strip().lower()
             
             if status_clean == 'ativa':
                 barbearia.assinatura_ativa = True
+                # Se não tem data ou data é passada, renova 30 dias
                 if not barbearia.assinatura_expira_em or barbearia.assinatura_expira_em < datetime.now():
                     barbearia.assinatura_expira_em = datetime.now() + timedelta(days=30)
-                flash('✅ Assinatura ativada! Validade renovada.', 'success')
+                    flash('✅ Assinatura ativada! Validade renovada por 30 dias.', 'success')
             
             elif status_clean == 'teste':
                 barbearia.assinatura_ativa = True
@@ -992,9 +976,10 @@ def admin_editar_barbearia(barbearia_id):
                 flash('✅ Modo Teste ativado (7 dias).', 'success')
             
             else:
+                # SE FOR 'inativa', 'bloqueada', 'pendente', etc.
                 barbearia.assinatura_ativa = False
-                barbearia.assinatura_expira_em = None
-                flash('🚫 Assinatura DESATIVADA.', 'warning')
+                barbearia.assinatura_expira_em = None # Remove a data para sumir a faixa verde
+                flash('🚫 Assinatura DESATIVADA. O acesso foi revogado.', 'warning')
 
         # 3. Troca de Senha
         nova_senha = request.form.get('nova_senha_admin')
@@ -1002,7 +987,9 @@ def admin_editar_barbearia(barbearia_id):
             dono = User.query.filter_by(barbearia_id=barbearia.id).first()
             if dono:
                 dono.set_password(nova_senha)
-                flash(f'🔑 Senha do cliente alterada.', 'success')
+                flash(f'🔑 Senha do cliente alterada para: {nova_senha}', 'success')
+
+        tipo_negocio = request.form.get('business_type', 'barbershop')
 
         # 4. Upload Tabela
         arquivo = request.files.get('arquivo_tabela_admin')
@@ -1017,11 +1004,10 @@ def admin_editar_barbearia(barbearia_id):
             arquivo.save(caminho_completo)
             
             url_base = request.host_url.rstrip('/') 
-            barbearia.url_tabela_precos = f"{url_base}/static/uploads/{nome_seguro}"
+            url_final = f"{url_base}/static/uploads/{nome_seguro}"
+            barbearia.url_tabela_precos = url_final
 
         db.session.commit()
-        
-        # Feedback visual se não houve troca de senha
         if not (nova_senha and nova_senha.strip()):
              flash('✅ Dados atualizados com sucesso!', 'success')
 
