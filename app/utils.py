@@ -10,7 +10,8 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
     """
     Calcula horários disponíveis respeitando RIGOROSAMENTE as configurações da Barbearia.
     
-    ATUALIZAÇÃO: Inclui lógica Híbrida (Carol Lash) sem remover a lógica padrão.
+    ATUALIZAÇÃO: Inclui lógica Híbrida (Carol Lash) ajustada para permitir agendamentos
+    até o final do expediente (Margem técnica adicionada).
     """
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
     agora = datetime.now(sao_paulo_tz)
@@ -49,9 +50,11 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
             if dia_semana_int == 5: # Sábado
                 h_fecha_str = h_fecha_sabado
             elif dia_semana_int in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
-                h_fecha_str = '20:30'
+                # CORREÇÃO: Colocamos 22:30 para permitir agendar AS 20:30 (considerando 2h de serviço)
+                h_fecha_str = '22:30'
             elif dia_semana_int in [2, 4]: # Quarta (2) e Sexta (4) -> Reduzido
-                h_fecha_str = '17:30'
+                # CORREÇÃO: Colocamos 19:30 para permitir agendar AS 17:30 (considerando 2h de serviço)
+                h_fecha_str = '19:30'
 
     # CENÁRIO 2: CAROL SEMANA DE CURSO (Segunda a Sexta)
     elif dias_func_str == 'Carol: Segunda a Sexta (Misto)':
@@ -59,9 +62,11 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
             dia_aberto = True
             
             if dia_semana_int in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
-                h_fecha_str = '20:30'
+                # CORREÇÃO: Colocamos 22:30 para permitir agendar AS 20:30
+                h_fecha_str = '22:30'
             else: # Seg(0), Qua(2), Sex(4) -> Reduzido
-                h_fecha_str = '17:30'
+                # CORREÇÃO: Colocamos 19:30 para permitir agendar AS 17:30
+                h_fecha_str = '19:30'
 
     # CENÁRIO 3: PADRÃO (Lógica Original Mantida para outras lojas)
     else:
