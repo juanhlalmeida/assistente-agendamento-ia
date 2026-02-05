@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import logging 
+from .utils_old import calcular_horarios_disponiveis
 from flask import Flask
 from config import Config
 from app.extensions import db, cache
