@@ -8,15 +8,13 @@ from app.models.tables import Profissional, Agendamento, Servico, Barbearia
 # --- FUNÇÃO UNIFICADA PARA CÁLCULO DE HORÁRIOS (DINÂMICA & BLINDADA) ---
 def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: datetime, duracao=90):
     """
-    Calcula horários disponíveis respeitando RIGOROSAMENTE as configurações da Barbearia.
-    
-    ATUALIZAÇÃO: Inclui lógica Híbrida (Carol Lash) ajustada para permitir agendamentos
-    até o final do expediente (Margem técnica adicionada).
+    Calcula horários disponíveis respeitando RIGOROSAMENTE as configurações.
+    ATUALIZAÇÃO FINAL: Ajuste de 30min no fim do dia e Bloqueio de Almoço (12h-13h).
     """
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
     agora = datetime.now(sao_paulo_tz)
     
-    # 🛑 TRAVA DE PASSADO: Se o dia for antes de hoje -> BLOQUEIA IMEDIATAMENTE
+    # 🛑 TRAVA DE PASSADO
     if dia_selecionado.date() < agora.date():
         return [] 
 
@@ -28,20 +26,20 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
     h_fecha_padrao = getattr(barbearia, 'horario_fechamento', '19:00') or '19:00'
     h_fecha_sabado = getattr(barbearia, 'horario_fechamento_sabado', '14:00') or '14:00'
     
-    # Texto dos dias (ex: "Terça a Sexta" ou "Carol: Terça a Sábado (Misto)")
-    dias_func_str = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado') # Mantém case original para comparação exata
+    dias_func_str = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado')
 
     # 2. Definição do dia da semana (0=Seg, 5=Sáb, 6=Dom)
     dia_semana_int = dia_selecionado.weekday()
 
-    # Variáveis de Controle (serão definidas abaixo)
     dia_aberto = False
-    h_fecha_str = h_fecha_padrao # Começa com o padrão, ajusta se necessário
+    h_fecha_str = h_fecha_padrao 
 
     # ==============================================================================
-    # 🧠 LÓGICA DE DECISÃO DE HORÁRIOS (CAROL LASH + PADRÃO)
+    # 🧠 LÓGICA DE DECISÃO DE HORÁRIOS (CAROL LASH)
     # ==============================================================================
     
+    eh_carol = 'Carol' in dias_func_str # Flag para ativar o almoço depois
+
     # CENÁRIO 1: CAROL MISTO (Terça a Sábado)
     if dias_func_str == 'Carol: Terça a Sábado (Misto)':
         if dia_semana_int in [1, 2, 3, 4, 5]: # Ter a Sab
@@ -49,30 +47,26 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
             
             if dia_semana_int == 5: # Sábado
                 h_fecha_str = h_fecha_sabado
-            elif dia_semana_int in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
-                # CORREÇÃO: Colocamos 22:30 para permitir agendar AS 20:30 (considerando 2h de serviço)
-                h_fecha_str = '22:30'
-            elif dia_semana_int in [2, 4]: # Quarta (2) e Sexta (4) -> Reduzido
-                # CORREÇÃO: Colocamos 19:30 para permitir agendar AS 17:30 (considerando 2h de serviço)
-                h_fecha_str = '19:30'
+            elif dia_semana_int in [1, 3]: # Terça (1) e Quinta (3)
+                # AJUSTE FINO: 22:00 fecha a conta para o último ser 20:30 (com 1h30 de serviço)
+                h_fecha_str = '22:00'
+            elif dia_semana_int in [2, 4]: # Quarta (2) e Sexta (4)
+                # AJUSTE FINO: 19:00 fecha a conta para o último ser 17:30
+                h_fecha_str = '19:00'
 
     # CENÁRIO 2: CAROL SEMANA DE CURSO (Segunda a Sexta)
     elif dias_func_str == 'Carol: Segunda a Sexta (Misto)':
-        if dia_semana_int in [0, 1, 2, 3, 4]: # Seg a Sex (Sáb/Dom FECHADOS)
+        if dia_semana_int in [0, 1, 2, 3, 4]: # Seg a Sex
             dia_aberto = True
             
-            if dia_semana_int in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
-                # CORREÇÃO: Colocamos 22:30 para permitir agendar AS 20:30
-                h_fecha_str = '22:30'
-            else: # Seg(0), Qua(2), Sex(4) -> Reduzido
-                # CORREÇÃO: Colocamos 19:30 para permitir agendar AS 17:30
-                h_fecha_str = '19:30'
+            if dia_semana_int in [1, 3]: # Terça (1) e Quinta (3)
+                h_fecha_str = '22:00' # Ajustado para terminar 20:30
+            else: # Seg(0), Qua(2), Sex(4)
+                h_fecha_str = '19:00' # Ajustado para terminar 17:30
 
-    # CENÁRIO 3: PADRÃO (Lógica Original Mantida para outras lojas)
+    # CENÁRIO 3: PADRÃO (Outras Lojas)
     else:
         dias_lower = dias_func_str.lower()
-        
-        # Lógica de Intervalos Genérica
         if 'segunda a sexta' in dias_lower and dia_semana_int < 5:
             dia_aberto = True
         elif 'segunda a sábado' in dias_lower and dia_semana_int < 6:
@@ -84,7 +78,7 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
         elif 'terça a sexta' in dias_lower and 0 < dia_semana_int < 5:
             dia_aberto = True
         
-        # Travas de Segurança Extras (Do seu código original)
+        # Travas Extras
         if dia_semana_int == 5 and 'sábado' not in dias_lower and 'sabado' not in dias_lower:
             dia_aberto = False
         if dia_semana_int == 6 and 'domingo' not in dias_lower:
@@ -92,15 +86,13 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
         if dia_semana_int == 0 and 'segunda' not in dias_lower:
             dia_aberto = False
 
-    # SE O DIA ESTIVER FECHADO, RETORNA VAZIO IMEDIATAMENTE
     if not dia_aberto:
         return []
 
     # ==============================================================================
-    # ⚙️ CÁLCULO MATEMÁTICO (Mantido Original 100%)
+    # ⚙️ CÁLCULO MATEMÁTICO
     # ==============================================================================
     
-    # 5. Converte horários para inteiros
     try:
         h_inicio, m_inicio = map(int, h_abre_str.split(':'))
         h_fim, m_fim = map(int, h_fecha_str.split(':'))
@@ -111,14 +103,21 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
     INTERVALO_MINUTOS = 30 
     horarios_disponiveis = []
 
-    # 6. Cálculo Matemático
     dia_base = datetime.combine(dia_selecionado.date(), time.min) 
     
     try:
         horario_iteracao = sao_paulo_tz.localize(dia_base.replace(hour=h_inicio, minute=m_inicio), is_dst=None)
         fim_do_dia = sao_paulo_tz.localize(dia_base.replace(hour=h_fim, minute=m_fim), is_dst=None)
         
-        # Intervalo de query
+        # --- DEFINIÇÃO DO ALMOÇO (12:00 as 13:00) ---
+        # Só aplicamos se for configuração da Carol para não quebrar outras lojas
+        almoco_inicio = None
+        almoco_fim = None
+        if eh_carol:
+            almoco_inicio = sao_paulo_tz.localize(dia_base.replace(hour=12, minute=0), is_dst=None)
+            almoco_fim = sao_paulo_tz.localize(dia_base.replace(hour=13, minute=0), is_dst=None)
+
+        # Busca agendamentos do banco
         inicio_query = dia_base.replace(hour=0, minute=0, second=0, microsecond=0)
         fim_query = inicio_query + timedelta(days=1)
         
@@ -136,31 +135,32 @@ def calcular_horarios_disponiveis(profissional: Profissional, dia_selecionado: d
         
         intervalos_ocupados = []
         for ag in agendamentos_do_dia:
-            # Pega duração do agendamento existente (se não tiver serviço, assume 30min)
             duracao_ag = ag.servico.duracao if ag.servico else 30
-            
             inicio_ocupado = sao_paulo_tz.localize(ag.data_hora, is_dst=None)
             fim_ocupado = inicio_ocupado + timedelta(minutes=duracao_ag)
             intervalos_ocupados.append((inicio_ocupado, fim_ocupado))
             
-        # --- LOOP PRINCIPAL DE VERIFICAÇÃO ---
-        # Verifica se o bloco (Inicio + Duração Solicitada) cabe antes do fechamento
+        # --- LOOP DE VERIFICAÇÃO ---
         while horario_iteracao + timedelta(minutes=duracao) <= fim_do_dia:
             
-            # Define o fim deste slot candidato
             fim_slot_candidato = horario_iteracao + timedelta(minutes=duracao)
-            
             esta_ocupado = False
-            # Verifica colisão com qualquer agendamento existente
+
+            # 1. Verifica colisão com Agendamentos Reais
             for inicio_oc, fim_oc in intervalos_ocupados:
-                # Lógica de Colisão: (InicioA < FimB) e (FimA > InicioB)
-                # Verifica se o slot candidato se sobrepõe a algum agendamento
                 if (horario_iteracao < fim_oc) and (fim_slot_candidato > inicio_oc):
                     esta_ocupado = True
                     break
             
-            # Verifica se é passado (com margem de 15min) APENAS SE FOR HOJE
-            if dia_selecionado.date() == agora.date():
+            # 2. Verifica colisão com o ALMOÇO (12h-13h) - Se for Carol
+            if not esta_ocupado and eh_carol and almoco_inicio:
+                # Se o horário começa dentro do almoço OU termina dentro do almoço
+                # Lógica: (Inicio < FimAlmoco) E (Fim > InicioAlmoco)
+                if (horario_iteracao < almoco_fim) and (fim_slot_candidato > almoco_inicio):
+                    esta_ocupado = True
+
+            # 3. Verifica passado (apenas se for hoje)
+            if not esta_ocupado and dia_selecionado.date() == agora.date():
                 if horario_iteracao < (agora + timedelta(minutes=15)):
                     esta_ocupado = True
             
