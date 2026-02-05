@@ -946,6 +946,7 @@ def admin_editar_barbearia(barbearia_id):
         # 2. Atualiza dados da empresa
         barbearia.nome_fantasia = request.form.get('nome_fantasia')
         
+        barbearia.business_type = request.form.get('business_type', 'barbershop')
         raw_tel = request.form.get('telefone_whatsapp')
         if raw_tel:
             barbearia.telefone_admin = ''.join(filter(str.isdigit, raw_tel))
