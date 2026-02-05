@@ -841,6 +841,99 @@ def admin_barbearias():
 
 @bp.route('/admin/barbearia/editar/<int:barbearia_id>', methods=['GET', 'POST'])
 @login_required
+# COLOQUE ISTO NO SEU routes.py (Pode ser antes de admin_editar_barbearia)
+
+@bp.route('/admin/barbearia/nova', methods=['POST'])
+@login_required
+
+def admin_nova_barbearia():
+    # 1. Segurança: Só Super Admin
+    if getattr(current_user, 'role', 'admin') != 'super_admin':
+        flash('Acesso restrito.', 'danger')
+        return redirect(url_for('main.agenda'))
+
+    try:
+        # --- DADOS DA BARBEARIA/POUSADA ---
+        nome_fantasia = request.form.get('nome_fantasia')
+        telefone_zap = request.form.get('telefone_whatsapp')
+        tipo_negocio = request.form.get('business_type', 'barbershop') # <--- AQUI A MÁGICA 🏨
+        
+        # Dados Opcionais
+        meta_id = request.form.get('meta_phone_number_id')
+        meta_token = request.form.get('meta_access_token')
+        status_assinatura = request.form.get('status_assinatura', 'inativa')
+        
+        # Configurações
+        h_abre = request.form.get('horario_abertura', '09:00')
+        h_fecha = request.form.get('horario_fechamento', '19:00')
+        h_sabado = request.form.get('horario_fechamento_sabado', '14:00')
+        dias_func = request.form.get('dias_funcionamento', 'Terça a Sábado')
+        cor = request.form.get('cor_primaria', '#EC4899')
+        emojis = request.form.get('emojis_sistema', '🦋✨💖')
+        tel_admin = request.form.get('telefone_admin')
+
+        # --- DADOS DO DONO (USUÁRIO) ---
+        email_admin = request.form.get('admin_email')
+        senha_admin = request.form.get('admin_senha')
+
+        # Validações Básicas
+        if not nome_fantasia or not telefone_zap or not email_admin or not senha_admin:
+            flash('Preencha os campos obrigatórios (*)', 'warning')
+            return redirect(url_for('main.admin_painel_novo'))
+
+        if User.query.filter_by(email=email_admin).first():
+            flash('Este email de admin já está em uso.', 'danger')
+            return redirect(url_for('main.admin_painel_novo'))
+
+        # 1. Cria a Barbearia/Pousada
+        nova_loja = Barbearia(
+            nome_fantasia=nome_fantasia,
+            telefone_whatsapp=telefone_zap, # Número do Robô
+            business_type=tipo_negocio,     # <--- SALVANDO NO BANCO
+            
+            # Configs
+            meta_phone_number_id=meta_id,
+            meta_access_token=meta_token,
+            status_assinatura=status_assinatura,
+            horario_abertura=h_abre,
+            horario_fechamento=h_fecha,
+            horario_fechamento_sabado=h_sabado,
+            dias_funcionamento=dias_func,
+            cor_primaria=cor,
+            emojis_sistema=emojis,
+            telefone_admin=tel_admin
+        )
+        
+        # Lógica de Assinatura
+        if status_assinatura in ['ativa', 'teste']:
+            nova_loja.assinatura_ativa = True
+            dias = 30 if status_assinatura == 'ativa' else 7
+            nova_loja.assinatura_expira_em = datetime.now() + timedelta(days=dias)
+        
+        db.session.add(nova_loja)
+        db.session.flush() # Gera o ID da loja para usar no usuário
+
+        # 2. Cria o Usuário Dono vinculado à Loja
+        novo_usuario = User(
+            email=email_admin,
+            nome=f"Admin {nome_fantasia}",
+            role='admin',
+            barbearia_id=nova_loja.id # Vincula aqui
+        )
+        novo_usuario.set_password(senha_admin)
+        
+        db.session.add(novo_usuario)
+        db.session.commit()
+
+        flash(f'✅ Loja "{nome_fantasia}" criada com sucesso! Tipo: {tipo_negocio.upper()}', 'success')
+        return redirect(url_for('main.admin_barbearias'))
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Erro ao criar loja: {e}")
+        flash(f'Erro ao criar: {str(e)}', 'danger')
+        return redirect(url_for('main.admin_barbearias'))
+
 def admin_editar_barbearia(barbearia_id):
     # 1. Segurança
     if current_user.role != 'super_admin':
@@ -895,6 +988,8 @@ def admin_editar_barbearia(barbearia_id):
             if dono:
                 dono.set_password(nova_senha)
                 flash(f'🔑 Senha do cliente alterada para: {nova_senha}', 'success')
+
+        tipo_negocio = request.form.get('business_type', 'barbershop')
 
         # 4. Upload Tabela
         arquivo = request.files.get('arquivo_tabela_admin')
