@@ -14,6 +14,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 class Barbearia(db.Model):
     __tablename__ = 'barbearia'  # Garante que a FK 'barbearia.id' funcione sempre
     
+    business_type = db.Column(db.String(20), nullable=False, default='barbershop')
+    
     id = db.Column(db.Integer, primary_key=True)
     nome_fantasia = db.Column(db.String(100), nullable=False)
 
