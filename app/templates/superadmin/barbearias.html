@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 
-{% block title %}Gerenciar Barbearias{% endblock %}
+{% block title %}Gerenciar Lojas{% endblock %}
 
 {% block content %}
 <div class="container mx-auto px-4 py-8">
     <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-white">Gerenciar Barbearias</h1>
-            <p class="text-gray-400 text-sm">Painel de Cadastro e Edição (Legado)</p>
+            <h1 class="text-2xl font-bold text-white">Gerenciar Lojas (SaaS)</h1>
+            <p class="text-gray-400 text-sm">Painel de Cadastro e Edição de Clientes</p>
         </div>
         
         <div class="flex gap-2">
@@ -16,9 +16,9 @@
                 Voltar ao Comando
             </a>
             
-            <a href="{{ url_for('superadmin.nova_barbearia') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors">
+            <a href="{{ url_for('main.admin_painel_criacao') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-colors">
                 <span class="material-symbols-outlined">add_business</span>
-                Nova Barbearia
+                Nova Loja / SaaS
             </a>
         </div>
     </div>
@@ -26,51 +26,76 @@
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for category, message in messages %}
-          <div class="p-4 rounded-lg mb-6 shadow-lg text-white {{ 'bg-green-500' if category == 'success' else 'bg-red-500' }}">
+          <div class="p-4 rounded-lg mb-6 shadow-lg text-white flex items-center gap-3
+            {% if category == 'success' %}bg-green-500/20 border border-green-500/50 text-green-400
+            {% elif category == 'danger' %}bg-red-500/20 border border-red-500/50 text-red-400
+            {% else %}bg-blue-500/20 border border-blue-500/50 text-blue-400{% endif %}">
+            <span class="material-symbols-outlined">
+                {% if category == 'success' %}check_circle
+                {% elif category == 'danger' %}error
+                {% else %}info{% endif %}
+            </span>
             {{ message }}
           </div>
         {% endfor %}
       {% endif %}
     {% endwith %}
 
-    <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden border border-gray-800">
-      <table class="w-full text-left border-collapse">
-        <thead class="bg-surface-dark border-b border-gray-700 text-text-secondary-dark uppercase text-sm">
-          <tr>
-            <th class="p-4 font-semibold">Nome Fantasia</th>
-            <th class="p-4 font-semibold">WhatsApp</th>
-            <th class="p-4 font-semibold">Status</th>
-            <th class="p-4 font-semibold text-center">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for barbearia in barbearias %}
-            <tr class="border-b border-gray-700 hover:bg-white/5 transition-colors group">
-              <td class="p-4 font-bold text-white">{{ barbearia.nome_fantasia }}</td>
-              <td class="p-4 text-gray-300 font-mono">{{ barbearia.telefone_whatsapp }}</td>
-              <td class="p-4">
-                {% if barbearia.assinatura_ativa %}
-                  <span class="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-bold border border-green-500/30">ATIVA</span>
-                {% else %}
-                  <span class="px-2 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-bold border border-red-500/30">INATIVA</span>
-                {% endif %}
-              </td>
-              <td class="p-4 text-center">
-                <a href="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) }}" 
-                   class="inline-flex p-2 bg-blue-500/10 text-blue-400 hover:text-white hover:bg-blue-500 rounded-lg transition-all mx-1 shadow-lg shadow-blue-500/20" title="Editar">
-                  <span class="material-symbols-outlined">edit_square</span>
-                </a>
-              </td>
-            </tr>
-          {% else %}
-            <tr>
-                <td colspan="4" class="p-8 text-center text-gray-500">
-                    Nenhuma barbearia encontrada.
-                </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div class="bg-surface-dark rounded-xl border border-gray-700 shadow-xl overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-gray-800/50 text-gray-400 text-xs uppercase tracking-wider border-b border-gray-700">
+                        <th class="p-4 font-semibold">Nome Fantasia</th>
+                        <th class="p-4 font-semibold">Tipo</th> <th class="p-4 font-semibold">WhatsApp (Robô)</th>
+                        <th class="p-4 font-semibold">Status Assinatura</th>
+                        <th class="p-4 font-semibold text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm divide-y divide-gray-700">
+                    {% for barbearia in barbearias %}
+                    <tr class="hover:bg-white/5 transition-colors group">
+                        <td class="p-4 font-bold text-white">{{ barbearia.nome_fantasia }}</td>
+                        
+                        <td class="p-4 text-gray-300">
+                            {% if barbearia.business_type == 'pousada' %}
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20 text-xs">
+                                    🏨 Pousada
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs">
+                                    💈 Barbearia
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td class="p-4 text-gray-300 font-mono">{{ barbearia.telefone_whatsapp }}</td>
+                        
+                        <td class="p-4">
+                            {% if barbearia.assinatura_ativa %}
+                                <span class="px-2 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-bold border border-green-500/30">ATIVA</span>
+                            {% else %}
+                                <span class="px-2 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-bold border border-red-500/30">INATIVA</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="p-4 text-center">
+                            <a href="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) }}" 
+                               class="inline-flex p-2 bg-blue-500/10 text-blue-400 hover:text-white hover:bg-blue-500 rounded-lg transition-all mx-1 shadow-lg shadow-blue-500/20" title="Editar">
+                                <span class="material-symbols-outlined">edit_square</span>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="p-8 text-center text-gray-500">
+                            Nenhuma loja cadastrada. Clique em "Nova Loja" para começar.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 {% endblock %}
