@@ -37,17 +37,25 @@
             <div>
                 <label class="block text-sm font-medium text-text-secondary-dark mb-1">Dias de Funcionamento</label>
                 <select name="dias_funcionamento" class="w-full bg-background-dark border border-gray-700 rounded-lg p-2.5 text-white focus:border-primary outline-none">
+                    
+                    {# --- OPÇÕES PADRÃO (TODOS VÊEM) --- #}
                     <option value="Segunda a Sexta" {% if barbearia.dias_funcionamento == 'Segunda a Sexta' %}selected{% endif %}>Segunda a Sexta</option>
                     <option value="Segunda a Sábado" {% if barbearia.dias_funcionamento == 'Segunda a Sábado' %}selected{% endif %}>Segunda a Sábado</option>
                     <option value="Terça a Sábado" {% if barbearia.dias_funcionamento == 'Terça a Sábado' %}selected{% endif %}>Terça a Sábado (Padrão)</option>
                     <option value="Terça a Sexta" {% if barbearia.dias_funcionamento == 'Terça a Sexta' %}selected{% endif %}>Terça a Sexta</option>
 
-                    <option value="Carol: Terça a Sábado (Misto)" {% if barbearia.dias_funcionamento == 'Carol: Terça a Sábado (Misto)' %}selected{% endif %}>
-                        ⚡ Carol: Terça a Sábado (Horários Mistos)
-                    </option>
-                    <option value="Carol: Segunda a Sexta (Misto)" {% if barbearia.dias_funcionamento == 'Carol: Segunda a Sexta (Misto)' %}selected{% endif %}>
-                        ⚡ Carol: Segunda a Sexta (Semana de Curso)
-                    </option>
+                    {# --- 🔒 ÁREA EXCLUSIVA CAROL LASH --- #}
+                    {# Só aparece se o nome da loja contiver "Carol", "Lash" ou "Cílios" #}
+                    {% if 'carol' in barbearia.nome_fantasia.lower() or 'lash' in barbearia.nome_fantasia.lower() or 'cílios' in barbearia.nome_fantasia.lower() %}
+                        <optgroup label="✨ Exclusivo Carol Lash">
+                            <option value="Carol: Terça a Sábado (Misto)" {% if barbearia.dias_funcionamento == 'Carol: Terça a Sábado (Misto)' %}selected{% endif %}>
+                                ⚡ Carol: Terça a Sábado (Horários Mistos)
+                            </option>
+                            <option value="Carol: Segunda a Sexta (Misto)" {% if barbearia.dias_funcionamento == 'Carol: Segunda a Sexta (Misto)' %}selected{% endif %}>
+                                ⚡ Carol: Segunda a Sexta (Semana de Curso)
+                            </option>
+                        </optgroup>
+                    {% endif %}
                     
                 </select>
             </div>
@@ -58,7 +66,7 @@
             </div>
         </div>
 
-        {# --- CARTÃO 2: INTEGRAÇÃO GOOGLE AGENDA (NOVO!) --- #}
+        {# --- CARTÃO 2: INTEGRAÇÃO GOOGLE AGENDA (MANTIDO) --- #}
         <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5 relative overflow-hidden">
              <div class="absolute top-0 right-0 p-4 opacity-5">
                 <span class="material-symbols-outlined text-8xl">calendar_month</span>
@@ -94,7 +102,7 @@
             {% endif %}
         </div>
 
-        {# --- CARTÃO 3: PERSONALIZAÇÃO VISUAL --- #}
+        {# --- CARTÃO 3: PERSONALIZAÇÃO VISUAL (MANTIDO) --- #}
         <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5">
             <h2 class="text-xl font-bold text-pink-400 flex items-center gap-2 mb-4">
                 <span class="material-symbols-outlined">palette</span>
