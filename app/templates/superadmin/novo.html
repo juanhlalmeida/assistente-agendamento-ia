@@ -231,7 +231,24 @@
         </div>
         {% endif %}
 
-        <form method="POST" action="{{ url_for('superadmin.nova_barbearia') if not barbearia else url_for('superadmin.editar_barbearia', barbearia_id=barbearia.id) }}">
+        <form id="lojaForm" method="POST" enctype="multipart/form-data"
+      action="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) if barbearia else url_for('main.admin_nova_barbearia') }}">
+
+        <div style="background: rgba(0, 212, 255, 0.05); border: 1px solid rgba(0, 212, 255, 0.3); padding: 15px; border-radius: 8px; margin-bottom: 25px;">
+        <label for="business_type" style="color: #00d4ff; font-weight: bold; display: block; margin-bottom: 8px;">🏢 Tipo de Negócio (O Cérebro da IA)</label>
+        <select id="business_type" name="business_type" required style="width: 100%; padding: 10px; background: #333; color: white; border: 1px solid #555; border-radius: 5px;">
+            <option value="barbershop" {% if not barbearia or barbearia.business_type == 'barbershop' %}selected{% endif %}>
+                💈 Barbearia / Salão (Agendamento por Horário)
+            </option>
+            <option value="pousada" {% if barbearia and barbearia.business_type == 'pousada' %}selected{% endif %}>
+                🏨 Pousada / Hotelaria (Reserva por Diárias)
+            </option>
+        </select>
+        <small style="color: #aaa; display: block; margin-top: 5px;">Isso muda se a IA vai vender cortes de cabelo ou diárias de quartos.</small>
+    </div>
+    ```
+
+Faça apenas essas duas alterações e salve. O resto do arquivo pode ficar como estava.
             
             <!-- SEÇÃO 1: DADOS DA EMPRESA -->
             <h2>📊 Dados da Empresa</h2>
