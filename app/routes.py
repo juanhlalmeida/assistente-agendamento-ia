@@ -17,6 +17,7 @@ from sqlalchemy import func
 # Importações de modelos (ADICIONADO Assinatura e Pagamento)
 from app.models.tables import Agendamento, Profissional, Servico, User, Barbearia, Plano, Assinatura, Pagamento, ChatLog
 from app.extensions import db
+from sqlalchemy import text
 
 # ============================================
 # ✅ IMPORTAÇÕES OPCIONAIS DO TWILIO
@@ -1443,3 +1444,21 @@ def redirect_gcal(agendamento_id):
     except Exception as e:
         current_app.logger.error(f"Erro no redirecionamento GCal: {e}")
         return "Erro ao gerar link da agenda."
+
+@bp.route('/fix_db_column_v2')
+def fix_db_column_v2():
+    try:
+        # 1. Cria a coluna 'business_type' se não existir
+        # 2. Define 'barbershop' para todo mundo que já existe
+        sql = text("ALTER TABLE barbearia ADD COLUMN IF NOT EXISTS business_type VARCHAR(50) DEFAULT 'barbershop';")
+        db.session.execute(sql)
+        
+        # Opcional: Garante que ninguém fique com valor Nulo
+        sql_update = text("UPDATE barbearia SET business_type = 'barbershop' WHERE business_type IS NULL;")
+        db.session.execute(sql_update)
+        
+        db.session.commit()
+        return "SUCESSO! Coluna 'business_type' criada e clientes antigos protegidos."
+    except Exception as e:
+        db.session.rollback()
+        return f"ERRO na correção: {str(e)}"
