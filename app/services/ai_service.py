@@ -9,6 +9,7 @@ import json
 import google.generativeai as genai
 import re
 import urllib.parse
+from app.utils.plugin_loader import carregar_plugin_negocio
 from flask import url_for
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
@@ -447,15 +448,28 @@ def listar_servicos(barbearia_id: int) -> str:
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str, servico_nome: str = None) -> str:
     try:
         with current_app.app_context():
-            todos_profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
-            nome_correto = encontrar_melhor_match(profissional_nome, [p.nome for p in todos_profs])
+            # 1. Recupera a Barbearia
+            barbearia = Barbearia.query.get(barbearia_id)
+            if not barbearia:
+                return "Erro: Barbearia não encontrada."
+
+            # 2. CARREGA O PLUGIN (O Cérebro Correto: Barbearia ou Pousada) 🧠
+            plugin = carregar_plugin_negocio(barbearia)
+
+            # 3. Busca Profissionais (Usando o Plugin)
+            todos_profs = plugin.buscar_recursos() # Retorna profissionais ou quartos
+            # Extrai os nomes para o Fuzzy Match
+            lista_nomes = [p.nome for p in todos_profs]
+            
+            nome_correto = encontrar_melhor_match(profissional_nome, lista_nomes)
 
             if not nome_correto:
                 return f"Profissional '{profissional_nome}' não encontrado."
 
+            # Pega o objeto profissional correto
             profissional = next(p for p in todos_profs if p.nome == nome_correto)
-            barbearia = profissional.barbearia
 
+            # 4. Tratamento de Data (Mantido)
             agora_br = datetime.now(BR_TZ)
             if dia.lower() == 'hoje': dia_dt = agora_br
             elif dia.lower() == 'amanhã': dia_dt = agora_br + timedelta(days=1)
@@ -463,122 +477,43 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
                 try: dia_dt = BR_TZ.localize(datetime.strptime(dia, '%Y-%m-%d'))
                 except: return "Data inválida. Use 'hoje', 'amanhã' ou AAAA-MM-DD."
 
-            dias_txt = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado').lower()
-            dia_semana = dia_dt.weekday()
-            dias_proibidos = []
-
-            dia_semana = dia_dt.weekday() # 0=Seg, 1=Ter, 2=Qua, 3=Qui, 4=Sex, 5=Sab, 6=Dom
-            dias_config = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado')
-            
-            # Variável para controlar o horário limite do dia (fechamento)
-            # Padrão: Pega do banco ou usa 19:00 se não tiver
-            hora_limite_str = barbearia.horario_fechamento or '19:00'
-            
-            # =================================================================
-            # 🧠 LÓGICA INTELIGENTE DE DIAS & HORÁRIOS (CAROL LASH)
-            # =================================================================
-            
-            dia_valido = False
-
-            # CENÁRIO 1: CAROL NORMAL (Terça a Sábado Misto)
-            if dias_config == 'Carol: Terça a Sábado (Misto)':
-                if dia_semana in [1, 2, 3, 4, 5]: # Ter, Qua, Qui, Sex, Sab
-                    dia_valido = True
-                    
-                    if dia_semana == 5: # Sábado
-                        hora_limite_str = barbearia.horario_fechamento_sabado or '14:00'
-                    
-                    elif dia_semana in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
-                        hora_limite_str = '20:30'
-                        
-                    elif dia_semana in [2, 4]: # Quarta (2) e Sexta (4) -> Reduzido
-                        hora_limite_str = '17:30'
-
-            # CENÁRIO 2: CAROL SEMANA DE CURSO (Segunda a Sexta Misto)
-            elif dias_config == 'Carol: Segunda a Sexta (Misto)':
-                if dia_semana in [0, 1, 2, 3, 4]: # Seg a Sex (Sáb/Dom bloqueados)
-                    dia_valido = True
-                    
-                    if dia_semana in [1, 3]: # Terça (1) e Quinta (3) -> Estendido
-                        hora_limite_str = '20:30'
-                        
-                    elif dia_semana in [0, 2, 4]: # Seg(0), Qua(2), Sex(4) -> Reduzido
-                        hora_limite_str = '17:30'
-
-            # CENÁRIO 3: PADRÃO (Para as outras lojas funcionarem normal)
-            else:
-                if 'segunda a sexta' in dias_config.lower() and dia_semana < 5:
-                    dia_valido = True
-                elif 'segunda a sábado' in dias_config.lower() and dia_semana < 6:
-                    dia_valido = True
-                    if dia_semana == 5: hora_limite_str = barbearia.horario_fechamento_sabado or '14:00'
-                elif 'terça a sábado' in dias_config.lower() and 0 < dia_semana < 6:
-                    dia_valido = True
-                    if dia_semana == 5: hora_limite_str = barbearia.horario_fechamento_sabado or '14:00'
-                elif 'terça a sexta' in dias_config.lower() and 0 < dia_semana < 5:
-                    dia_valido = True
-
-            if not dia_valido:
-                return f"A loja não abre neste dia ({dia_dt.strftime('%A')})."
-
-            # =================================================================
-            # 🕰️ GERAÇÃO DOS SLOTS (Agora usando a hora_limite_str dinâmica)
-            # =================================================================
-            
-            # Define hora de abertura
-            hora_abre_str = barbearia.horario_abertura or '09:00'
-            
-            # Converte strings para objetos time
-            h_abre = datetime.strptime(hora_abre_str, '%H:%M').time()
-            h_fecha = datetime.strptime(hora_limite_str, '%H:%M').time() # <--- AQUI ESTÁ O SEGREDO
-            
-            # Define inicio e fim do dia
-            inicio_dia = datetime.combine(dia_dt, h_abre)
-            fim_dia = datetime.combine(dia_dt, h_fecha) # <--- TERMINA AQUI O CODIGO IMPLEMENTADO
-
-            if 'terça' in dias_txt and 'sábado' in dias_txt:
-                dias_proibidos = [0, 6]
-            elif 'segunda' in dias_txt and 'sexta' in dias_txt:
-                dias_proibidos = [5, 6]
-            elif 'segunda' in dias_txt and 'sábado' in dias_txt:
-                dias_proibidos = [6]
-            elif dia_semana == 0 and 'segunda' not in dias_txt:
-                dias_proibidos = [0]
-
-            if dia_semana in dias_proibidos:
-                nomes_dias = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
-                nome_dia = nomes_dias[dia_semana]
-                nome_negocio = barbearia.nome_fantasia.lower()
-                is_lash = any(x in nome_negocio for x in ['lash', 'cílios', 'sobrancelha', 'studio', 'estética'])
-                artigo = "A" if is_lash else "O"
-                return f"INFORMAÇÃO: {artigo} {profissional.nome} (e o estabelecimento) NÃO atende às {nome_dia}s. O horário configurado no sistema é: {barbearia.dias_funcionamento}. Peça para o cliente escolher outro dia."
-
+            # 5. Tratamento de Serviço/Duração
             duracao_calculo = 60
             msg_extra = ""
-
+            
             if servico_nome:
-                todos_servicos = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+                # Busca serviços usando o Plugin também (pra manter padrão)
+                todos_servicos = plugin.buscar_servicos()
                 nome_serv_match = encontrar_melhor_match(servico_nome, [s.nome for s in todos_servicos])
 
                 if nome_serv_match:
                     servico = next(s for s in todos_servicos if s.nome == nome_serv_match)
                     duracao_calculo = servico.duracao
-                    logging.info(f"⏱️ Calculando horários para serviço '{servico.nome}' (Duração real: {duracao_calculo} min)")
+                    logging.info(f"⏱️ Calculando para '{servico.nome}' ({duracao_calculo} min)")
                 else:
-                    msg_extra = " (Obs: Não achei o serviço exato, usando tempo padrão de 1h para segurança)."
+                    msg_extra = " (Obs: Não achei o serviço exato, usando 1h)."
             else:
-                msg_extra = " (Obs: Calculado com base em 60min pois o serviço não foi informado pela IA)."
+                msg_extra = " (Obs: Calculado com base em 60min)."
 
-            try:
-                horarios = calcular_horarios_disponiveis_util(profissional, dia_dt, duracao=duracao_calculo)
-            except TypeError:
-                logging.warning("⚠️ Utilitário calcular_horarios não aceita 'duracao'. Usando padrão...")
-                horarios = calcular_horarios_disponiveis_util(profissional, dia_dt)
+            # =========================================================
+            # 🔥 O GRANDE MOMENTO: CÁLCULO VIA PLUGIN
+            # =========================================================
+            # O plugin sabe se tem que bloquear almoço, se é pousada, etc.
+            horarios = plugin.calcular_disponibilidade(
+                data_ref=dia_dt,
+                profissional_id=profissional.id, # Passamos o ID
+                duracao=duracao_calculo
+            )
 
+            # Formatação da Resposta
+            if not horarios:
+                return f"Sem horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}."
+                
             lista_h = [h.strftime('%H:%M') for h in horarios]
-            return f"Horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}: {', '.join(lista_h) or 'Sem horários livres neste dia.'}{msg_extra}"
+            return f"Horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}: {', '.join(lista_h)}{msg_extra}"
 
     except Exception as e:
+        current_app.logger.error(f"Erro Plugin Cálculo: {e}", exc_info=True)
         return f"Erro ao calcular horários: {str(e)}"
 
 def consultar_agenda_dono(barbearia_id: int, data_inicio: str, data_fim: str) -> str:
