@@ -1,6 +1,6 @@
 from app.types.business_types import BusinessType
 from app.plugins.barbershop_plugin import BarbershopPlugin
-# Futuro: from app.plugins.pousada_plugin import PousadaPlugin
+from app.plugins.pousada_plugin import PousadaPlugin  # <--- LINHA NOVA (Importa o arquivo acima)
 
 def carregar_plugin_negocio(barbearia):
     """
@@ -13,8 +13,7 @@ def carregar_plugin_negocio(barbearia):
     
     # 2. Retorna o Plugin correto
     if tipo_str == BusinessType.POUSADA.value:
-        # return PousadaPlugin(barbearia) # (Ainda vamos criar este)
-        pass 
+        return PousadaPlugin(barbearia) # <--- LINHA NOVA (Retorna a Pousada)
         
     # 3. Padrão: Retorna o Plugin de Barbearia
     return BarbershopPlugin(barbearia)
