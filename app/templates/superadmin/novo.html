@@ -213,13 +213,21 @@
             border-radius: 5px;
             color: #e0e0e0;
         }
+        
+        /* Estilo específico para o seletor de tipo de negócio */
+        .highlight-section {
+            background: rgba(0, 212, 255, 0.05); 
+            border: 1px solid rgba(0, 212, 255, 0.3); 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 25px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>{% if barbearia %}✏️ Editar Barbearia{% else %}🏪 Criar Nova Barbearia{% endif %}</h1>
 
-        <!-- QUANDO EDITANDO -->
         {% if barbearia %}
         <div class="alert-box">
             <h4>⚠️ Atenção Super Admin</h4>
@@ -232,25 +240,21 @@
         {% endif %}
 
         <form id="lojaForm" method="POST" enctype="multipart/form-data"
-      action="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) if barbearia else url_for('main.admin_nova_barbearia') }}">
+              action="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) if barbearia else url_for('main.admin_nova_barbearia') }}">
 
-        <div style="background: rgba(0, 212, 255, 0.05); border: 1px solid rgba(0, 212, 255, 0.3); padding: 15px; border-radius: 8px; margin-bottom: 25px;">
-        <label for="business_type" style="color: #00d4ff; font-weight: bold; display: block; margin-bottom: 8px;">🏢 Tipo de Negócio (O Cérebro da IA)</label>
-        <select id="business_type" name="business_type" required style="width: 100%; padding: 10px; background: #333; color: white; border: 1px solid #555; border-radius: 5px;">
-            <option value="barbershop" {% if not barbearia or barbearia.business_type == 'barbershop' %}selected{% endif %}>
-                💈 Barbearia / Salão (Agendamento por Horário)
-            </option>
-            <option value="pousada" {% if barbearia and barbearia.business_type == 'pousada' %}selected{% endif %}>
-                🏨 Pousada / Hotelaria (Reserva por Diárias)
-            </option>
-        </select>
-        <small style="color: #aaa; display: block; margin-top: 5px;">Isso muda se a IA vai vender cortes de cabelo ou diárias de quartos.</small>
-    </div>
-    ```
+            <div class="highlight-section">
+                <label for="business_type" style="color: #00d4ff; font-weight: bold; display: block; margin-bottom: 8px;">🏢 Tipo de Negócio (O Cérebro da IA)</label>
+                <select id="business_type" name="business_type" required>
+                    <option value="barbershop" {% if not barbearia or barbearia.business_type == 'barbershop' %}selected{% endif %}>
+                        💈 Barbearia / Salão (Agendamento por Horário)
+                    </option>
+                    <option value="pousada" {% if barbearia and barbearia.business_type == 'pousada' %}selected{% endif %}>
+                        🏨 Pousada / Hotelaria (Reserva por Diárias)
+                    </option>
+                </select>
+                <small style="color: #aaa; display: block; margin-top: 5px;">Isso muda se a IA vai vender cortes de cabelo ou diárias de quartos.</small>
+            </div>
 
-Faça apenas essas duas alterações e salve. O resto do arquivo pode ficar como estava.
-            
-            <!-- SEÇÃO 1: DADOS DA EMPRESA -->
             <h2>📊 Dados da Empresa</h2>
 
             <div class="form-row">
@@ -258,15 +262,6 @@ Faça apenas essas duas alterações e salve. O resto do arquivo pode ficar como
                     <label for="nome_fantasia">Nome Fantasia *</label>
                     <input type="text" id="nome_fantasia" name="nome_fantasia" required placeholder="Ex: Studio Lima Lash" value="{{ barbearia.nome_fantasia if barbearia else '' }}">
                 </div>
-                
-                <div class="form-group" style="background: #2a2a2a; border: 1px solid #00d4ff; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <label for="business_type" style="color: #00d4ff; font-weight: bold;">🏢 Tipo de Negócio (Novo)</label>
-                <select id="business_type" name="business_type" required style="background: #333; color: white;">
-                    <option value="barbershop" {% if not barbearia or barbearia.business_type == 'barbershop' %}selected{% endif %}>💈 Barbearia / Salão (Padrão)</option>
-                    <option value="pousada" {% if barbearia and barbearia.business_type == 'pousada' %}selected{% endif %}>🏨 Pousada / Hotelaria (Plugin Ativo)</option>
-                </select>
-                <small style="color: #888;">Isso define se a IA vai vender cortes de cabelo ou diárias de quartos.</small>
-            </div>
 
                 <div class="form-group">
                     <label for="telefone_whatsapp">WhatsApp (com 55) *</label>
@@ -297,10 +292,8 @@ Faça apenas essas duas alterações e salve. O resto do arquivo pode ficar como
 
             <hr>
 
-            <!-- SEÇÃO 2: DADOS DO ADMIN (SÓ APARECE NA CRIAÇÃO) -->
             {% if not barbearia %}
             <h2>👤 Dados do Admin</h2>
-
             <div class="form-row">
                 <div class="form-group">
                     <label for="admin_email">Email do Admin *</label>
@@ -312,27 +305,18 @@ Faça apenas essas duas alterações e salve. O resto do arquivo pode ficar como
                     <input type="password" id="admin_senha" name="admin_senha" required placeholder="Mínimo 8 caracteres">
                 </div>
             </div>
-
-            <hr>
+            
             {% else %}
-            <!-- SEÇÃO 2B: GERENCIAMENTO DE ACESSO (SÓ NA EDIÇÃO) -->
             <h2>🔐 Gerenciamento de Acesso</h2>
-
-            <div class="alert-box">
-                <h4>⚠️ Atenção Super Admin</h4>
-                <p>Você não pode ver a senha atual. Digite abaixo apenas se quiser <strong>sobrescrever</strong> a senha do cliente.</p>
-            </div>
-
             <div class="form-group">
                 <label for="nova_senha_admin">Nova Senha do Cliente (Opcional)</label>
                 <input type="password" id="nova_senha_admin" name="nova_senha_admin" placeholder="Digite para trocar a senha...">
                 <div class="optional-note">Deixe em branco para manter a senha atual.</div>
             </div>
-
-            <hr>
             {% endif %}
 
-            <!-- SEÇÃO 3: CONFIGURAÇÕES DE FUNCIONAMENTO -->
+            <hr>
+
             <h2>⏰ Configurações de Funcionamento</h2>
 
             <div class="form-row">
@@ -361,7 +345,6 @@ Faça apenas essas duas alterações e salve. O resto do arquivo pode ficar como
 
             <hr>
 
-            <!-- SEÇÃO 4: PERSONALIZAÇÃO -->
             <h2>🎨 Personalização</h2>
 
             <div class="form-row">
@@ -383,14 +366,12 @@ Faça apenas essas duas alterações e salve. O resto do arquivo pode ficar como
 
             <hr>
 
-            <!-- BOTÕES DE AÇÃO -->
             <div class="button-group">
                 <button type="submit" class="btn-save">{% if barbearia %}💾 Salvar Alterações{% else %}✅ Criar Barbearia{% endif %}</button>
                 <a href="{{ url_for('superadmin.listar_barbearias') }}" class="btn-cancel">❌ Cancelar</a>
             </div>
         </form>
 
-        <!-- ZONA DE PERIGO (SÓ NA EDIÇÃO) -->
         {% if barbearia %}
         <hr>
         <div class="danger-zone">
@@ -402,19 +383,20 @@ Faça apenas essas duas alterações e salve. O resto do arquivo pode ficar como
             </form>
         </div>
         {% endif %}
+
     </div>
 
     <script>
-        // Validação ao enviar o formulário
-        document.querySelector('form').addEventListener('submit', function(e) {
+        document.getElementById('lojaForm').addEventListener('submit', function(e) {
             const nome = document.getElementById('nome_fantasia').value.trim();
             const telefone = document.getElementById('telefone_whatsapp').value.trim();
-
-            // Se for CRIAÇÃO, validar email e senha
+            
+            // Verificação se estamos criando (tem email/senha visíveis) ou editando
             const emailInput = document.getElementById('admin_email');
             const senhaInput = document.getElementById('admin_senha');
 
-            if (emailInput) { // Significa que é CRIAÇÃO
+            if (emailInput) { 
+                // Modo CRIAÇÃO: valida tudo
                 const email = emailInput.value.trim();
                 const senha = senhaInput.value.trim();
 
@@ -436,14 +418,14 @@ Faça apenas essas duas alterações e salve. O resto do arquivo pode ficar como
                     alert('⚠️ Senha deve ter mínimo 8 caracteres!');
                     return false;
                 }
-            } else { // EDIÇÃO
+            } else { 
+                // Modo EDIÇÃO: valida apenas campos básicos
                 if (!nome || !telefone) {
                     e.preventDefault();
                     alert('⚠️ Preencha todos os campos obrigatórios!');
                     return false;
                 }
             }
-
             return true;
         });
     </script>
