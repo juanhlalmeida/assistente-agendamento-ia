@@ -836,7 +836,7 @@ def admin_barbearias():
         flash('Acesso restrito.', 'danger')
         return redirect(url_for('main.login'))
     barbearias = Barbearia.query.order_by(Barbearia.id).all()
-    return render_template('admin_barbearias.html', barbearias=barbearias)
+    return render_template('barbearias.html', barbearias=barbearias)
 
 # ============================================
 # ✅ ROTA 1: EXIBIR O PAINEL DE CRIAÇÃO (GET)
@@ -846,7 +846,7 @@ def admin_barbearias():
 def admin_painel_criacao():
     if getattr(current_user, 'role', 'admin') != 'super_admin':
         return redirect(url_for('main.agenda'))
-    return render_template('dashboard/novo.html', barbearia=None)
+    return render_template('superadmin/novo.html', barbearia=None)
 
 # ==============================================================================
 # ✅ ROTA 2: SALVAR NOVA LOJA (POST)
@@ -1006,7 +1006,7 @@ def admin_editar_barbearia(barbearia_id):
 
         return redirect(url_for('main.admin_barbearias'))
 
-    return render_template('editar_barbearia.html', barbearia=barbearia)
+    return render_template('superadmin/novo.html', barbearia=barbearia)
 
 # ============================================
 # 💳 PAGAMENTOS (MERCADO PAGO) - INTEGRADO
