@@ -836,7 +836,7 @@ def admin_barbearias():
         flash('Acesso restrito.', 'danger')
         return redirect(url_for('main.login'))
     barbearias = Barbearia.query.order_by(Barbearia.id).all()
-    return render_template('barbearias.html', barbearias=barbearias)
+    return render_template('superadmin/barbearias.html', barbearias=barbearias)
 
 # ============================================
 # ✅ ROTA 1: EXIBIR O PAINEL DE CRIAÇÃO (GET)
