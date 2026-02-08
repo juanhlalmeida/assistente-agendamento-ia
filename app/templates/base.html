@@ -18,13 +18,45 @@
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
 
   {# ================================================================= #}
-  {# 🧠 LÓGICA DE DETECÇÃO DE NICHO (BARBEARIA vs LASH)              #}
+  {# 🧠 CÉREBRO DO VOCABULÁRIO (Cole isto no topo, dentro do <head>) #}
   {# ================================================================= #}
-  {% set is_lash = False %}
+  
+  {# 1. Define o padrão (Barbearia) #}
+  {% set vocab = {
+      'prof_label': 'Profissionais',
+      'serv_label': 'Serviços',
+      'icon_prof': 'person',
+      'icon_serv': 'content_cut',
+      'icon_logo': 'content_cut',
+      'color_theme': '#00A6FB' 
+  } %}
+
+  {# 2. Se estiver logado, verifica qual é o negócio #}
   {% if current_user.is_authenticated and current_user.barbearia %}
-      {% set nome_negocio = current_user.barbearia.nome_fantasia.lower() %}
-      {% if 'lash' in nome_negocio or 'cílios' in nome_negocio or 'sobrancelha' in nome_negocio or 'studio' in nome_negocio or 'estética' in nome_negocio or 'beauty' in nome_negocio %}
-          {% set is_lash = True %}
+      {% set tipo = current_user.barbearia.business_type %}
+      {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+      
+      {# É POUSADA? #}
+      {% if tipo == 'pousada' or 'pousada' in nome or 'hotel' in nome %}
+          {% set vocab = {
+              'prof_label': 'Quartos',
+              'serv_label': 'Diárias',
+              'icon_prof': 'bed',
+              'icon_serv': 'calendar_month',
+              'icon_logo': 'hotel',
+              'color_theme': '#00d4ff'
+          } %}
+      
+      {# É LASH / ESTÉTICA? #}
+      {% elif 'lash' in nome or 'studio' in nome or 'cílios' in nome %}
+          {% set vocab = {
+              'prof_label': 'Designers',
+              'serv_label': 'Procedimentos',
+              'icon_prof': 'face_3',
+              'icon_serv': 'brush',
+              'icon_logo': 'spa',
+              'color_theme': '#d946ef'
+          } %}
       {% endif %}
   {% endif %}
 
@@ -34,7 +66,7 @@
       theme: {
         extend: {
           colors: {
-            "primary": "var(--theme-color)", /* ✨ AGORA É DINÂMICO */
+            "primary": "{{ vocab.color_theme }}", /* ✨ AGORA É DINÂMICO */
             "background-light": "#f6f7f8",
             "background-dark": "#121212",
             "surface-dark": "#1E1E1E",
@@ -68,8 +100,8 @@
         */
         {% if current_user.is_authenticated and current_user.barbearia.cor_primaria %}
             --theme-color: {{ current_user.barbearia.cor_primaria }};
-        {% elif is_lash %}
-            --theme-color: #EC4899; /* Pink-500 do Tailwind */
+        {% elif vocab.color_theme != '#00A6FB' %}
+            --theme-color: {{ vocab.color_theme }};
         {% else %}
             --theme-color: #00A6FB; /* Azul Padrão */
         {% endif %}
@@ -98,7 +130,7 @@
         <div class="flex items-center gap-3">
             <div class="bg-primary p-1.5 rounded-lg flex items-center justify-center">
                  <span class="material-symbols-outlined text-white text-xl">
-                    {% if is_lash %}visibility{% else %}content_cut{% endif %}
+                    {{ vocab.icon_logo }}
                 </span>
             </div>
             <span class="font-bold text-lg truncate">
@@ -136,12 +168,7 @@
             <div class="flex items-center gap-4">
               <div class="bg-primary aspect-square rounded-lg size-12 flex items-center justify-center transition-colors duration-300 shadow-lg shadow-primary/20">
                 <span class="material-symbols-outlined text-white text-3xl">
-                    {# Ícone muda conforme o nicho #}
-                    {% if is_lash %}
-                        visibility
-                    {% else %}
-                        content_cut
-                    {% endif %}
+                    {{ vocab.icon_logo }}
                 </span>
               </div>
               <h1 class="text-text-primary-dark text-xl font-bold leading-tight">
@@ -217,18 +244,18 @@
               <p class="text-base">Monitoramento IA</p>
             </a>
             
-            {# Link Profissionais #}
+            {# LINK PROFISSIONAIS / QUARTOS #}
             <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('profissionais.index') }}"> 
-              <span class="material-symbols-outlined">group</span>
-              <p class="text-base">Profissionais</p>
+               href="{{ url_for('profissionais.index') }}">
+              <span class="material-symbols-outlined">{{ vocab.icon_prof }}</span>
+              <p class="text-base">{{ vocab.prof_label }}</p>
             </a>
 
-            {# Link Serviços #}
+            {# LINK SERVIÇOS / DIÁRIAS #}
             <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('servicos.index') }}"> 
-              <span class="material-symbols-outlined">cut</span>
-              <p class="text-base">Serviços</p>
+               href="{{ url_for('servicos.index') }}">
+              <span class="material-symbols-outlined">{{ vocab.icon_serv }}</span>
+              <p class="text-base">{{ vocab.serv_label }}</p>
             </a>
 
             {# Link Clientes #}
