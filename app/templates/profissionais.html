@@ -1,8 +1,49 @@
 {% extends 'base.html' %} 
 
-{% block title %}Gerir Profissionais{% endblock %}
+{# 
+  ARQUIVO: profissionais.html (COM VOCABULÁRIO DINÂMICO)
+  Adapta os textos para "Quartos", "Designers" ou "Profissionais".
+#}
+
+{% block title %}
+  {# Lógica rápida para o título da aba #}
+  {% if current_user.barbearia.business_type == 'pousada' %}
+      Gerir Quartos
+  {% elif 'lash' in current_user.barbearia.nome_fantasia.lower() %}
+      Gerir Designers
+  {% else %}
+      Gerir Profissionais
+  {% endif %}
+{% endblock %}
 
 {% block content %}
+
+  {# ================================================================= #}
+  {# 🧠 CÉREBRO DO VOCABULÁRIO LOCAL                                 #}
+  {# ================================================================= #}
+  {% set termo_singular = 'Profissional' %}
+  {% set termo_plural = 'Profissionais' %}
+  {% set icon_item = 'person' %}
+
+  {% if current_user.is_authenticated and current_user.barbearia %}
+      {% set tipo = current_user.barbearia.business_type %}
+      {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+
+      {# POUSADA #}
+      {% if tipo == 'pousada' or 'pousada' in nome %}
+          {% set termo_singular = 'Quarto' %}
+          {% set termo_plural = 'Quartos' %}
+          {% set icon_item = 'bed' %}
+
+      {# LASH #}
+      {% elif 'lash' in nome or 'studio' in nome %}
+          {% set termo_singular = 'Designer' %}
+          {% set termo_plural = 'Designers' %}
+          {% set icon_item = 'face_3' %}
+      {% endif %}
+  {% endif %}
+  {# ================================================================= #}
+
   {# Mensagens Flash #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -24,34 +65,42 @@
 
   {# Cabeçalho da Página #}
   <div class="flex justify-between items-center mb-6">
-    <h2 class="text-text-primary-dark text-3xl font-bold">Profissionais</h2>
+    {# Título Dinâmico #}
+    <h2 class="text-text-primary-dark text-3xl font-bold">{{ termo_plural }}</h2>
+    
+    {# Botão Dinâmico #}
     <a href="{{ url_for('profissionais.novo_profissional') }}" 
        class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
       <span class="material-symbols-outlined">add</span>
-      <span class="truncate">Novo Profissional</span>
+      <span class="truncate">Novo {{ termo_singular }}</span>
     </a>
   </div>
 
-  {# Tabela de Profissionais #}
+  {# Tabela #}
   <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
     <table class="w-full min-w-[400px] lg:min-w-full text-left align-middle">
       <thead class="bg-background-dark">
         <tr>
-          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Nome do Profissional</th>
+          {# Coluna Nome Dinâmica #}
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Nome do {{ termo_singular }}</th>
           <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th>
         </tr>
       </thead>
       <tbody>
         {% for profissional in profissionais %}
           <tr class="border-b border-gray-800 hover:bg-white/5">
-            <td class="p-4 font-semibold text-text-primary-dark">{{ profissional.nome }}</td>
+            <td class="p-4 font-semibold text-text-primary-dark flex items-center gap-3">
+                {# Ícone ao lado do nome (Cama ou Pessoa) #}
+                <span class="material-symbols-outlined text-text-secondary-dark">{{ icon_item }}</span>
+                {{ profissional.nome }}
+            </td>
             <td class="p-4 text-center">
               <a href="{{ url_for('profissionais.editar_profissional', profissional_id=profissional.id) }}" 
                  class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
                 <span class="material-symbols-outlined">edit</span>
               </a>
               <form action="{{ url_for('profissionais.apagar_profissional', profissional_id=profissional.id) }}" 
-                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar o profissional \'{{ profissional.nome }}\'?');">
+                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar o {{ termo_singular|lower }} \'{{ profissional.nome }}\'?');">
                 <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar">
                   <span class="material-symbols-outlined">delete</span>
                 </button>
@@ -60,7 +109,9 @@
           </tr>
         {% else %} 
           <tr>
-            <td colspan="2" class="p-8 text-center text-text-secondary-dark">Nenhum profissional cadastrado ainda.</td>
+            <td colspan="2" class="p-8 text-center text-text-secondary-dark">
+                Nenhum {{ termo_singular|lower }} cadastrado ainda.
+            </td>
           </tr>
         {% endfor %} 
       </tbody>
