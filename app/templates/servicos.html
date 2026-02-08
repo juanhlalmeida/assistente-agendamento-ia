@@ -1,8 +1,44 @@
 {% extends 'base.html' %} 
 
-{% block title %}Gerir Serviços{% endblock %}
+{# 
+  ARQUIVO: servicos.html (COM VOCABULÁRIO DINÂMICO E FORMATAÇÃO DE HORAS)
+  Adapta para "Diárias" ou "Serviços" e formata 1440min como "1 Dia".
+#}
+
+{% block title %}
+  {# Título da Aba #}
+  {% if current_user.barbearia.business_type == 'pousada' %}
+      Gerir Diárias
+  {% else %}
+      Gerir Serviços
+  {% endif %}
+{% endblock %}
 
 {% block content %}
+
+  {# ================================================================= #}
+  {# 🧠 CÉREBRO DO VOCABULÁRIO (SERVIÇOS)                            #}
+  {# ================================================================= #}
+  {% set termo_singular = 'Serviço' %}
+  {% set termo_plural = 'Serviços' %}
+  
+  {% if current_user.is_authenticated and current_user.barbearia %}
+      {% set tipo = current_user.barbearia.business_type %}
+      {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+
+      {# POUSADA #}
+      {% if tipo == 'pousada' or 'pousada' in nome %}
+          {% set termo_singular = 'Diária / Pacote' %}
+          {% set termo_plural = 'Tipos de Diária' %}
+      
+      {# LASH #}
+      {% elif 'lash' in nome or 'studio' in nome %}
+          {% set termo_singular = 'Procedimento' %}
+          {% set termo_plural = 'Procedimentos' %}
+      {% endif %}
+  {% endif %}
+  {# ================================================================= #}
+
   {# Mensagens Flash #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -24,54 +60,67 @@
 
   {# Cabeçalho da Página #}
   <div class="flex justify-between items-center mb-6">
-    <h2 class="text-text-primary-dark text-3xl font-bold">Serviços Oferecidos</h2>
-    {# Link para adicionar novo serviço #}
+    <h2 class="text-text-primary-dark text-3xl font-bold">{{ termo_plural }}</h2>
+    
+    {# Botão Novo Item #}
     <a href="{{ url_for('servicos.novo_servico') }}" 
        class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
       <span class="material-symbols-outlined">add</span>
-      <span class="truncate">Novo Serviço</span>
+      <span class="truncate">Novo {{ termo_singular }}</span>
     </a>
   </div>
 
-  {# Tabela de Serviços #}
+  {# Tabela #}
   <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
     <table class="w-full min-w-[600px] lg:min-w-full text-left align-middle">
       <thead class="bg-background-dark">
         <tr>
-          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Nome do Serviço</th>
-          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Duração (min)</th>
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Nome</th>
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Duração</th>
           <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Preço (R$)</th>
           <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th>
         </tr>
       </thead>
       <tbody>
-        {# Loop principal para exibir cada serviço #}
         {% for servico in servicos %}
           <tr class="border-b border-gray-800 hover:bg-white/5">
+            {# Nome #}
             <td class="p-4 font-semibold text-text-primary-dark">{{ servico.nome }}</td>
-            <td class="p-4 text-text-primary-dark">{{ servico.duracao }} min</td>
-            <td class="p-4 text-text-primary-dark">R$ {{ "%.2f"|format(servico.preco) }}</td>
+            
+            {# Duração Inteligente (Transforma minutos em Dias/Horas) #}
+            <td class="p-4 text-text-primary-dark">
+                {% if servico.duracao == 1440 %}
+                    <span class="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-bold border border-blue-500/30">1 Dia (24h)</span>
+                {% elif servico.duracao == 720 %}
+                    <span class="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs font-bold border border-yellow-500/30">12 Horas (Day Use)</span>
+                {% else %}
+                    {{ servico.duracao }} min
+                {% endif %}
+            </td>
+
+            {# Preço #}
+            <td class="p-4 text-green-400 font-mono font-medium">R$ {{ "%.2f"|format(servico.preco) }}</td>
+            
+            {# Ações #}
             <td class="p-4 text-center">
-              {# Botão Editar #}
               <a href="{{ url_for('servicos.editar_servico', servico_id=servico.id) }}" 
-                 class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
+                 class="p-2 text-text-secondary-dark hover:text-primary rounded-full transition-colors" title="Editar">
                 <span class="material-symbols-outlined">edit</span>
               </a>
-              {# Formulário Apagar #}
               <form action="{{ url_for('servicos.apagar_servico', servico_id=servico.id) }}" 
-                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar o serviço \'{{ servico.nome }}\'?');">
-                <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar">
+                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar \'{{ servico.nome }}\'?');">
+                <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full transition-colors" title="Apagar">
                   <span class="material-symbols-outlined">delete</span>
                 </button>
               </form>
             </td>
           </tr>
-        {# Caso o loop {% for %} não encontre nenhum serviço #}
         {% else %} 
           <tr>
-            <td colspan="4" class="p-8 text-center text-text-secondary-dark">Nenhum serviço cadastrado ainda.</td>
+            <td colspan="4" class="p-8 text-center text-text-secondary-dark">
+                Nenhum {{ termo_singular|lower }} cadastrado ainda.
+            </td>
           </tr>
-        {# Fim do loop {% for %} #}
         {% endfor %} 
       </tbody>
     </table>
