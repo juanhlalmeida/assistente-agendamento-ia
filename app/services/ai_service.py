@@ -1128,6 +1128,19 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
                 data_de_hoje=agora_br.strftime('%d/%m/%Y')
             )
 
+        # 👇 [NOVO] VERIFICAÇÃO DE POUSADA (ANTES DE CAIR NO PADRÃO) 👇
+        elif barbearia.business_type == 'pousada':
+            logging.info(f"🏨 MODO POUSADA ATIVADO para {cliente_whatsapp}")
+            
+            # Carrega o Plugin da Pousada
+            plugin = carregar_plugin_negocio(barbearia)
+            
+            # Pega o Prompt especializado (Quartos, Check-in, Regras)
+            base_prompt = plugin.gerar_system_prompt()
+            
+            # Adiciona o contexto temporal que a IA precisa
+            system_prompt = f"{base_prompt}\n\nHOJE: {data_hoje_str} | AMANHÃ: {data_amanha_str}\nID_CLIENTE: {cliente_whatsapp}"
+
         else:
             # --- LÓGICA MULTI-TENANCY (BARBEARIA VS LASH) - MODO CLIENTE ---
 
@@ -1147,9 +1160,7 @@ TOM: Educada, gentil e prática.
                 header_persona = f"""
 
 PERSONA: Assistente da {barbearia.nome_fantasia} (Barbearia).
-
 TOM: Brother, prático, gente boa. Use: 'Cara', 'Mano', 'Campeão'.
-
 EMOJIS OBRIGATÓRIOS: ✂️ 💈 👊 🔥
 
 """
@@ -1161,13 +1172,10 @@ EMOJIS OBRIGATÓRIOS: ✂️ 💈 👊 🔥
 
             if qtd_profs == 1:
                 nome_unico = profs_db[0].nome
-
                 regra_profissional = f"""
 
 ATENÇÃO: Só existe 1 profissional neste estabelecimento: {nome_unico}.
-
 NÃO pergunte 'com quem prefere fazer'.
-
 Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e prossiga para verificar horários.
 
 """
@@ -1207,11 +1215,8 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         chat_session = model.start_chat(history=history_to_load)
 
         if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite']:
-
             new_serialized_history = serialize_history(chat_session.history)
-
             cache.set(cache_key, new_serialized_history)
-
             logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
 
             return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
@@ -1278,11 +1283,8 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         while response.candidates[0].content.parts and response.candidates[0].content.parts[0].function_call:
 
             function_call = response.candidates[0].content.parts[0].function_call
-
             function_name = function_call.name
-
             function_args = function_call.args
-
             logging.info(f"IA solicitou a ferramenta '{function_name}' com os argumentos: {dict(function_args)}")
 
             tool_map = {
@@ -1300,9 +1302,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             if function_name in tool_map:
 
                 function_to_call = tool_map[function_name]
-
                 kwargs = dict(function_args)
-
                 kwargs['barbearia_id'] = barbearia_id
 
                 if function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
@@ -1365,11 +1365,8 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             pass
 
         logging.info(f"✅ Histórico salvo no Redis (se sucesso).")
-
         final_response_text = "Desculpe, não entendi. Pode repetir?"
-
         if response.candidates and response.candidates[0].content.parts:
-
             part = response.candidates[0].content.parts[0]
 
             if part.text:
