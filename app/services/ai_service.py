@@ -1457,3 +1457,39 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         except:
             pass
         return "Tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
+
+def listar_servicos_pousada(barbearia_id: int) -> str:
+    """
+    Versão exclusiva para Pousada: Converte minutos em Diárias.
+    """
+    from app.models.tables import Servico # Garante importação
+    try:
+        servicos = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+        if not servicos:
+            return "No momento não temos quartos cadastrados no sistema."
+        
+        texto = "🏨 **NOSSAS ACOMODAÇÕES E TARIFAS:**\n\n"
+        
+        for s in servicos:
+            nome = s.nome
+            preco = s.preco
+            duracao_min = s.duracao
+            
+            # Lógica de Tradução
+            if "day use" in nome.lower() or "barraca" in nome.lower():
+                tipo = "🏕️ Day Use / Camping"
+                detalhe = "(Uso da área externa das 08h às 18h)"
+            elif duracao_min >= 1380: # 23h ou 24h
+                tipo = "🛌 Diária Completa"
+                detalhe = "(Check-in 12h / Check-out 16h do dia seguinte)"
+            else:
+                tipo = "⏳ Período Curto"
+                detalhe = f"({int(duracao_min/60)} horas)"
+                
+            texto += f"- **{nome}**: R$ {preco:.2f}\n  _{tipo} {detalhe}_\n\n"
+            
+        texto += "⚠️ **Importante:**\n- Mínimo de 1 diária e meia.\n- Não aceitamos reserva para 1 pessoa só.\n- Café da manhã não incluso."
+        return texto
+
+    except Exception as e:
+        return f"Erro ao listar acomodações: {str(e)}"
