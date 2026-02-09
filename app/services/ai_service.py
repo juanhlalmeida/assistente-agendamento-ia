@@ -1298,6 +1298,11 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 "bloquear_agenda_dono": bloquear_agenda_dono
 
             }
+            
+            # 🔥 O PULO DO GATO: SE FOR POUSADA, TROCA A FERRAMENTA 🔥
+            if barbearia.business_type == 'pousada':
+                logging.info("🏨 Substituindo tool 'listar_servicos' pela versão POUSADA.")
+                tool_map["listar_servicos"] = listar_servicos_pousada
 
             if function_name in tool_map:
 
