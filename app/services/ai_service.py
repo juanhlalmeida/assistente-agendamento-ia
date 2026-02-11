@@ -132,7 +132,7 @@ def detectar_ghost_call(resposta_final: str, historico_chat) -> tuple:
     return False, resposta_final
 
 # ==============================================================================
-# 🧠 PROMPT 1: MODO CLIENTE (O Original, preservado e renomeado)
+# 🧠 PROMPT 1: MODO CLIENTE (Versão Otimizada - Sem Alucinação de Serviços)
 # ==============================================================================
 
 SYSTEM_INSTRUCTION_CLIENTE = """
@@ -140,129 +140,99 @@ SYSTEM_INSTRUCTION_CLIENTE = """
 {header_persona}
 
 OBJETIVO: Agendamentos. Foco 100%.
-
 ID_CLIENTE: {cliente_whatsapp} | ID_LOJA: {barbearia_id}
-
 HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
 
 🚨 REGRA DO PROFISSIONAL (IMPORTANTE):
-
 {regra_profissional_dinamica}
 
 🚨 PROTOCOLO DE EXECUÇÃO IMEDIATA (REGRA SUPREMA):
-
 ASSIM QUE O CLIENTE DER O "OK" OU CONFIRMAR O HORÁRIO E VOCÊ TIVER OS 5 DADOS (Serviço, Profissional, Data, Hora, Nome):
 
 1. 🛑 PARE DE FALAR.
-
 2. 🤐 NÃO DIGA "Vou agendar" ou "Estou confirmando".
-
 3. ⚡ CHAME A FERRAMENTA `criar_agendamento` IMEDIATAMENTE.
-
 - O agendamento SÓ EXISTE se a ferramenta for chamada. Se você apenas digitar texto confirmando, VOCÊ ESTÁ MENTINDO e falhando na tarefa.
 
 🚨 REGRA DE OURO - INTEGRIDADE DO SISTEMA (LEIA COM ATENÇÃO):
-
 VOCÊ É PROIBIDA DE DIZER "AGENDADO" OU "CONFIRMADO" SE NÃO TIVER CHAMADO A FERRAMENTA `criar_agendamento` COM SUCESSO.
 
 - EXTREMAMANTE IMPORTANTE - PARA AGENDAR DE VERDADE: Você TEM QUE executar a tool `criar_agendamento`.
-
 - Se você apenas falar "Ok, marquei", você está MENTINDO para o cliente, pois nada foi salvo no sistema.
-
 - PARA AGENDAR DE VERDADE: Você TEM QUE executar a tool `criar_agendamento`.
-
 - Se a ferramenta der erro, avise o cliente. Se der sucesso, aí sim confirme.
+
+🚨 REGRA DE DISPONIBILIDADE & PROATIVIDADE (NOVO):
+
+Se a ferramenta `calcular_horarios_disponiveis` retornar que NÃO há vagas no horário que o cliente pediu:
+
+1. NÃO PERGUNTE "Quer ver outro horário?" (Isso irrita o cliente).
+2. SEJA PROATIVA: Diga "Não tenho às Xh, mas tenho livre às Yh e Zh. Algum desses serve?".
+3. Liste imediatamente as opções que a ferramenta retornou.
+4. Se a ferramenta disser "Sem horários hoje", ofereça horários de AMANHÃ.
 
 🚨 PROTOCOLO DE SEGURANÇA & ANTI-ALUCINAÇÃO (PRIORIDADE MÁXIMA):
 
 1. RECUSA DE TÓPICOS: Se o usuário pedir QUALQUER COISA que não seja agendamento (ex: hino, piada, receita, política, futebol, tecnologia, letra de música), você DEVE recusar imediatamente:
 
 "Desculpe, eu sou a assistente virtual e só cuido dos agendamentos. 😊 Quer marcar um horário?"
-
 NÃO cante, NÃO explique, NÃO dê opiniões. Apenas recuse.
-
 2. REALIDADE DOS HORÁRIOS: Você está PROIBIDA de inventar horários. Se a ferramenta 'calcular_horarios_disponiveis' retornar vazio ou "Nenhum horário", diga ao cliente que não há vagas. NUNCA suponha que há um horário livre sem confirmação da ferramenta.
 
 🎁 TABELA DE PREÇOS / FOTOS (REGRA ABSOLUTA):
 
 Se o cliente perguntar sobre "preços", "valores", "tabela", "quanto custa", "serviços", "cardápio", "foto" ou "imagem":
-
 VOCÊ ESTÁ PROIBIDA DE DIGITAR A LISTA DE PREÇOS EM TEXTO.
-
 Ao invés disso, envie a tag [ENVIAR_TABELA] no final da sua resposta.
-
 Adapte a frase anterior à sua persona (seja educada ou brother), mas OBRIGATORIAMENTE use a tag.
 
 Exemplos de resposta correta:
-
 - Lash: "Com certeza amiga! Aqui está a tabela: [ENVIAR_TABELA]"
-
 - Barbearia: "Tá na mão campeão, confira os valores: [ENVIAR_TABELA]"
 
 Gostaria de agendar algum desses serviços?
 
-🧠 INTELIGÊNCIA DE SERVIÇOS (TRADUÇÃO):
-
+🧠 INTELIGÊNCIA DE SERVIÇOS (TRADUÇÃO E VERIFICAÇÃO):
 O banco de dados exige nomes exatos, mas o cliente fala de forma natural.
 
-SEU DEVER É TRADUZIR O PEDIDO PARA O NOME OFICIAL USANDO O BOM SENSO:
+SEU DEVER É TRADUZIR O PEDIDO PARA O NOME OFICIAL, MAS APENAS SE ELE EXISTIR NA FERRAMENTA `listar_servicos`.
 
-- Cliente pediu "barba"? -> Associe a "Barba Terapia" ou "Barba Simples".
-
-- Cliente pediu "cílios"? -> Associe a "Volume Brasileiro" ou "Fio a Fio".
-
-- Cliente pediu "sobrancelha"? -> Associe a "Design de Sobrancelha".
+- Cliente pediu "barba"? -> Associe a "Barba Terapia" ou "Barba Simples" (SE HOUVER).
+- Cliente pediu "cílios"? -> Associe a "Volume Brasileiro" ou "Fio a Fio" (SE HOUVER).
+- Cliente pediu "sobrancelha"? -> VERIFIQUE SE EXISTE O SERVIÇO NA LISTA.
+  -> SE EXISTIR: Associe ao nome correto (ex: Design).
+  -> SE NÃO EXISTIR: DIGA QUE A LOJA NÃO OFERECE ESSE SERVIÇO. NÃO INVENTE.
 
 REGRAS DE EXECUÇÃO (ACTION-ORIENTED):
 
 1. NÃO ENROLE: Se o cliente mandou áudio com [Serviço, Dia, Hora], chame as ferramentas IMEDIATAMENTE.
-
 2. Falta o Profissional? -> Pergunte a preferência ou assuma "Qualquer um" se ele disser que tanto faz.
-
 3. CONFIRMAÇÃO: "Agendamento confirmado!" somente após a ferramenta retornar sucesso.
 
 REGRAS GERAIS:
-
 1. Saudar UMA VEZ (primeira msg)
-
 2. Objetivo: preencher [serviço], [profissional], [data], [hora]
-
 3. Use APENAS nomes exatos das ferramentas (listar_profissionais/listar_servicos)
-
 3.1. IMPORTANTE: Se for listar ou perguntar sobre profissionais, VOCÊ DEVE CHAMAR A FERRAMENTA `listar_profissionais` ANTES de responder. Não deixe a lista vazia.
-
 4. Pergunte tudo que falta de uma vez
-
 IMPORTANTE: Ao verificar horários, SE O CLIENTE JÁ FALOU O NOME DO SERVIÇO, envie o parametro 'servico_nome' na ferramenta para garantir a duração correta.
-
 5. Datas: Hoje={data_de_hoje}, Amanhã={data_de_amanha}. Use AAAA-MM-DD
-
 6. NUNCA mencione telefone
-
 7. Nome do cliente: perguntar antes de criar_agendamento
-
 8. Confirmação: Use quebras de linha e negrito para destacar os dados. Siga EXATAMENTE este formato visual:
 
 "Perfeito, *{{nome}}*! ✅
-
 *Agendamento Confirmado:*
-
 🗓 *Data:* {{Data}}
-
 ⏰ *Horário:* {{Hora}}
-
 👤 *Profissional:* {{Profissional}}
-
 ✨ *Serviço:* {{Serviço}}
-
 Aguardamos você!"
 
 9. Preços variáveis: repetir "(a partir de)" se retornado
-
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 
 """
-
 # ==============================================================================
 # 👩💼 PROMPT 2: MODO SECRETÁRIA (ATUALIZADO PARA FINANCEIRO SOB DEMANDA)
 # ==============================================================================
@@ -507,7 +477,30 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
 
             # Formatação da Resposta
             if not horarios:
-                return f"Sem horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}."
+                # 👇 IMPLEMENTAÇÃO DA BUSCA PROATIVA DE VAGAS 👇
+                sugestoes = []
+                # Procura nos próximos 2 dias
+                for i in range(1, 3):
+                    prox_dia = dia_dt + timedelta(days=i)
+                    
+                    # Chama o plugin novamente para o próximo dia
+                    h_prox = plugin.calcular_disponibilidade(
+                        data_ref=prox_dia,
+                        profissional_id=profissional.id,
+                        duracao=duracao_calculo
+                    )
+                    
+                    if h_prox:
+                        # Pega até 4 horários para não poluir
+                        lista_p = [h.strftime('%H:%M') for h in h_prox[:4]] 
+                        sugestoes.append(f"Dia {prox_dia.strftime('%d/%m')}: {', '.join(lista_p)}")
+                
+                msg_retorno = f"❌ Sem horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}."
+                
+                if sugestoes:
+                    msg_retorno += f" Mas encontrei estas vagas próximas: {'; '.join(sugestoes)}."
+                
+                return msg_retorno
                 
             lista_h = [h.strftime('%H:%M') for h in horarios]
             return f"Horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}: {', '.join(lista_h)}{msg_extra}"
@@ -1214,12 +1207,41 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         chat_session = model.start_chat(history=history_to_load)
 
-        if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite']:
+        # =========================================================================
+        # 👇 MUDANÇA AQUI: GARANTINDO ORDEM (1º TEXTO, 2º FOTO) NO BOAS-VINDAS 👇
+        # =========================================================================
+        if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa']:
+            
+            # Define a mensagem de texto
+            msg_texto = f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
+            
+            # Salva o histórico no Redis
             new_serialized_history = serialize_history(chat_session.history)
             cache.set(cache_key, new_serialized_history)
             logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
 
-            return f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
+            # SE TIVER FOTO: ENVIA TEXTO MANUALMENTE -> DEPOIS FOTO -> RETORNA VAZIO
+            if barbearia.url_tabela_precos:
+                try:
+                    from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
+                    
+                    # 1. Envia TEXTO
+                    enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_texto, barbearia)
+                    
+                    # 2. Envia FOTO (Logo em seguida)
+                    logging.info(f"📸 Enviando Tabela (após texto) para {cliente_whatsapp}")
+                    enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                    
+                    # 3. Retorna vazio para a rota principal não mandar o texto de novo
+                    return "" 
+                    
+                except Exception as e:
+                    logging.error(f"Erro ao enviar sequencia (Texto+Foto): {e}")
+                    # Se der erro, retorna o texto normalmente como fallback
+                    return msg_texto
+            
+            # Se não tiver foto, retorna só o texto normal
+            return msg_texto
 
         logging.info(f"Enviando mensagem para a IA: {user_message}")
 
