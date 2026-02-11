@@ -1208,43 +1208,53 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         chat_session = model.start_chat(history=history_to_load)
 
         # =========================================================================
-        # 👇 MUDANÇA AQUI: GARANTINDO ORDEM (1º TEXTO, 2º FOTO) NO BOAS-VINDAS 👇
+        # 👇 ATUALIZAÇÃO: LISTA DE SAUDAÇÕES EXPANDIDA E MENSAGEM GENTIL 👇
         # =========================================================================
-        if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa']:
-            
-            # Define a mensagem de texto
-            msg_texto = f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
-            
-            # Salva o histórico no Redis
-            new_serialized_history = serialize_history(chat_session.history)
-            cache.set(cache_key, new_serialized_history)
-            logging.info(f"✅ Histórico salvo no Redis. Tamanho: {len(new_serialized_history)} chars")
+        
+        # Lista expandida para pegar variações como "oiee", "hey", "bom diaaa"
+        saudacoes = ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa', 
+            'oie', 'oiee', 'hey', 'eai', 'quero agendar', 'agendar', 'marcar', 'vaga']
+        msg_user_limpa = user_message.lower().strip()
+        
+        # Verifica se começa com alguma das saudações (mais flexível) ou se é chat novo
+        eh_saudacao = any(msg_user_limpa.startswith(s) for s in saudacoes)
 
-            # SE TIVER FOTO: ENVIA TEXTO MANUALMENTE -> DEPOIS FOTO -> RETORNA VAZIO
+        if is_new_chat and eh_saudacao:
+            
+            # Mensagem mais gentil e que já referencia a tabela
+            msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui abaixo! 💖\n\nQual desses serviços você gostaria de agendar hoje? 😊"
+            
+            # Salva o histórico no Redis para a IA lembrar que já deu oi
+            # Adicionamos a resposta da IA no histórico manualmente para manter coerência
+            history_to_load.append(Content(role='model', parts=[protos.Part(text=msg_texto)]))
+            new_serialized_history = serialize_history(history_to_load)
+            
+            cache.set(cache_key, new_serialized_history)
+            logging.info(f"✅ Boas-vindas automáticas disparadas para: {msg_user_limpa}")
+
+            # Fluxo de envio: Texto -> Foto
             if barbearia.url_tabela_precos:
                 try:
                     from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
                     
-                    # 1. Envia TEXTO
+                    # 1. Envia o Texto primeiro
                     enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_texto, barbearia)
                     
-                    # 2. Envia FOTO (Logo em seguida)
-                    logging.info(f"📸 Enviando Tabela (após texto) para {cliente_whatsapp}")
+                    # 2. Envia a Foto da tabela logo em seguida
+                    logging.info(f"📸 Enviando Tabela automática para {cliente_whatsapp}")
                     enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
                     
-                    # 3. Retorna vazio para a rota principal não mandar o texto de novo
+                    # Retorna vazio para evitar duplicidade na rota principal
                     return "" 
                     
                 except Exception as e:
-                    logging.error(f"Erro ao enviar sequencia (Texto+Foto): {e}")
-                    # Se der erro, retorna o texto normalmente como fallback
+                    logging.error(f"Erro na sequência de boas-vindas: {e}")
                     return msg_texto
             
-            # Se não tiver foto, retorna só o texto normal
             return msg_texto
 
         logging.info(f"Enviando mensagem para a IA: {user_message}")
-
+        
         # --- TENTATIVA DE COMUNICAÇÃO COM DETECÇÃO DE TRAVAMENTO ---
         travou = False
         response = None
