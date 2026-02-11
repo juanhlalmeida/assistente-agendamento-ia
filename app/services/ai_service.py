@@ -1205,48 +1205,55 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             ]
 
+        is_new_chat = not history_to_load
+
+        if is_new_chat:
+            logging.info(f"Iniciando NOVO histórico de chat para o cliente {cliente_whatsapp}.")
+
+            # CRIAÇÃO CORRETA USANDO OBJETOS CONTENT DO SDK (NÃO DICIONÁRIOS)
+            history_to_load = [
+                Content(role='user', parts=[protos.Part(text=system_prompt)]),
+                Content(role='model', parts=[protos.Part(text=f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?")])
+            ]
+
         chat_session = model.start_chat(history=history_to_load)
 
         # =========================================================================
-        # 👇 ATUALIZAÇÃO: LISTA DE SAUDAÇÕES EXPANDIDA E MENSAGEM GENTIL 👇
+        # 👇 ATUALIZAÇÃO: GATILHOS DE AGENDAMENTO E SAUDAÇÃO 👇
         # =========================================================================
         
-        # Lista expandida para pegar variações como "oiee", "hey", "bom diaaa"
-        saudacoes = ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa', 
-            'oie', 'oiee', 'hey', 'eai', 'quero agendar', 'agendar', 'marcar', 'vaga']
+        gatilhos_boas_vindas = [
+            'oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa', 
+            'oie', 'oiee', 'hey', 'eai', 'quero agendar', 'agendar', 'marcar', 'vaga'
+        ]
         msg_user_limpa = user_message.lower().strip()
         
-        # Verifica se começa com alguma das saudações (mais flexível) ou se é chat novo
-        eh_saudacao = any(msg_user_limpa.startswith(s) for s in saudacoes)
+        eh_primeiro_contato = any(msg_user_limpa.startswith(g) for g in gatilhos_boas_vindas)
 
-        if is_new_chat and eh_saudacao:
+        if is_new_chat and eh_primeiro_contato:
             
-            # Mensagem mais gentil e que já referencia a tabela
-            msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui abaixo! 💖\n\nQual desses serviços você gostaria de agendar hoje? 😊"
+            msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui em cima! 👆💖\n\nQual desses serviços você gostaria de agendar? 😊"
             
-            # Salva o histórico no Redis para a IA lembrar que já deu oi
-            # Adicionamos a resposta da IA no histórico manualmente para manter coerência
+            # Agora podemos dar append com segurança, pois history_to_load já é lista de Content
+            # Removemos a última mensagem padrão ("Olá! Bem-vindo...") e colocamos a personalizada
+            if len(history_to_load) > 1:
+                history_to_load.pop() 
+                
             history_to_load.append(Content(role='model', parts=[protos.Part(text=msg_texto)]))
+            
+            # Agora serialize_history vai funcionar porque os itens SÃO objetos Content
             new_serialized_history = serialize_history(history_to_load)
             
             cache.set(cache_key, new_serialized_history)
             logging.info(f"✅ Boas-vindas automáticas disparadas para: {msg_user_limpa}")
 
-            # Fluxo de envio: Texto -> Foto
             if barbearia.url_tabela_precos:
                 try:
                     from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
-                    
-                    # 1. Envia o Texto primeiro
                     enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_texto, barbearia)
-                    
-                    # 2. Envia a Foto da tabela logo em seguida
                     logging.info(f"📸 Enviando Tabela automática para {cliente_whatsapp}")
                     enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
-                    
-                    # Retorna vazio para evitar duplicidade na rota principal
                     return "" 
-                    
                 except Exception as e:
                     logging.error(f"Erro na sequência de boas-vindas: {e}")
                     return msg_texto
