@@ -1286,7 +1286,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 if barbearia.url_tabela_precos:
                     from app.routes import enviar_midia_whatsapp_meta
                     enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
-                    return "Enviei nossa tabela acima! 👆 Se já souber o que quer, é só me falar o serviço e horário."
+                    return "Enviei nossa tabela abaixo! 👇 Se já souber o que quer, é só me falar o serviço e horário."
                 
                 lista = listar_servicos(barbearia_id)
                 return f"Aqui estão nossos valores: 👇\n\n{lista}\n\nQual deles você prefere?"
