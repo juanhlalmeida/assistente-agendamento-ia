@@ -1193,24 +1193,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         if is_new_chat:
             logging.info(f"Iniciando NOVO histórico de chat para o cliente {cliente_whatsapp}.")
 
-            history_to_load = [
-
-                {'role': 'user', 'parts': [system_prompt]},
-
-                {'role': 'model', 'parts': [
-
-                    f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?"
-
-                ]}
-
-            ]
-
-        is_new_chat = not history_to_load
-
-        if is_new_chat:
-            logging.info(f"Iniciando NOVO histórico de chat para o cliente {cliente_whatsapp}.")
-
-            # CRIAÇÃO CORRETA USANDO OBJETOS CONTENT DO SDK (NÃO DICIONÁRIOS)
+            # CORREÇÃO CRÍTICA: Inicializando como OBJETOS Content, não dicionários.
             history_to_load = [
                 Content(role='user', parts=[protos.Part(text=system_prompt)]),
                 Content(role='model', parts=[protos.Part(text=f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?")])
@@ -1226,8 +1209,6 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # assumimos que é o primeiro contato real do cliente.
         # Não importa se ele disse "oi", "preço" ou "agendar", vamos mandar a tabela.
         
-        # A IA já inicia com 2 mensagens no histórico (System + Oi da IA).
-        # Se só tiver isso, é o começo.
         eh_inicio_conversa = len(history_to_load) <= 2
 
         if eh_inicio_conversa:
@@ -1236,13 +1217,15 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui em cima! 👆💖\n\nQual desses serviços você gostaria de agendar? 😊"
             
             # ATUALIZA O HISTÓRICO MANUALMENTE
-            # Removemos a saudação genérica anterior ("Olá! Bem-vindo...") se ela for a última
-            if len(history_to_load) > 1 and history_to_load[-1].role == 'model':
+            # Verifica se o último item é um objeto Content e tem role 'model'
+            # (Agora vai funcionar porque inicializamos history_to_load corretamente acima)
+            if len(history_to_load) > 1 and getattr(history_to_load[-1], 'role', '') == 'model':
                 history_to_load.pop()
                 
             history_to_load.append(Content(role='model', parts=[protos.Part(text=msg_texto)]))
             
             # Salva o novo estado no Redis
+            # serialize_history espera uma lista de Content, que agora está correta
             new_serialized_history = serialize_history(history_to_load)
             cache.set(cache_key, new_serialized_history)
             logging.info(f"✅ Boas-vindas automáticas (FORÇADO) para: {user_message}")
