@@ -1190,14 +1190,57 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         is_new_chat = not history_to_load
 
+        # ==============================================================================
+        # 🛡️ INTERCEPTADOR DE PRIMEIRO CONTATO (SOLUÇÃO PROFISSIONAL ANTI-LOOP)
+        # ==============================================================================
+        # Se for um novo chat, nós NÃO chamamos a IA agora.
+        # Nós enviamos as boas-vindas + foto manualmente, salvamos o estado e encerramos.
+        # Isso garante que a foto chegue 100% das vezes e evita loops.
+        
         if is_new_chat:
-            logging.info(f"Iniciando NOVO histórico de chat para o cliente {cliente_whatsapp}.")
+            logging.info(f"🆕 Iniciando nova conversa com {cliente_whatsapp}. Aplicando Protocolo de Boas-Vindas.")
 
-            # CORREÇÃO CRÍTICA: Inicializando como OBJETOS Content, não dicionários.
-            history_to_load = [
+            # 1. Define a mensagem de boas-vindas padrão (Gentil e Profissional)
+            msg_boas_vindas = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui em cima! 👆💖\n\nQual desses serviços você gostaria de agendar? 😊"
+
+            try:
+                from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
+                
+                # 2. Envia TEXTO
+                enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_boas_vindas, barbearia)
+                
+                # 3. Envia FOTO (Se houver)
+                if barbearia.url_tabela_precos:
+                    logging.info(f"📸 Enviando Tabela de Preços inicial para {cliente_whatsapp}")
+                    enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+
+            except Exception as e:
+                logging.error(f"Erro ao enviar boas-vindas manuais: {e}")
+                # Segue o baile se der erro no envio, para não travar o salvamento do histórico
+
+            # 4. 💾 CONSTRUÇÃO MANUAL DO HISTÓRICO (O SEGREDO PARA NÃO DAR LOOP)
+            # Precisamos salvar: [Instrução do Sistema] + [O que o cliente disse] + [O que respondemos]
+            
+            history_manual = [
+                # Turno 1: Instrução do Sistema (User) -> OK (Model)
                 Content(role='user', parts=[protos.Part(text=system_prompt)]),
-                Content(role='model', parts=[protos.Part(text=f"Olá! Bem-vindo(a) à {barbearia.nome_fantasia}! Como posso ajudar no seu agendamento?")])
+                Content(role='model', parts=[protos.Part(text="Entendido. Vou agir conforme suas instruções.")]),
+                
+                # Turno 2: O que o cliente acabou de mandar (User) -> Nossa resposta de boas-vindas (Model)
+                Content(role='user', parts=[protos.Part(text=user_message)]), 
+                Content(role='model', parts=[protos.Part(text=msg_boas_vindas)])
             ]
+            
+            # 5. Salva no Redis e RETORNA VAZIO (Fim da execução deste turno)
+            new_serialized_history = serialize_history(history_manual)
+            cache.set(cache_key, new_serialized_history)
+            logging.info(f"✅ Histórico inicial criado e salvo manualmente. Loop evitado.")
+            
+            return "" # Retorna vazio para a rota principal não enviar nada duplicado.
+
+        # ==============================================================================
+        # FIM DO INTERCEPTADOR - Se não for new_chat, vida normal abaixo:
+        # ==============================================================================
 
         chat_session = model.start_chat(history=history_to_load)
 
