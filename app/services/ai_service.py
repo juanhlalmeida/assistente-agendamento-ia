@@ -1200,8 +1200,13 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         if is_new_chat:
             logging.info(f"🆕 Iniciando nova conversa com {cliente_whatsapp}. Aplicando Protocolo de Boas-Vindas.")
 
-            # 1. Define a mensagem de boas-vindas padrão (Gentil e Profissional)
-            msg_boas_vindas = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui em cima! 👆💖\n\nQual desses serviços você gostaria de agendar? 😊"
+            # 1. Mensagem Gentil, Padronizada e com a direção correta (ABAIXO)
+            msg_boas_vindas = (
+                f"Olá! Seja muito bem-vinda ao *{barbearia.nome_fantasia}*! ✨\n\n"
+                f"É um prazer receber você por aqui. Para facilitar, estou enviando logo abaixo "
+                f"nossa tabela completa de serviços e valores atualizados. 💖\n\n"
+                f"Qual desses procedimentos você gostaria de agendar hoje? 😊"
+            )
 
             try:
                 from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
@@ -1257,7 +1262,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         if eh_inicio_conversa:
             
             # Mensagem gentil padrão para TODOS os casos
-            msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui em cima! 👆💖\n\nQual desses serviços você gostaria de agendar? 😊"
+            msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui abaixo! 👇💖\n\nQual desses serviços você gostaria de agendar? 😊"
             
             # ATUALIZA O HISTÓRICO MANUALMENTE
             # Verifica se o último item é um objeto Content e tem role 'model'
