@@ -1219,43 +1219,50 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         chat_session = model.start_chat(history=history_to_load)
 
         # =========================================================================
-        # 👇 ATUALIZAÇÃO: GATILHOS DE AGENDAMENTO E SAUDAÇÃO 👇
+        # 👇 ATUALIZAÇÃO FINAL: ENVIO DE TABELA FORÇADO NO PRIMEIRO CONTATO 👇
         # =========================================================================
         
-        gatilhos_boas_vindas = [
-            'oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'opa', 
-            'oie', 'oiee', 'hey', 'eai', 'quero agendar', 'agendar', 'marcar', 'vaga'
-        ]
-        msg_user_limpa = user_message.lower().strip()
+        # Se for um novo chat (apenas system prompt e saudação inicial da IA no histórico),
+        # assumimos que é o primeiro contato real do cliente.
+        # Não importa se ele disse "oi", "preço" ou "agendar", vamos mandar a tabela.
         
-        eh_primeiro_contato = any(msg_user_limpa.startswith(g) for g in gatilhos_boas_vindas)
+        # A IA já inicia com 2 mensagens no histórico (System + Oi da IA).
+        # Se só tiver isso, é o começo.
+        eh_inicio_conversa = len(history_to_load) <= 2
 
-        if is_new_chat and eh_primeiro_contato:
+        if eh_inicio_conversa:
             
+            # Mensagem gentil padrão para TODOS os casos
             msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui em cima! 👆💖\n\nQual desses serviços você gostaria de agendar? 😊"
             
-            # Agora podemos dar append com segurança, pois history_to_load já é lista de Content
-            # Removemos a última mensagem padrão ("Olá! Bem-vindo...") e colocamos a personalizada
-            if len(history_to_load) > 1:
-                history_to_load.pop() 
+            # ATUALIZA O HISTÓRICO MANUALMENTE
+            # Removemos a saudação genérica anterior ("Olá! Bem-vindo...") se ela for a última
+            if len(history_to_load) > 1 and history_to_load[-1].role == 'model':
+                history_to_load.pop()
                 
             history_to_load.append(Content(role='model', parts=[protos.Part(text=msg_texto)]))
             
-            # Agora serialize_history vai funcionar porque os itens SÃO objetos Content
+            # Salva o novo estado no Redis
             new_serialized_history = serialize_history(history_to_load)
-            
             cache.set(cache_key, new_serialized_history)
-            logging.info(f"✅ Boas-vindas automáticas disparadas para: {msg_user_limpa}")
+            logging.info(f"✅ Boas-vindas automáticas (FORÇADO) para: {user_message}")
 
+            # ENVIA A MENSAGEM E A FOTO
             if barbearia.url_tabela_precos:
                 try:
                     from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
+                    
+                    # 1. Envia Texto
                     enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_texto, barbearia)
+                    
+                    # 2. Envia Foto
                     logging.info(f"📸 Enviando Tabela automática para {cliente_whatsapp}")
                     enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
-                    return "" 
+                    
+                    return "" # Retorna vazio para encerrar aqui
+                    
                 except Exception as e:
-                    logging.error(f"Erro na sequência de boas-vindas: {e}")
+                    logging.error(f"Erro no envio forçado: {e}")
                     return msg_texto
             
             return msg_texto
