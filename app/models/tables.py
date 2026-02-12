@@ -120,6 +120,10 @@ class Profissional(db.Model):
     # Adicionamos a ligação à Barbearia.
     # É 'nullable=False' porque um profissional TEM de pertencer a uma barbearia.
     barbearia_id = db.Column(db.Integer, db.ForeignKey('barbearia.id'), nullable=False)
+
+    # 👇 ADICIONE ESTAS DUAS LINHAS NOVAS 👇
+    tipo = db.Column(db.String(50), default='humano')  # Ex: 'humano' ou 'quarto'
+    capacidade = db.Column(db.Integer, default=1)      # Ex: 1 (cabeleireira) ou 4 (quarto quádruplo)
     
     # A relação 'agendamentos' continua igual
     agendamentos = db.relationship('Agendamento', backref='profissional', lazy=True)
