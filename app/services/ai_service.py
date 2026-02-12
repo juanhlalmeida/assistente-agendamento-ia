@@ -9,6 +9,8 @@ import json
 import google.generativeai as genai
 import re
 import urllib.parse
+# Importa a lógica nova de Hotelaria que criamos
+from app.services.hotel_service import verificar_disponibilidade_hotel, realizar_reserva_quarto
 from app.utils.plugin_loader import carregar_plugin_negocio
 from flask import url_for
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
@@ -1377,10 +1379,16 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             }
             
-            # 🔥 O PULO DO GATO: SE FOR POUSADA, TROCA A FERRAMENTA 🔥
+            # 👇 AQUI ESTÁ A MUDANÇA SEGURA 👇
+            # Se for Pousada, nós trocamos as ferramentas pelas novas!
             if barbearia.business_type == 'pousada':
-                logging.info("🏨 Substituindo tool 'listar_servicos' pela versão POUSADA.")
-                tool_map["listar_servicos"] = listar_servicos_pousada
+                logging.info("🏨 Usando Ferramentas de Hotelaria.")
+                tool_map["calcular_horarios_disponiveis"] = verificar_disponibilidade_hotel
+                tool_map["criar_agendamento"] = realizar_reserva_quarto
+                # Note que usamos os mesmos NOMES de chaves ("criar_agendamento"),
+                # mas apontamos para as FUNÇÕES novas de hotel.
+                # Isso engana a IA para ela achar que está agendando normal,
+                # mas por trás estamos usando a lógica de datas!
 
             if function_name in tool_map:
 
