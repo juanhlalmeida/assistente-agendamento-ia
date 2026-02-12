@@ -946,7 +946,7 @@ tools = Tool(
         criar_agendamento_func,
         cancelar_agendamento_func,
         consultar_agenda_func,
-        bloquear_agenda_func # ✅ Agora definido corretamente antes
+        bloquear_agenda_func, # ✅ Agora definido corretamente antes
         verificar_disponibilidade_hotel,
         realizar_reserva_quarto
     ]
