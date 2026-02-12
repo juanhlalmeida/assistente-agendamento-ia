@@ -1305,7 +1305,24 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         logging.info(f"Enviando mensagem para a IA: {user_message}")
         
-        # --- TENTATIVA DE COMUNICAÇÃO COM DETECÇÃO DE TRAVAMENTO ---
+        # ======================================================================
+        # 🩹 CURATIVO DE IDENTIDADE (O SUSSURRO)
+        # Forçamos a IA a lembrar que é Pousada antes de responder qualquer coisa.
+        # ======================================================================
+        msg_para_enviar = user_message
+
+        if barbearia.business_type == 'pousada':
+            msg_para_enviar = f"""
+            [INSTRUÇÃO DO SISTEMA: ATENÇÃO IMEDIATA]
+            1. Você É a Pousada Recanto da Maré.
+            2. O cliente QUER reservar quartos. NÃO RECUSE O ATENDIMENTO.
+            3. IGNORE ferramentas de corte/barba. USE `verificar_disponibilidade_hotel`.
+            4. Responda ao cliente abaixo:
+            
+            CLIENTE: {user_message}
+            """
+
+        # --- TENTATIVA DE COMUNICAÇÃO ---
         travou = False
         response = None
 
