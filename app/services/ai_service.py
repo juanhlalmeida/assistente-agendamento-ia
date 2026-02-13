@@ -1394,7 +1394,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 "criar_agendamento": criar_agendamento,
                 "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
                 "consultar_agenda_dono": consultar_agenda_dono,
-                "bloquear_agenda_dono": bloquear_agenda_dono
+                "bloquear_agenda_dono": bloquear_agenda_dono,
                 "verificar_disponibilidade_hotel": verificar_disponibilidade_hotel,
                 "realizar_reserva_quarto": realizar_reserva_quarto
 
