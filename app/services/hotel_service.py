@@ -18,7 +18,7 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
     try:
         # 1. Define Horários Padrão (Check-in 12:00 / Check-out 11:00 do último dia)
         dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0, second=0)
-        dt_saida = dt_entrada + timedelta(days=qtd_dias)
+        dt_saida = dt_entrada + timedelta(days=float(qtd_dias))
         # Ajuste fino: Check-out geralmente é um pouco antes do Check-in para limpeza
         dt_saida = dt_saida.replace(hour=11, minute=0, second=0)
 
@@ -26,7 +26,7 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
         quartos_candidatos = Profissional.query.filter(
             Profissional.barbearia_id == barbearia_id,
             Profissional.tipo == 'quarto',
-            Profissional.capacidade >= int(qtd_pessoas)
+            Profissional.capacidade >= int(float(qtd_pessoas))
         ).all()
         
         disponiveis = []
@@ -69,26 +69,34 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
     Cria a reserva no banco com a duração correta em minutos.
     """
     try:
-        # 1. Busca o Quarto (Pelo nome e ID da loja)
+        qtd_dias_float = float(qtd_dias)
+
+        # 🚨 1. TRAVA DE REGRA DE NEGÓCIO (MÍNIMO DE DIAS) 🚨
+        if qtd_dias_float < 1.5:
+            return "A Pousada Recanto da Maré exige um mínimo de 1 diária e meia (por favor, informe 2 dias ou mais para prosseguir com a reserva)."
+
+        # 2. Busca o Quarto (Pelo nome e ID da loja)
         quarto = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=quarto_nome).first()
         if not quarto:
-            return "Erro: Quarto não encontrado."
+            return "Erro: Quarto não encontrado no sistema. Por favor, escolha um da lista disponível."
 
-        # 2. Define datas
+        # 3. Define datas
         dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0)
         
-        # 3. Define Duração Total em Minutos para bloquear a agenda
-        # Ex: 2 diárias = 2 * 24h * 60min = 2880 min (menos 1h de limpeza por dia se quiser, mas vamos simplificar)
-        duracao_total_minutos = qtd_dias * 1440 # 1440 = 24h
+        # 4. Define Duração Total em Minutos para bloquear a agenda no painel
+        # Ex: 2 diárias = 2 * 24h * 60min = 2880 min
+        duracao_total_minutos = int(qtd_dias_float * 1440)
         
-        # 4. Busca ou Cria um Serviço "Reserva Hotel" para registrar
-        servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome="Reserva Hospedagem").first()
+        # 5. Busca ou Cria um Serviço ESPECÍFICO para essa duração (Garante que apareça no Painel)
+        nome_servico = f"Reserva Hospedagem ({int(qtd_dias_float)} dias)"
+        servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome=nome_servico).first()
+        
         if not servico:
-            servico = Servico(nome="Reserva Hospedagem", preco=0.0, duracao=1440, barbearia_id=barbearia_id)
+            servico = Servico(nome=nome_servico, preco=0.0, duracao=duracao_total_minutos, barbearia_id=barbearia_id)
             db.session.add(servico)
-            db.session.commit()
+            db.session.commit() # Importante salvar para gerar o ID antes de usar no agendamento
 
-        # 5. Cria o Agendamento
+        # 6. Cria o Agendamento vinculando ao Quarto (Profissional) e ao Serviço correto
         nova_reserva = Agendamento(
             nome_cliente=nome_cliente,
             telefone_cliente=telefone,
@@ -97,18 +105,12 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
             servico_id=servico.id,
             barbearia_id=barbearia_id
         )
-        
-        # Hack: Salvamos a duração real no banco se tiver campo observação, 
-        # mas como usamos a duração do serviço para cálculo, idealmente teríamos um serviço dinâmico.
-        # Por enquanto, vamos confiar que o bloqueio de colisão acima funciona independente da duração fixa do serviço,
-        # pois ele calcula baseado na entrada/saída solicitada.
-        # (Para o 'bloqueio visual' funcionar perfeito, precisaríamos criar um serviço com a duração exata dessa reserva, 
-        # mas vamos manter simples por enquanto: O 'verificar_disponibilidade_hotel' é quem manda).
 
         db.session.add(nova_reserva)
         db.session.commit()
         
-        return f"✅ Reserva confirmada no {quarto.nome} para dia {data_entrada_str} ({qtd_dias} diárias)!"
+        return f"✅ Tudo certo! Pré-reserva confirmada no {quarto.nome} para o dia {data_entrada_str} ({int(qtd_dias_float)} diárias)!"
 
     except Exception as e:
-        return f"Erro ao reservar: {e}"
+        logging.error(f"Erro ao reservar: {e}")
+        return f"Desculpe, ocorreu um erro ao registrar a reserva no sistema: {e}"
