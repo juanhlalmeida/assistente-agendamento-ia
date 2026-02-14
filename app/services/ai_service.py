@@ -2,6 +2,7 @@
 # (CÓDIGO COMPLETO E OTIMIZADO - VERSÃO SENIOR COM CONTEXTO DE SERVIÇO)
 # ✅ IMPLEMENTAÇÃO DO DETECTOR DE GHOST CALL (Baseado em Paper Acadêmico 2026)
 # ✅ AJUSTADO: CORREÇÃO DE ORDEM DE DECLARAÇÃO E DETECÇÃO DE BLOQUEIO
+# ✅ CORREÇÃO: Removida substituição de ferramentas para pousada (assinaturas incompatíveis)
 
 import os
 import logging
@@ -1414,16 +1415,12 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             }
             
-            # 👇 AQUI ESTÁ A MUDANÇA SEGURA 👇
-            # Se for Pousada, nós trocamos as ferramentas pelas novas!
-            if barbearia.business_type == 'pousada':
-                logging.info("🏨 Usando Ferramentas de Hotelaria.")
-                tool_map["calcular_horarios_disponiveis"] = verificar_disponibilidade_hotel
-                tool_map["criar_agendamento"] = realizar_reserva_quarto
-                # Note que usamos os mesmos NOMES de chaves ("criar_agendamento"),
-                # mas apontamos para as FUNÇÕES novas de hotel.
-                # Isso engana a IA para ela achar que está agendando normal,
-                # mas por trás estamos usando a lógica de datas!
+            # ⚠️ CORREÇÃO: Removida a substituição perigosa de ferramentas para pousada.
+            # A IA agora deve ser instruída via prompt a usar as ferramentas corretas.
+            # if barbearia.business_type == 'pousada':
+            #     logging.info("🏨 Usando Ferramentas de Hotelaria.")
+            #     tool_map["calcular_horarios_disponiveis"] = verificar_disponibilidade_hotel
+            #     tool_map["criar_agendamento"] = realizar_reserva_quarto
 
             if function_name in tool_map:
 
