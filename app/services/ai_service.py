@@ -1254,56 +1254,70 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         chat_session = model.start_chat(history=history_to_load)
 
-        # =========================================================================
-        # 👇 ATUALIZAÇÃO FINAL: ENVIO DE TABELA FORÇADO NO PRIMEIRO CONTATO 👇
-        # =========================================================================
-        
-        # Se for um novo chat (apenas system prompt e saudação inicial da IA no histórico),
-        # assumimos que é o primeiro contato real do cliente.
-        # Não importa se ele disse "oi", "preço" ou "agendar", vamos mandar a tabela.
-        
-        eh_inicio_conversa = len(history_to_load) <= 2
+# 👇 BLOCO DE BOAS-VINDAS INTELIGENTE (APENAS PARA POUSADA) 👇
+if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'tudo bem']:
+    if barbearia.business_type == 'pousada':
+        logging.info(f"🆕 Iniciando nova conversa com {cliente_whatsapp}. Aplicando Protocolo de Pousada.")
+        mensagem_boas_vindas = (
+            "Olá! Bem-vindo(a) à Pousada Recanto da Maré! 🌊⛱️🌴\n\n"
+            "Sou sua assistente virtual. Para verificar a disponibilidade, por favor me informe:\n"
+            "1. A **data de entrada** desejada.\n"
+            "2. A **quantidade de dias**.\n"
+            "3. Quantas **pessoas** virão?"
+        )
+        # Adiciona a mensagem ao histórico (mesmo padrão usado no bloco da tabela)
+        if len(history_to_load) > 1 and getattr(history_to_load[-1], 'role', '') == 'model':
+            history_to_load.pop()
+        history_to_load.append(Content(role='model', parts=[protos.Part(text=mensagem_boas_vindas)]))
+        new_serialized_history = serialize_history(history_to_load)
+        cache.set(cache_key, new_serialized_history)
+        return mensagem_boas_vindas
+    # Para outros tipos de negócio (barbearia, salão, etc.) não fazemos nada especial aqui,
+    # apenas deixamos o fluxo seguir para o bloco de tabela forçada.
 
-        if eh_inicio_conversa:
+# =========================================================================
+# 👇 ATUALIZAÇÃO FINAL: ENVIO DE TABELA FORÇADO NO PRIMEIRO CONTATO (APENAS PARA NÃO‑POUSADA) 👇
+# =========================================================================
+
+# Só entra nessa lógica de tabela forçada SE NÃO FOR POUSADA
+if barbearia.business_type != 'pousada':
+    eh_inicio_conversa = len(history_to_load) <= 2
+
+    if eh_inicio_conversa:
+        # Mensagem gentil padrão para TODOS os casos (Barbearia/Lash)
+        msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui abaixo! 👇💖\n\nQual desses serviços você gostaria de agendar? 😊"
+        
+        # ATUALIZA O HISTÓRICO MANUALMENTE
+        if len(history_to_load) > 1 and getattr(history_to_load[-1], 'role', '') == 'model':
+            history_to_load.pop()
             
-            # Mensagem gentil padrão para TODOS os casos
-            msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui abaixo! 👇💖\n\nQual desses serviços você gostaria de agendar? 😊"
-            
-            # ATUALIZA O HISTÓRICO MANUALMENTE
-            # Verifica se o último item é um objeto Content e tem role 'model'
-            # (Agora vai funcionar porque inicializamos history_to_load corretamente acima)
-            if len(history_to_load) > 1 and getattr(history_to_load[-1], 'role', '') == 'model':
-                history_to_load.pop()
+        history_to_load.append(Content(role='model', parts=[protos.Part(text=msg_texto)]))
+        
+        new_serialized_history = serialize_history(history_to_load)
+        cache.set(cache_key, new_serialized_history)
+        logging.info(f"✅ Boas-vindas automáticas (FORÇADO) para: {user_message}")
+
+        # ENVIA A MENSAGEM E A FOTO
+        if barbearia.url_tabela_precos:
+            try:
+                from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
                 
-            history_to_load.append(Content(role='model', parts=[protos.Part(text=msg_texto)]))
-            
-            # Salva o novo estado no Redis
-            # serialize_history espera uma lista de Content, que agora está correta
-            new_serialized_history = serialize_history(history_to_load)
-            cache.set(cache_key, new_serialized_history)
-            logging.info(f"✅ Boas-vindas automáticas (FORÇADO) para: {user_message}")
+                # 1. Envia Texto
+                enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_texto, barbearia)
+                
+                # 2. Envia Foto
+                logging.info(f"📸 Enviando Tabela automática para {cliente_whatsapp}")
+                enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                
+                return "" # Retorna vazio para encerrar aqui
+                
+            except Exception as e:
+                logging.error(f"Erro no envio forçado: {e}")
+                return msg_texto
+        
+        return msg_texto
 
-            # ENVIA A MENSAGEM E A FOTO
-            if barbearia.url_tabela_precos:
-                try:
-                    from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
-                    
-                    # 1. Envia Texto
-                    enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_texto, barbearia)
-                    
-                    # 2. Envia Foto
-                    logging.info(f"📸 Enviando Tabela automática para {cliente_whatsapp}")
-                    enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
-                    
-                    return "" # Retorna vazio para encerrar aqui
-                    
-                except Exception as e:
-                    logging.error(f"Erro no envio forçado: {e}")
-                    return msg_texto
-            
-            return msg_texto
-
-        logging.info(f"Enviando mensagem para a IA: {user_message}")
+logging.info(f"Enviando mensagem para a IA: {user_message}")
         
         # ======================================================================
         # 🩹 CURATIVO DE IDENTIDADE (O SUSSURRO)
