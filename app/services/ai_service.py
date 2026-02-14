@@ -1195,63 +1195,63 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         is_new_chat = not history_to_load
 
+         # ==============================================================================
+        # 🛡️ INTERCEPTADOR DE PRIMEIRO CONTATO (AGORA UNIFICADO PARA POUSADA E DEMAIS)
         # ==============================================================================
-        # 🛡️ INTERCEPTADOR DE PRIMEIRO CONTATO (SOLUÇÃO PROFISSIONAL ANTI-LOOP)
-        # ==============================================================================
-        # Se for um novo chat, nós NÃO chamamos a IA agora.
-        # Nós enviamos as boas-vindas + foto manualmente, salvamos o estado e encerramos.
-        # Isso garante que a foto chegue 100% das vezes e evita loops.
-        
         if is_new_chat:
-            logging.info(f"🆕 Iniciando nova conversa com {cliente_whatsapp}. Aplicando Protocolo de Boas-Vindas.")
+            logging.info(f"🆕 Iniciando nova conversa com {cliente_whatsapp}.")
 
-            # 1. Mensagem Gentil, Padronizada e com a direção correta (ABAIXO)
-            msg_boas_vindas = (
-                f"Olá! Seja muito bem-vinda ao *{barbearia.nome_fantasia}*! ✨\n\n"
-                f"É um prazer receber você por aqui. Para facilitar, estou enviando logo abaixo "
-                f"nossa tabela completa de serviços e valores atualizados. 💖\n\n"
-                f"Qual desses procedimentos você gostaria de agendar hoje? 😊"
-            )
+            if barbearia.business_type == 'pousada':
+                # ----- POUSADA: mensagem personalizada (SEM TABELA) -----
+                msg_boas_vindas = (
+                    "Olá! Bem-vindo(a) à Pousada Recanto da Maré! 🌊⛱️🌴\n\n"
+                    "Sou sua assistente virtual. Para verificar a disponibilidade, por favor me informe:\n"
+                    "1. A **data de entrada** desejada.\n"
+                    "2. A **quantidade de dias**.\n"
+                    "3. Quantas **pessoas** virão?"
+                )
+                # Apenas envia o texto (sem foto)
+                try:
+                    from app.routes import enviar_mensagem_whatsapp_meta
+                    enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_boas_vindas, barbearia)
+                except Exception as e:
+                    logging.error(f"Erro ao enviar boas-vindas pousada: {e}")
 
-            try:
-                from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
-                
-                # 2. Envia TEXTO
-                enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_boas_vindas, barbearia)
-                
-                # 3. Envia FOTO (Se houver)
-                if barbearia.url_tabela_precos:
-                    logging.info(f"📸 Enviando Tabela de Preços inicial para {cliente_whatsapp}")
-                    enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+            else:
+                # ----- BARBEARIA / LASH / OUTROS: mensagem com tabela e foto -----
+                msg_boas_vindas = (
+                    f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\n"
+                    f"Para facilitar, estou enviando logo abaixo nossa tabela completa de serviços e valores atualizados. 💖\n\n"
+                    f"Qual desses procedimentos você gostaria de agendar hoje? 😊"
+                )
+                try:
+                    from app.routes import enviar_mensagem_whatsapp_meta, enviar_midia_whatsapp_meta
+                    enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_boas_vindas, barbearia)
+                    if barbearia.url_tabela_precos:
+                        logging.info(f"📸 Enviando Tabela de Preços inicial para {cliente_whatsapp}")
+                        enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                except Exception as e:
+                    logging.error(f"Erro ao enviar boas-vindas com tabela: {e}")
 
-            except Exception as e:
-                logging.error(f"Erro ao enviar boas-vindas manuais: {e}")
-                # Segue o baile se der erro no envio, para não travar o salvamento do histórico
-
-            # 4. 💾 CONSTRUÇÃO MANUAL DO HISTÓRICO (O SEGREDO PARA NÃO DAR LOOP)
-            # Precisamos salvar: [Instrução do Sistema] + [O que o cliente disse] + [O que respondemos]
-            
+            # 💾 CONSTRUÇÃO MANUAL DO HISTÓRICO (para ambos os casos)
             history_manual = [
-                # Turno 1: Instrução do Sistema (User) -> OK (Model)
                 Content(role='user', parts=[protos.Part(text=system_prompt)]),
                 Content(role='model', parts=[protos.Part(text="Entendido. Vou agir conforme suas instruções.")]),
-                
-                # Turno 2: O que o cliente acabou de mandar (User) -> Nossa resposta de boas-vindas (Model)
-                Content(role='user', parts=[protos.Part(text=user_message)]), 
+                Content(role='user', parts=[protos.Part(text=user_message)]),
                 Content(role='model', parts=[protos.Part(text=msg_boas_vindas)])
             ]
-            
-            # 5. Salva no Redis e RETORNA VAZIO (Fim da execução deste turno)
+
             new_serialized_history = serialize_history(history_manual)
             cache.set(cache_key, new_serialized_history)
             logging.info(f"✅ Histórico inicial criado e salvo manualmente. Loop evitado.")
-            
-            return "" # Retorna vazio para a rota principal não enviar nada duplicado.
+
+            return ""  # Retorna vazio para a rota principal não enviar nada duplicado
 
         # ==============================================================================
-        # FIM DO INTERCEPTADOR - Se não for new_chat, vida normal abaixo:
+        # FIM DO INTERCEPTADOR - Se não for new_chat, segue o fluxo normal abaixo
         # ==============================================================================
 
+    
         chat_session = model.start_chat(history=history_to_load)
 
         # 👇 BLOCO DE BOAS-VINDAS INTELIGENTE (APENAS PARA POUSADA) 👇
