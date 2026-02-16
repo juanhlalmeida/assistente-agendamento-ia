@@ -2,7 +2,7 @@
 # (CÓDIGO COMPLETO E OTIMIZADO - VERSÃO SENIOR COM CONTEXTO DE SERVIÇO)
 # ✅ IMPLEMENTAÇÃO DO DETECTOR DE GHOST CALL (Baseado em Paper Acadêmico 2026)
 # ✅ AJUSTADO: CORREÇÃO DE ORDEM DE DECLARAÇÃO E DETECÇÃO DE BLOQUEIO
-# ✅ CORREÇÃO: Removida substituição de ferramentas para pousada (assinaturas incompatíveis)
+# ✅ CORREÇÃO: Declaração correta das ferramentas de hotelaria e remoção de redundâncias
 
 import os
 import logging
@@ -923,7 +923,6 @@ consultar_agenda_func = FunctionDeclaration(
     }
 )
 
-# --- ✅ MOVIDO: DEFINIÇÃO DE BLOQUEIO ANTES DA LISTA TOOLS ---
 bloquear_agenda_func = FunctionDeclaration(
     name="bloquear_agenda_dono",
     description="Bloqueia um período da agenda (ex: médico, folga). Use APENAS se o dono pedir para fechar/bloquear a agenda.",
@@ -939,6 +938,42 @@ bloquear_agenda_func = FunctionDeclaration(
     }
 )
 
+# ============================================================
+# ✅ DECLARAÇÃO CORRETA DAS FERRAMENTAS DE HOTELARIA
+# ============================================================
+verificar_disponibilidade_hotel_func = FunctionDeclaration(
+    name="verificar_disponibilidade_hotel",
+    description="Consulta a disponibilidade de quartos livres para a quantidade de dias e pessoas.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "data_entrada_str": {"type": "string", "description": "Data de check-in no formato YYYY-MM-DD"},
+            "qtd_dias": {"type": "number", "description": "Quantidade de diárias desejadas"},
+            "qtd_pessoas": {"type": "number", "description": "Quantidade de pessoas na reserva"}
+        },
+        "required": ["data_entrada_str", "qtd_dias", "qtd_pessoas"]
+    }
+)
+
+realizar_reserva_quarto_func = FunctionDeclaration(
+    name="realizar_reserva_quarto",
+    description="Realiza a pré-reserva de um quarto de hotel/pousada.",
+    parameters={
+        "type": "object",
+        "properties": {
+            "nome_cliente": {"type": "string", "description": "Nome completo do cliente"},
+            "telefone": {"type": "string", "description": "Telefone do cliente (preencha com '0000' ou ignore)"},
+            "quarto_nome": {"type": "string", "description": "Nome exato do quarto, conforme retornado pela disponibilidade"},
+            "data_entrada_str": {"type": "string", "description": "Data de check-in no formato YYYY-MM-DD"},
+            "qtd_dias": {"type": "number", "description": "Quantidade de diárias"}
+        },
+        "required": ["nome_cliente", "quarto_nome", "data_entrada_str", "qtd_dias"]
+    }
+)
+
+# ============================================================
+# ✅ LISTA CORRETA DE TOOLS (AGORA COM AS DECLARAÇÕES)
+# ============================================================
 tools = Tool(
     function_declarations=[
         listar_profissionais_func,
@@ -947,9 +982,9 @@ tools = Tool(
         criar_agendamento_func,
         cancelar_agendamento_func,
         consultar_agenda_func,
-        bloquear_agenda_func, # ✅ Agora definido corretamente antes
-        verificar_disponibilidade_hotel,
-        realizar_reserva_quarto
+        bloquear_agenda_func,
+        verificar_disponibilidade_hotel_func,
+        realizar_reserva_quarto_func
     ]
 )
 
@@ -1196,8 +1231,8 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         is_new_chat = not history_to_load
 
-         # ==============================================================================
-        # 🛡️ INTERCEPTADOR DE PRIMEIRO CONTATO (AGORA UNIFICADO PARA POUSADA E DEMAIS)
+        # ==============================================================================
+        # 🛡️ INTERCEPTADOR DE PRIMEIRO CONTATO (UNIFICADO PARA POUSADA E DEMAIS)
         # ==============================================================================
         if is_new_chat:
             logging.info(f"🆕 Iniciando nova conversa com {cliente_whatsapp}.")
@@ -1244,7 +1279,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             new_serialized_history = serialize_history(history_manual)
             cache.set(cache_key, new_serialized_history)
-            logging.info(f"✅ Histórico inicial criado e salvo manualmente. Loop evitado.")
+            logging.info(f"✅ Histórico inicial criado e salvo manualmente. Loop evitado. Tamanho: {len(new_serialized_history)} chars")
 
             return ""  # Retorna vazio para a rota principal não enviar nada duplicado
 
@@ -1252,29 +1287,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # FIM DO INTERCEPTADOR - Se não for new_chat, segue o fluxo normal abaixo
         # ==============================================================================
 
-    
         chat_session = model.start_chat(history=history_to_load)
-
-        # 👇 BLOCO DE BOAS-VINDAS INTELIGENTE (APENAS PARA POUSADA) 👇
-        # Este bloco agora está devidamente indentado dentro do try
-        if is_new_chat and user_message.lower().strip() in ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite', 'tudo bem']:
-            if barbearia.business_type == 'pousada':
-                logging.info(f"🆕 Iniciando nova conversa com {cliente_whatsapp}. Aplicando Protocolo de Pousada.")
-                mensagem_boas_vindas = (
-                    "Olá! Bem-vindo(a) à Pousada Recanto da Maré! 🌊⛱️🌴\n\n"
-                    "Sou sua assistente virtual. Para verificar a disponibilidade, por favor me informe:\n"
-                    "1. A **data de entrada** desejada.\n"
-                    "2. A **quantidade de dias**.\n"
-                    "3. Quantas **pessoas** virão?"
-                )
-                # Adiciona a mensagem ao histórico
-                if len(history_to_load) > 1 and getattr(history_to_load[-1], 'role', '') == 'model':
-                    history_to_load.pop()
-                history_to_load.append(Content(role='model', parts=[protos.Part(text=mensagem_boas_vindas)]))
-                new_serialized_history = serialize_history(history_to_load)
-                cache.set(cache_key, new_serialized_history)
-                return mensagem_boas_vindas
-            # Para outros tipos de negócio, não fazemos nada especial aqui, apenas seguimos
 
         # =========================================================================
         # 👇 ATUALIZAÇÃO FINAL: ENVIO DE TABELA FORÇADO NO PRIMEIRO CONTATO (APENAS PARA NÃO‑POUSADA) 👇
@@ -1340,9 +1353,10 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # --- TENTATIVA DE COMUNICAÇÃO ---
         travou = False
         response = None
+        erro_malformed = False
 
         try:
-            response = chat_session.send_message(user_message)
+            response = chat_session.send_message(msg_para_enviar)
             
             # Verifica se a IA respondeu VAZIO (O problema do Output 0 - Bloqueio de Segurança)
             if not response.candidates or not response.candidates[0].content.parts:
@@ -1352,17 +1366,18 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         except generation_types.StopCandidateException as e:
             logging.error(f"Erro Malformed Call: {e}")
             travou = True
+            erro_malformed = True
         except Exception as e:
             logging.error(f"Erro ao enviar mensagem para a IA: {e}")
             travou = True
 
         # ======================================================================
-        # 🚨 MODO RESGATE INTELIGENTE (SEM APAGAR A MEMÓRIA)
-        # Se a IA travar, o Python assume e entrega o que o cliente quer.
+        # 🚨 MODO RESGATE INTELIGENTE (AGORA COM ATUALIZAÇÃO DO HISTÓRICO)
         # ======================================================================
         if travou:
             # NÃO DELETAMOS O CACHE AQUI! (Isso corrige o problema da "Amnésia")
             msg_lower = user_message.lower()
+            resposta_resgate = ""
 
             # CASO 1: Cliente pediu PREÇO, VALOR, TABELA
             if any(x in msg_lower for x in ['preço', 'preco', 'valor', 'quanto', 'tabela', 'custo']):
@@ -1371,25 +1386,35 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 if barbearia.url_tabela_precos:
                     from app.routes import enviar_midia_whatsapp_meta
                     enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
-                    return "Enviei nossa tabela abaixo! 👇 Se já souber o que quer, é só me falar o serviço e horário."
-                
-                lista = listar_servicos(barbearia_id)
-                return f"Aqui estão nossos valores: 👇\n\n{lista}\n\nQual deles você prefere?"
+                    resposta_resgate = "Enviei nossa tabela abaixo! 👇 Se já souber o que quer, é só me falar o serviço e horário."
+                else:
+                    lista = listar_servicos(barbearia_id)
+                    resposta_resgate = f"Aqui estão nossos valores: 👇\n\n{lista}\n\nQual deles você prefere?"
 
             # CASO 2: Cliente pediu SERVIÇOS, OPÇÕES, QUAIS, LISTA
             elif any(x in msg_lower for x in ['serviço', 'servico', 'opções', 'opcoes', 'quais', 'lista', 'fazem', 'trabalham']):
                 logging.info("🚨 RESGATE ATIVADO: Enviando lista de serviços.")
                 lista = listar_servicos(barbearia_id)
-                return f"Temos estas opções maravilhosas! ✨\n\n{lista}\n\nGostaria de agendar algum?"
+                resposta_resgate = f"Temos estas opções maravilhosas! ✨\n\n{lista}\n\nGostaria de agendar algum?"
 
             # CASO 3: Agendamento (Hora/Data) - CRUCIAL PARA NÃO DAR ERRO
             elif any(x in msg_lower for x in ['agendar', 'marcar', 'horário', 'dia', 'amanhã', 'hoje', 'as ', 'às ']):
                 # Resposta que mantém o fluxo sem perder a paciência do cliente
-                return "Entendi! ✨ Tive uma pequena oscilação no sistema, mas já anotei o horário. Para eu confirmar de vez: **Qual é o serviço exato e seu nome completo?**"
+                resposta_resgate = "Entendi! ✨ Tive uma pequena oscilação no sistema, mas já anotei o horário. Para eu confirmar de vez: **Qual é o serviço exato e seu nome completo?**"
 
             # CASO 4: Genérico
             else:
-                return "Oiê! ✨ O sinal oscilou um pouquinho aqui. Pode repetir a última parte? Quero garantir que entendi certinho para agendar pra você!"
+                resposta_resgate = "Oiê! ✨ O sinal oscilou um pouquinho aqui. Pode repetir a última parte? Quero garantir que entendi certinho para agendar pra você!"
+
+            # 💾 ATUALIZA O HISTÓRICO MANUALMENTE PARA NÃO PERDER O CONTEXTO
+            # Adiciona a mensagem do usuário e a resposta de resgate ao histórico existente
+            history_to_load.append(Content(role='user', parts=[protos.Part(text=user_message)]))
+            history_to_load.append(Content(role='model', parts=[protos.Part(text=resposta_resgate)]))
+            new_serialized_history = serialize_history(history_to_load)
+            cache.set(cache_key, new_serialized_history)
+            logging.info(f"✅ Histórico atualizado com resgate para {cliente_whatsapp}")
+
+            return resposta_resgate
 
         # --- SE NÃO TRAVOU, SEGUE O FLUXO NORMAL DA IA ---
 
@@ -1415,8 +1440,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             }
             
-            # ⚠️ CORREÇÃO: Removida a substituição perigosa de ferramentas para pousada.
-            # A IA agora deve ser instruída via prompt a usar as ferramentas corretas.
+            # ⚠️ NÃO substituímos ferramentas para pousada (a IA deve chamar as corretas via prompt)
             # if barbearia.business_type == 'pousada':
             #     logging.info("🏨 Usando Ferramentas de Hotelaria.")
             #     tool_map["calcular_horarios_disponiveis"] = verificar_disponibilidade_hotel
