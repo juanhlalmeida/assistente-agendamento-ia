@@ -3,6 +3,7 @@
 # ✅ IMPLEMENTAÇÃO DO DETECTOR DE GHOST CALL (Baseado em Paper Acadêmico 2026)
 # ✅ AJUSTADO: CORREÇÃO DE ORDEM DE DECLARAÇÃO E DETECÇÃO DE BLOQUEIO
 # ✅ CORREÇÃO: Declaração correta das ferramentas de hotelaria e remoção de redundâncias
+# ✅ CORREÇÃO: Adicionado telefone automaticamente na chamada de realizar_reserva_quarto
 
 import os
 import logging
@@ -1453,8 +1454,9 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 kwargs['barbearia_id'] = barbearia_id
 
                 if function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
-
                     kwargs['telefone_cliente'] = cliente_whatsapp
+                elif function_name == 'realizar_reserva_quarto':
+                    kwargs['telefone'] = cliente_whatsapp
 
                 tool_response = function_to_call(**kwargs)
 
