@@ -963,12 +963,12 @@ realizar_reserva_quarto_func = FunctionDeclaration(
         "type": "object",
         "properties": {
             "nome_cliente": {"type": "string", "description": "Nome completo do cliente"},
-            "telefone": {"type": "string", "description": "Telefone do cliente (preencha com '0000' ou ignore)"},
             "quarto_nome": {"type": "string", "description": "Nome exato do quarto, conforme retornado pela disponibilidade"},
             "data_entrada_str": {"type": "string", "description": "Data de check-in no formato YYYY-MM-DD"},
-            "qtd_dias": {"type": "number", "description": "Quantidade de diárias"}
+            "qtd_dias": {"type": "number", "description": "Quantidade de diárias"},
+            "qtd_pessoas": {"type": "number", "description": "Quantidade de hóspedes na reserva"} # NOVO
         },
-        "required": ["nome_cliente", "quarto_nome", "data_entrada_str", "qtd_dias"]
+        "required": ["nome_cliente", "quarto_nome", "data_entrada_str", "qtd_dias", "qtd_pessoas"] # NOVO AQUI TAMBÉM
     }
 )
 
