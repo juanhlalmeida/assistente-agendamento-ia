@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from app.models.tables import Agendamento, Profissional, Servico
+from app.models.tables import Agendamento, Profissional, Servico, Barbearia
 from app.extensions import db
 import logging
 
@@ -16,6 +16,21 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
         Lista de nomes dos quartos disponíveis.
     """
     try:
+        # Carrega a barbearia para obter as regras de negócio
+        barbearia = Barbearia.query.get(barbearia_id)
+        if not barbearia:
+            logging.error(f"Barbearia ID {barbearia_id} não encontrada em verificar_disponibilidade_hotel")
+            return []
+
+        # Validações das regras de negócio da pousada
+        if qtd_pessoas < barbearia.min_pessoas_reserva:
+            logging.info(f"Reserva recusada: número de pessoas ({qtd_pessoas}) abaixo do mínimo ({barbearia.min_pessoas_reserva})")
+            return []  # IA interpretará como nenhum quarto disponível e poderá explicar a regra
+
+        if qtd_dias < barbearia.min_dias_reserva:
+            logging.info(f"Reserva recusada: número de dias ({qtd_dias}) abaixo do mínimo ({barbearia.min_dias_reserva})")
+            return []
+
         # 1. Define Horários Padrão (Check-in 12:00 / Check-out 11:00 do último dia)
         dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0, second=0)
         dt_saida = dt_entrada + timedelta(days=float(qtd_dias))
@@ -69,22 +84,33 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
     Cria a reserva no banco com a duração correta em minutos.
     """
     try:
+        # Carrega a barbearia para obter as regras de negócio
+        barbearia = Barbearia.query.get(barbearia_id)
+        if not barbearia:
+            return "Erro: Estabelecimento não encontrado no sistema."
+
         qtd_dias_float = float(qtd_dias)
 
-        # 🚨 1. TRAVA DE REGRA DE NEGÓCIO (MÍNIMO DE DIAS) 🚨
-        if qtd_dias_float < 1.5:
-            return "A Pousada Recanto da Maré exige um mínimo de 1 diária e meia (por favor, informe 2 dias ou mais para prosseguir com a reserva)."
+        # 🚨 VALIDAÇÕES DE REGRA DE NEGÓCIO (dinâmicas por barbearia) 🚨
+        if qtd_pessoas < barbearia.min_pessoas_reserva:
+            return f"Esta pousada só aceita reservas a partir de {barbearia.min_pessoas_reserva} pessoa(s). Por favor, ajuste a quantidade de hóspedes."
+
+        if qtd_dias_float < barbearia.min_dias_reserva:
+            return f"Esta pousada exige um mínimo de {barbearia.min_dias_reserva} diária(s). Por favor, informe um período maior."
 
         # 2. Busca o Quarto (Pelo nome e ID da loja)
         quarto = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=quarto_nome).first()
         if not quarto:
             return "Erro: Quarto não encontrado no sistema. Por favor, escolha um da lista disponível."
 
+        # Verifica capacidade do quarto (reforço de segurança)
+        if qtd_pessoas > quarto.capacidade:
+            return f"O quarto {quarto.nome} comporta no máximo {quarto.capacidade} pessoas. Por favor, escolha outro quarto."
+
         # 3. Define datas
         dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0)
         
         # 4. Define Duração Total em Minutos para bloquear a agenda no painel
-        # Ex: 2 diárias = 2 * 24h * 60min = 2880 min
         duracao_total_minutos = int(qtd_dias_float * 1440)
         
         # 5. Busca ou Cria um Serviço ESPECÍFICO para essa duração (Garante que apareça no Painel)
