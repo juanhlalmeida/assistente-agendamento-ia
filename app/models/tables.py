@@ -78,6 +78,10 @@ class Barbearia(db.Model):
     # Os agendamentos da barbearia
     agendamentos = db.relationship('Agendamento', backref='barbearia', lazy=True, cascade="all, delete-orphan")
 
+# Configurações dinâmicas de negócio (Hotelaria)
+    min_pessoas_reserva = db.Column(db.Integer, default=1, nullable=False)
+    min_dias_reserva = db.Column(db.Integer, default=1, nullable=False)
+
 
 # ---------------------------------------------------------------------
 # FASE DE EXPANSÃO: MODELOS ATUALIZADOS (AS "ETIQUETAS")
