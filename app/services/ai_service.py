@@ -958,17 +958,16 @@ verificar_disponibilidade_hotel_func = FunctionDeclaration(
 
 realizar_reserva_quarto_func = FunctionDeclaration(
     name="realizar_reserva_quarto",
-    description="Realiza a pré-reserva de um quarto de hotel/pousada.",
+    description="Realiza a pré-reserva de um quarto de hotel/pousada. O sistema preenche automaticamente o telefone, então não pergunte ao cliente.",
     parameters={
         "type": "object",
         "properties": {
             "nome_cliente": {"type": "string", "description": "Nome completo do cliente"},
             "quarto_nome": {"type": "string", "description": "Nome exato do quarto, conforme retornado pela disponibilidade"},
             "data_entrada_str": {"type": "string", "description": "Data de check-in no formato YYYY-MM-DD"},
-            "qtd_dias": {"type": "number", "description": "Quantidade de diárias"},
-            "qtd_pessoas": {"type": "number", "description": "Quantidade de hóspedes na reserva"} # NOVO
+            "qtd_dias": {"type": "number", "description": "Quantidade de diárias"}
         },
-        "required": ["nome_cliente", "quarto_nome", "data_entrada_str", "qtd_dias", "qtd_pessoas"] # NOVO AQUI TAMBÉM
+        "required": ["nome_cliente", "quarto_nome", "data_entrada_str", "qtd_dias"]
     }
 )
 
