@@ -74,37 +74,22 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
         logging.error(f"Erro na disponibilidade hotel: {e}")
         return "Erro ao processar as datas. Verifique se o formato está correto."
 
-def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, quarto_nome: str, data_entrada_str: str, qtd_dias: float, qtd_pessoas: float, telefone: str = "00000000000") -> str:
+def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str, quarto_nome: str, data_entrada_str: str, qtd_dias: int) -> str:
     """
     Cria a reserva no banco com a duração correta em minutos.
-    AGORA EXIGE qtd_pessoas NA ASSINATURA PARA A IA NÃO TRAVAR!
+    O parâmetro telefone é preenchido automaticamente pelo sistema.
     """
     try:
         qtd_dias_float = float(qtd_dias)
-        qtd_pessoas_int = int(float(qtd_pessoas))
 
-        # Carrega a barbearia para obter as regras de negócio
-        barbearia = Barbearia.query.get(barbearia_id)
-        if not barbearia:
-            return "Erro: Estabelecimento não encontrado no sistema."
-
-        # 🚨 VALIDAÇÕES DE REGRA DE NEGÓCIO FINAIS (O Cofre) 🚨
-        min_pessoas = getattr(barbearia, 'min_pessoas_reserva', 1)
-        if qtd_pessoas_int < min_pessoas:
-            return f"❌ BLOQUEADO: A reserva não foi feita. O mínimo é {min_pessoas} pessoas."
-
-        min_dias = getattr(barbearia, 'min_dias_reserva', 1)
-        if qtd_dias_float < min_dias:
-            return f"❌ BLOQUEADO: A reserva não foi feita. O mínimo é {min_dias} diárias."
+        # 🚨 1. TRAVA DE REGRA DE NEGÓCIO (MÍNIMO DE DIAS) 🚨
+        if qtd_dias_float < 1.5:
+            return "A Pousada Recanto da Maré exige um mínimo de 1 diária e meia (por favor, informe 2 dias ou mais para prosseguir com a reserva)."
 
         # 2. Busca o Quarto (Pelo nome e ID da loja)
         quarto = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=quarto_nome).first()
         if not quarto:
             return "Erro: Quarto não encontrado no sistema. Por favor, escolha um da lista disponível."
-
-        # Verifica capacidade do quarto (reforço de segurança)
-        if qtd_pessoas_int > quarto.capacidade:
-            return f"O quarto {quarto.nome} comporta no máximo {quarto.capacidade} pessoas. Por favor, escolha outro quarto."
 
         # 3. Define datas
         dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0)
@@ -112,18 +97,18 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, quarto_nome: s
         # 4. Define Duração Total em Minutos para bloquear a agenda no painel
         duracao_total_minutos = int(qtd_dias_float * 1440)
         
-        # 5. Busca ou Cria um Serviço ESPECÍFICO para essa duração (Garante que apareça no Painel)
+        # 5. Busca ou Cria um Serviço ESPECÍFICO para essa duração
         nome_servico = f"Reserva Hospedagem ({int(qtd_dias_float)} dias)"
         servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome=nome_servico).first()
         
         if not servico:
             servico = Servico(nome=nome_servico, preco=0.0, duracao=duracao_total_minutos, barbearia_id=barbearia_id)
             db.session.add(servico)
-            db.session.flush() # Flush garante que o servico tenha ID sem commitar tudo ainda
+            db.session.commit()
 
-        # 6. Cria o Agendamento vinculando ao Quarto (Profissional) e ao Serviço correto
+        # 6. Cria o Agendamento
         nova_reserva = Agendamento(
-            nome_cliente=f"{nome_cliente} ({qtd_pessoas_int} pax)", # BÔNUS: Mostra a Qtd de pessoas no seu Painel!
+            nome_cliente=nome_cliente,
             telefone_cliente=telefone,
             data_hora=dt_entrada,
             profissional_id=quarto.id,
@@ -134,9 +119,8 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, quarto_nome: s
         db.session.add(nova_reserva)
         db.session.commit()
         
-        return f"✅ Tudo certo! Pré-reserva confirmada no {quarto.nome} para {nome_cliente} ({int(qtd_dias_float)} diárias)!"
+        return f"✅ Tudo certo! Pré-reserva confirmada no {quarto.nome} para o dia {data_entrada_str} ({int(qtd_dias_float)} diárias)!"
 
     except Exception as e:
-        db.session.rollback()
         logging.error(f"Erro ao reservar: {e}")
         return f"Desculpe, ocorreu um erro ao registrar a reserva no sistema: {e}"
