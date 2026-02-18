@@ -29,12 +29,12 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
         # VALIDAÇÕES RÍGIDAS
         if qtd_pessoas_int < min_pessoas_real:
             logging.warning(f"[TRAVA] Reserva recusada (ID {barbearia_id}): pessoas ({qtd_pessoas_int}) abaixo do mínimo exigido ({min_pessoas_real})")
-            return f"❌ REGRA DA POUSADA: Não aceitamos reservas para {qtd_pessoas_int} pessoa(s). O mínimo exigido é de {min_pessoas_real} pessoas. Avise o cliente educadamente e encerre a tentativa."
+            return f"❌ REGRA: A pousada só aceita no mínimo {min_pessoas_real} pessoas. Avise o cliente com simpatia, NÃO encerre a conversa, e pergunte se ele gostaria de adicionar mais alguém na reserva."
 
         if qtd_dias_float < min_dias_real:
             logging.warning(f"[TRAVA] Reserva recusada (ID {barbearia_id}): dias ({qtd_dias_float}) abaixo do mínimo exigido ({min_dias_real})")
-            return f"❌ REGRA DA POUSADA: O mínimo de estadia exigido é de {min_dias_real} diárias. Avise o cliente educadamente e encerre a tentativa."
-
+            return f"❌ REGRA: A pousada exige um mínimo de {min_dias_real} diárias. Avise o cliente com simpatia, NÃO encerre a conversa, e pergunte se ele gostaria de estender a estadia."
+            
         # 1. Define Horários Padrão (Check-in 12:00 / Check-out 16:00 do último dia) - alinhado com o plugin
         dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0, second=0)
         dt_saida = dt_entrada + timedelta(days=qtd_dias_float)
