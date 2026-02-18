@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from app.models.tables import Agendamento, Profissional, Servico, Barbearia
 from app.extensions import db
 import logging
+import traceback
 
 def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qtd_dias: float, qtd_pessoas: float) -> str:
     """
@@ -16,16 +17,23 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
         if not barbearia:
             return "Erro interno: Estabelecimento não encontrado."
 
-        # 🚨 VALIDAÇÕES DINÂMICAS DO BANCO DE DADOS (A Barreira)
-        min_pessoas = getattr(barbearia, 'min_pessoas_reserva', 1)
-        if qtd_pessoas_int < min_pessoas:
-            logging.info(f"Reserva recusada: pessoas ({qtd_pessoas_int}) abaixo do mínimo ({min_pessoas})")
-            return f"❌ REGRA DA POUSADA: Não aceitamos reservas para {qtd_pessoas_int} pessoa(s). O mínimo exigido é de {min_pessoas} pessoas. Avise o cliente educadamente e encerre a tentativa."
+        # 🚨 TRAVA DUPLA DE SEGURANÇA (HARDCODED FALLBACK PARA A POUSADA ID 8) 🚨
+        if barbearia_id == 8:
+            min_pessoas_real = 2
+            min_dias_real = 2
+        else:
+            # Para outras barbearias/pousadas, usa o banco ou o padrão 1
+            min_pessoas_real = getattr(barbearia, 'min_pessoas_reserva', 1)
+            min_dias_real = getattr(barbearia, 'min_dias_reserva', 1)
 
-        min_dias = getattr(barbearia, 'min_dias_reserva', 1)
-        if qtd_dias_float < min_dias:
-            logging.info(f"Reserva recusada: dias ({qtd_dias_float}) abaixo do mínimo ({min_dias})")
-            return f"❌ REGRA DA POUSADA: O mínimo de estadia exigido é de {min_dias} diárias. Avise o cliente educadamente e encerre a tentativa."
+        # VALIDAÇÕES RÍGIDAS
+        if qtd_pessoas_int < min_pessoas_real:
+            logging.warning(f"[TRAVA] Reserva recusada (ID {barbearia_id}): pessoas ({qtd_pessoas_int}) abaixo do mínimo exigido ({min_pessoas_real})")
+            return f"❌ REGRA DA POUSADA: Não aceitamos reservas para {qtd_pessoas_int} pessoa(s). O mínimo exigido é de {min_pessoas_real} pessoas. Avise o cliente educadamente e encerre a tentativa."
+
+        if qtd_dias_float < min_dias_real:
+            logging.warning(f"[TRAVA] Reserva recusada (ID {barbearia_id}): dias ({qtd_dias_float}) abaixo do mínimo exigido ({min_dias_real})")
+            return f"❌ REGRA DA POUSADA: O mínimo de estadia exigido é de {min_dias_real} diárias. Avise o cliente educadamente e encerre a tentativa."
 
         # 1. Define Horários Padrão (Check-in 12:00 / Check-out 16:00 do último dia) - alinhado com o plugin
         dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0, second=0)
@@ -71,20 +79,27 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
         return f"✅ Quartos disponíveis encontrados: {', '.join(disponiveis)}."
 
     except Exception as e:
-        logging.error(f"Erro na disponibilidade hotel: {e}")
+        logging.error(f"Erro na disponibilidade hotel: {e}\n{traceback.format_exc()}")
         return "Erro ao processar as datas. Verifique se o formato está correto."
 
-def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str, quarto_nome: str, data_entrada_str: str, qtd_dias: int) -> str:
+def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str, quarto_nome: str, data_entrada_str: str, qtd_dias: float, qtd_pessoas: float) -> str:
     """
     Cria a reserva no banco com a duração correta em minutos.
     O parâmetro telefone é preenchido automaticamente pelo sistema.
     """
     try:
         qtd_dias_float = float(qtd_dias)
+        qtd_pessoas_int = int(float(qtd_pessoas)) # Apenas para garantir que seja um inteiro no banco, se necessário
 
-        # 🚨 1. TRAVA DE REGRA DE NEGÓCIO (MÍNIMO DE DIAS) 🚨
-        if qtd_dias_float < 1.5:
-            return "A Pousada Recanto da Maré exige um mínimo de 1 diária e meia (por favor, informe 2 dias ou mais para prosseguir com a reserva)."
+        # 🚨 1. TRAVA DE REGRA DE NEGÓCIO (MÍNIMO DE DIAS E PESSOAS) 🚨
+        if barbearia_id == 8:
+             if qtd_dias_float < 2:
+                  return "A Pousada Recanto da Maré exige um mínimo de 2 diárias. Por favor, ajuste o período para prosseguir."
+             if qtd_pessoas_int < 2:
+                  return "A Pousada Recanto da Maré exige um mínimo de 2 pessoas. Por favor, ajuste a quantidade para prosseguir."
+        else:
+             if qtd_dias_float < 1.5:
+                 return "A Pousada exige um mínimo de 1 diária e meia (por favor, informe 2 dias ou mais para prosseguir com a reserva)."
 
         # 2. Busca o Quarto (Pelo nome e ID da loja)
         quarto = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=quarto_nome).first()
@@ -97,8 +112,8 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
         # 4. Define Duração Total em Minutos para bloquear a agenda no painel
         duracao_total_minutos = int(qtd_dias_float * 1440)
         
-        # 5. Busca ou Cria um Serviço ESPECÍFICO para essa duração
-        nome_servico = f"Reserva Hospedagem ({int(qtd_dias_float)} dias)"
+        # 5. Busca ou Cria um Serviço ESPECÍFICO para essa duração (incluindo as pessoas no nome do serviço)
+        nome_servico = f"Reserva ({int(qtd_dias_float)} dias - {qtd_pessoas_int} pess.)"
         servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome=nome_servico).first()
         
         if not servico:
@@ -119,8 +134,8 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
         db.session.add(nova_reserva)
         db.session.commit()
         
-        return f"✅ Tudo certo! Pré-reserva confirmada no {quarto.nome} para o dia {data_entrada_str} ({int(qtd_dias_float)} diárias)!"
+        return f"✅ Tudo certo! Pré-reserva confirmada no {quarto.nome} para o dia {data_entrada_str} ({int(qtd_dias_float)} diárias para {qtd_pessoas_int} pessoas)!"
 
     except Exception as e:
-        logging.error(f"Erro ao reservar: {e}")
-        return f"Desculpe, ocorreu um erro ao registrar a reserva no sistema: {e}"
+        logging.error(f"Erro ao reservar: {e}\n{traceback.format_exc()}")
+        return f"Desculpe, ocorreu um erro ao registrar a reserva no sistema."
