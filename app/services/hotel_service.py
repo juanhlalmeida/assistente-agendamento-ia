@@ -13,7 +13,7 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
         qtd_pessoas: Quantidade de hóspedes
         
     Returns:
-        Lista de nomes dos quartos disponíveis.
+        Lista de nomes dos quartos disponíveis (ou lista vazia se nenhum disponível ou regras não atendidas).
     """
     try:
         # Carrega a barbearia para obter as regras de negócio
@@ -31,11 +31,10 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
             logging.info(f"Reserva recusada: número de dias ({qtd_dias}) abaixo do mínimo ({barbearia.min_dias_reserva})")
             return []
 
-        # 1. Define Horários Padrão (Check-in 12:00 / Check-out 11:00 do último dia)
+        # 1. Define Horários Padrão (Check-in 12:00 / Check-out 16:00 do último dia) - alinhado com o plugin
         dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0, second=0)
         dt_saida = dt_entrada + timedelta(days=float(qtd_dias))
-        # Ajuste fino: Check-out geralmente é um pouco antes do Check-in para limpeza
-        dt_saida = dt_saida.replace(hour=11, minute=0, second=0)
+        dt_saida = dt_saida.replace(hour=16, minute=0, second=0)  # Check-out 16h
 
         # 2. Busca quartos que comportam a quantidade de pessoas
         quartos_candidatos = Profissional.query.filter(
@@ -61,8 +60,8 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
                 # Calcula início e fim do agendamento existente
                 ag_inicio = ag.data_hora
                 
-                # Se o serviço tem duração (em minutos), usamos ela. Se não, assumimos 23h (1 diária)
-                duracao = ag.servico.duracao if ag.servico else 1380
+                # Se o serviço tem duração (em minutos), usamos ela. Se não, assumimos 24h (1440 min)
+                duracao = ag.servico.duracao if ag.servico else 1440  # Alterado de 1380 para 1440 para manter consistência
                 ag_fim = ag_inicio + timedelta(minutes=duracao)
                 
                 # Teste de colisão de datas
