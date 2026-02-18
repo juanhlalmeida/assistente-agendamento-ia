@@ -3,53 +3,46 @@ from app.models.tables import Agendamento, Profissional, Servico, Barbearia
 from app.extensions import db
 import logging
 
-def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qtd_dias: int, qtd_pessoas: int) -> list:
+def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qtd_dias: float, qtd_pessoas: float) -> str:
     """
-    Verifica disponibilidade real de hotelaria (Colisão de Datas).
-    
-    Args:
-        data_entrada_str: 'YYYY-MM-DD'
-        qtd_dias: Quantas diárias
-        qtd_pessoas: Quantidade de hóspedes
-        
-    Returns:
-        Lista de nomes dos quartos disponíveis (ou lista vazia se nenhum disponível ou regras não atendidas).
+    Verifica disponibilidade real de hotelaria (Colisão de Datas) e retorna STRING formatada para a IA.
     """
     try:
+        qtd_dias_float = float(qtd_dias)
+        qtd_pessoas_int = int(float(qtd_pessoas))
+
         # Carrega a barbearia para obter as regras de negócio
         barbearia = Barbearia.query.get(barbearia_id)
         if not barbearia:
-            logging.error(f"Barbearia ID {barbearia_id} não encontrada em verificar_disponibilidade_hotel")
-            return []
+            return "Erro interno: Estabelecimento não encontrado."
 
-        # Validações das regras de negócio da pousada
-        if qtd_pessoas < barbearia.min_pessoas_reserva:
-            logging.info(f"Reserva recusada: número de pessoas ({qtd_pessoas}) abaixo do mínimo ({barbearia.min_pessoas_reserva})")
-            return []  # IA interpretará como nenhum quarto disponível e poderá explicar a regra
+        # 🚨 VALIDAÇÕES DINÂMICAS DO BANCO DE DADOS (A Barreira)
+        min_pessoas = getattr(barbearia, 'min_pessoas_reserva', 1)
+        if qtd_pessoas_int < min_pessoas:
+            logging.info(f"Reserva recusada: pessoas ({qtd_pessoas_int}) abaixo do mínimo ({min_pessoas})")
+            return f"❌ REGRA DA POUSADA: Não aceitamos reservas para {qtd_pessoas_int} pessoa(s). O mínimo exigido é de {min_pessoas} pessoas. Avise o cliente educadamente e encerre a tentativa."
 
-        if qtd_dias < barbearia.min_dias_reserva:
-            logging.info(f"Reserva recusada: número de dias ({qtd_dias}) abaixo do mínimo ({barbearia.min_dias_reserva})")
-            return []
+        min_dias = getattr(barbearia, 'min_dias_reserva', 1)
+        if qtd_dias_float < min_dias:
+            logging.info(f"Reserva recusada: dias ({qtd_dias_float}) abaixo do mínimo ({min_dias})")
+            return f"❌ REGRA DA POUSADA: O mínimo de estadia exigido é de {min_dias} diárias. Avise o cliente educadamente e encerre a tentativa."
 
         # 1. Define Horários Padrão (Check-in 12:00 / Check-out 16:00 do último dia) - alinhado com o plugin
         dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0, second=0)
-        dt_saida = dt_entrada + timedelta(days=float(qtd_dias))
+        dt_saida = dt_entrada + timedelta(days=qtd_dias_float)
         dt_saida = dt_saida.replace(hour=16, minute=0, second=0)  # Check-out 16h
 
         # 2. Busca quartos que comportam a quantidade de pessoas
         quartos_candidatos = Profissional.query.filter(
             Profissional.barbearia_id == barbearia_id,
             Profissional.tipo == 'quarto',
-            Profissional.capacidade >= int(float(qtd_pessoas))
+            Profissional.capacidade >= qtd_pessoas_int
         ).all()
         
         disponiveis = []
 
         for quarto in quartos_candidatos:
             # 3. Verifica se tem agendamento colidindo nesse período
-            # Lógica de Colisão: (StartA < EndB) and (EndA > StartB)
-            
-            # Busca agendamentos futuros desse quarto
             agendamentos = Agendamento.query.filter(
                 Agendamento.profissional_id == quarto.id,
                 Agendamento.data_hora >= datetime.now().replace(hour=0, minute=0)
@@ -57,14 +50,13 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
             
             ocupado = False
             for ag in agendamentos:
-                # Calcula início e fim do agendamento existente
                 ag_inicio = ag.data_hora
                 
                 # Se o serviço tem duração (em minutos), usamos ela. Se não, assumimos 24h (1440 min)
-                duracao = ag.servico.duracao if ag.servico else 1440  # Alterado de 1380 para 1440 para manter consistência
+                duracao = ag.servico.duracao if ag.servico else 1440
                 ag_fim = ag_inicio + timedelta(minutes=duracao)
                 
-                # Teste de colisão de datas
+                # Teste de colisão de datas: (StartA < EndB) and (EndA > StartB)
                 if dt_entrada < ag_fim and dt_saida > ag_inicio:
                     ocupado = True
                     break  # Já achou um bloqueio, para de procurar
@@ -72,30 +64,38 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
             if not ocupado:
                 disponiveis.append(f"{quarto.nome}")
 
-        return disponiveis
+        if not disponiveis:
+            return f"Infelizmente não temos nenhum quarto disponível que comporte {qtd_pessoas_int} pessoas para estas datas."
+
+        # Retornamos como String para a IA não se perder
+        return f"✅ Quartos disponíveis encontrados: {', '.join(disponiveis)}."
 
     except Exception as e:
         logging.error(f"Erro na disponibilidade hotel: {e}")
-        return []
+        return "Erro ao processar as datas. Verifique se o formato está correto."
 
-def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str, quarto_nome: str, data_entrada_str: str, qtd_dias: int) -> str:
+def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, quarto_nome: str, data_entrada_str: str, qtd_dias: float, qtd_pessoas: float, telefone: str = "00000000000") -> str:
     """
     Cria a reserva no banco com a duração correta em minutos.
+    AGORA EXIGE qtd_pessoas NA ASSINATURA PARA A IA NÃO TRAVAR!
     """
     try:
+        qtd_dias_float = float(qtd_dias)
+        qtd_pessoas_int = int(float(qtd_pessoas))
+
         # Carrega a barbearia para obter as regras de negócio
         barbearia = Barbearia.query.get(barbearia_id)
         if not barbearia:
             return "Erro: Estabelecimento não encontrado no sistema."
 
-        qtd_dias_float = float(qtd_dias)
+        # 🚨 VALIDAÇÕES DE REGRA DE NEGÓCIO FINAIS (O Cofre) 🚨
+        min_pessoas = getattr(barbearia, 'min_pessoas_reserva', 1)
+        if qtd_pessoas_int < min_pessoas:
+            return f"❌ BLOQUEADO: A reserva não foi feita. O mínimo é {min_pessoas} pessoas."
 
-        # 🚨 VALIDAÇÕES DE REGRA DE NEGÓCIO (dinâmicas por barbearia) 🚨
-        if qtd_pessoas < barbearia.min_pessoas_reserva:
-            return f"Esta pousada só aceita reservas a partir de {barbearia.min_pessoas_reserva} pessoa(s). Por favor, ajuste a quantidade de hóspedes."
-
-        if qtd_dias_float < barbearia.min_dias_reserva:
-            return f"Esta pousada exige um mínimo de {barbearia.min_dias_reserva} diária(s). Por favor, informe um período maior."
+        min_dias = getattr(barbearia, 'min_dias_reserva', 1)
+        if qtd_dias_float < min_dias:
+            return f"❌ BLOQUEADO: A reserva não foi feita. O mínimo é {min_dias} diárias."
 
         # 2. Busca o Quarto (Pelo nome e ID da loja)
         quarto = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=quarto_nome).first()
@@ -103,7 +103,7 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
             return "Erro: Quarto não encontrado no sistema. Por favor, escolha um da lista disponível."
 
         # Verifica capacidade do quarto (reforço de segurança)
-        if qtd_pessoas > quarto.capacidade:
+        if qtd_pessoas_int > quarto.capacidade:
             return f"O quarto {quarto.nome} comporta no máximo {quarto.capacidade} pessoas. Por favor, escolha outro quarto."
 
         # 3. Define datas
@@ -119,11 +119,11 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
         if not servico:
             servico = Servico(nome=nome_servico, preco=0.0, duracao=duracao_total_minutos, barbearia_id=barbearia_id)
             db.session.add(servico)
-            db.session.commit() # Importante salvar para gerar o ID antes de usar no agendamento
+            db.session.flush() # Flush garante que o servico tenha ID sem commitar tudo ainda
 
         # 6. Cria o Agendamento vinculando ao Quarto (Profissional) e ao Serviço correto
         nova_reserva = Agendamento(
-            nome_cliente=nome_cliente,
+            nome_cliente=f"{nome_cliente} ({qtd_pessoas_int} pax)", # BÔNUS: Mostra a Qtd de pessoas no seu Painel!
             telefone_cliente=telefone,
             data_hora=dt_entrada,
             profissional_id=quarto.id,
@@ -134,8 +134,9 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
         db.session.add(nova_reserva)
         db.session.commit()
         
-        return f"✅ Tudo certo! Pré-reserva confirmada no {quarto.nome} para o dia {data_entrada_str} ({int(qtd_dias_float)} diárias)!"
+        return f"✅ Tudo certo! Pré-reserva confirmada no {quarto.nome} para {nome_cliente} ({int(qtd_dias_float)} diárias)!"
 
     except Exception as e:
+        db.session.rollback()
         logging.error(f"Erro ao reservar: {e}")
         return f"Desculpe, ocorreu um erro ao registrar a reserva no sistema: {e}"
