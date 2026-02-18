@@ -1458,7 +1458,18 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                     kwargs['telefone_cliente'] = cliente_whatsapp
                 elif function_name == 'realizar_reserva_quarto':
                     kwargs['telefone'] = cliente_whatsapp
-
+                    # Garante que as variáveis de quantidade cheguem como numéricos para evitar falhas de cast
+                    if 'qtd_pessoas' in kwargs:
+                         kwargs['qtd_pessoas'] = float(kwargs['qtd_pessoas'])
+                    if 'qtd_dias' in kwargs:
+                         kwargs['qtd_dias'] = float(kwargs['qtd_dias'])
+                elif function_name == 'verificar_disponibilidade_hotel':
+                    # Garante conversão segura antes de enviar para a ferramenta
+                    if 'qtd_pessoas' in kwargs:
+                         kwargs['qtd_pessoas'] = float(kwargs['qtd_pessoas'])
+                    if 'qtd_dias' in kwargs:
+                         kwargs['qtd_dias'] = float(kwargs['qtd_dias'])
+                        
                 tool_response = function_to_call(**kwargs)
 
                 # --- PROTEÇÃO NO RETORNO DA TOOL TAMBÉM ---
