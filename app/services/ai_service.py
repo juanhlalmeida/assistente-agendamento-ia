@@ -1298,7 +1298,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             cache.set(cache_key, new_serialized_history)
             logging.info(f"✅ Histórico inicial criado e salvo manualmente. Loop evitado. Tamanho: {len(new_serialized_history)} chars")
 
-            return ""  # Retorna vazio para a rota principal não enviar nada duplicado
+        return ""  # Retorna vazio para a rota principal não enviar nada duplicado
 
         # ==============================================================================
         # FIM DO INTERCEPTADOR - Se não for new_chat, segue o fluxo normal abaixo
