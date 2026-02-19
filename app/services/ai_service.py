@@ -1244,24 +1244,28 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # ==============================================================================
         # 🛡️ INTERCEPTADOR DE PRIMEIRO CONTATO (UNIFICADO PARA POUSADA E DEMAIS)
         # ==============================================================================
-        if is_new_chat:
-            logging.info(f"🆕 Iniciando nova conversa com {cliente_whatsapp}.")
-
-            if barbearia.business_type == 'pousada':
-                # ----- POUSADA: mensagem personalizada (SEM TABELA) -----
+        if barbearia.business_type == 'pousada':
+                # ----- POUSADA: mensagem personalizada COM FLYER -----
                 msg_boas_vindas = (
                     "Olá! Bem-vindo(a) à Pousada Recanto da Maré! 🌊⛱️🌴\n\n"
-                    "Sou sua assistente virtual. Para verificar a disponibilidade, por favor me informe:\n"
-                    "1. A **data de entrada** desejada.\n"
-                    "2. A **quantidade de dias**.\n"
-                    "3. Quantas **pessoas** virão?"
+                    "Abaixo estão as principais informações e comodidades do nosso espaço! ✨\n\n"
+                    "Para consultar a nossa disponibilidade, por favor informe:\n"
+                    "1️⃣ Qual a **data de entrada**? 🗓️\n"
+                    "2️⃣ Quantos **dias** de estadia? ⏳\n"
+                    "3️⃣ Quantas **pessoas** virão? (Mínimo 2) 👥"
                 )
-                # Apenas envia o texto (sem foto)
                 try:
-                    from app.routes import enviar_mensagem_whatsapp_meta
+                    from app.routes import enviar_mensagem_whatsapp_meta, enviar_midia_whatsapp_meta
+                    
+                    # 1. Envia a Foto (Flyer) primeiro, se existir no painel
+                    if barbearia.url_tabela_precos:
+                        logging.info(f"📸 Enviando Flyer inicial para a Pousada: {cliente_whatsapp}")
+                        enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                    
+                    # 2. Envia a mensagem de texto logo em seguida
                     enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_boas_vindas, barbearia)
                 except Exception as e:
-                    logging.error(f"Erro ao enviar boas-vindas pousada: {e}")
+                    logging.error(f"Erro ao enviar boas-vindas pousada com flyer: {e}")
 
             else:
                 # ----- BARBEARIA / LASH / OUTROS: mensagem com tabela e foto -----
