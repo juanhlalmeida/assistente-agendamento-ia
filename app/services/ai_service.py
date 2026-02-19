@@ -1282,6 +1282,8 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             # 💾 CONSTRUÇÃO MANUAL DO HISTÓRICO (para ambos os casos)
             history_manual = [
                 
+                Content(role='user', parts=[protos.Part(text=f"[BASE DE CONHECIMENTO OBRIGATÓRIA]\n{system_prompt}")]),
+                Content(role='model', parts=[protos.Part(text="Entendido! Memorizei todas as regras, o que tem na pousada (wifi, pets, etc) e agirei estritamente como a Recepcionista Virtual.")]),
                 Content(role='user', parts=[protos.Part(text=user_message)]),
                 Content(role='model', parts=[protos.Part(text=msg_boas_vindas)])
             ]
@@ -1346,8 +1348,30 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # 🩹 CURATIVO DE IDENTIDADE (O SUSSURRO)
         # Forçamos a IA a lembrar que é Pousada antes de responder qualquer coisa.
         # ======================================================================
-        msg_para_enviar = user_message
+        msg_para_enviar = f"[Hoje é {data_hoje_str}]\nCliente diz: {user_message}"
 
+        if barbearia.business_type == 'pousada':
+            msg_para_enviar = f"""
+            [LEMBRETE DE SISTEMA - BASE DE CONHECIMENTO OBRIGATÓRIA]
+            Você é a Recepcionista Virtual da Pousada Recanto da Maré.
+            
+            INFRAESTRUTURA DA POUSADA (Responda com base nisto):
+            - Wi-Fi: SIM, gratuito.
+            - Voltagem: 220v.
+            - Pet Friendly: SIM (Apenas porte médio).
+            - Roupas de Cama/Banho: SIM, inclusas.
+            - Ventilador e Smart TV: TODOS os quartos possuem.
+            - Piscina: NÃO TEMOS.
+            - Estacionamento: NÃO TEMOS (carros ficam na rua em frente).
+            - Cozinha para hóspedes: NÃO TEMOS.
+            - Refeições / Café da Manhã: NÃO TEMOS incluso.
+            
+            [INSTRUÇÃO DE AÇÃO IMEDIATA]
+            - O cliente está falando com você agora. Responda a dúvida dele EXATAMENTE com a Base de Conhecimento acima. Não diga que não tem a informação.
+            - Se ele quiser reservar, continue o fluxo usando as ferramentas.
+            
+            CLIENTE DIZ: {user_message}
+            """
         # --- TENTATIVA DE COMUNICAÇÃO ---
         travou = False
         response = None
