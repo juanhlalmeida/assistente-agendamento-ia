@@ -1241,10 +1241,13 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         is_new_chat = not history_to_load
 
-        # ==============================================================================
+                # ==============================================================================
         # 🛡️ INTERCEPTADOR DE PRIMEIRO CONTATO (UNIFICADO PARA POUSADA E DEMAIS)
         # ==============================================================================
-        if barbearia.business_type == 'pousada':
+        if is_new_chat:
+            logging.info(f"🆕 Iniciando nova conversa com {cliente_whatsapp}.")
+
+            if barbearia.business_type == 'pousada':
                 # ----- POUSADA: mensagem personalizada COM FLYER -----
                 msg_boas_vindas = (
                     "Olá! Bem-vindo(a) à Pousada Recanto da Maré! 🌊⛱️🌴\n\n"
@@ -1285,7 +1288,6 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             # 💾 CONSTRUÇÃO MANUAL DO HISTÓRICO (para ambos os casos)
             history_manual = [
-                
                 Content(role='user', parts=[protos.Part(text=f"[BASE DE CONHECIMENTO OBRIGATÓRIA]\n{system_prompt}")]),
                 Content(role='model', parts=[protos.Part(text="Entendido! Memorizei todas as regras, o que tem na pousada (wifi, pets, etc) e agirei estritamente como a Recepcionista Virtual.")]),
                 Content(role='user', parts=[protos.Part(text=user_message)]),
@@ -1296,6 +1298,58 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             cache.set(cache_key, new_serialized_history)
             logging.info(f"✅ Histórico inicial criado e salvo manualmente. Loop evitado. Tamanho: {len(new_serialized_history)} chars")
 
+            return ""  # Retorna vazio para a rota principal não enviar nada duplicado
+
+        # ==============================================================================
+        # FIM DO INTERCEPTADOR - Se não for new_chat, segue o fluxo normal abaixo
+        # ==============================================================================
+
+        chat_session = current_model.start_chat(history=history_to_load)
+
+        # =========================================================================
+        # 👇 ATUALIZAÇÃO FINAL: ENVIO DE TABELA FORÇADO NO PRIMEIRO CONTATO (APENAS PARA NÃO‑POUSADA) 👇
+        # =========================================================================
+
+        # Só entra nessa lógica de tabela forçada SE NÃO FOR POUSADA
+        if barbearia.business_type != 'pousada':
+            eh_inicio_conversa = len(history_to_load) <= 2
+
+            if eh_inicio_conversa:
+                # Mensagem gentil padrão para TODOS os casos (Barbearia/Lash)
+                msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui abaixo! 👇💖\n\nQual desses serviços você gostaria de agendar? 😊"
+                
+                # ATUALIZA O HISTÓRICO MANUALMENTE
+                if len(history_to_load) > 1 and getattr(history_to_load[-1], 'role', '') == 'model':
+                    history_to_load.pop()
+                    
+                history_to_load.append(Content(role='model', parts=[protos.Part(text=msg_texto)]))
+                
+                new_serialized_history = serialize_history(history_to_load)
+                cache.set(cache_key, new_serialized_history)
+                logging.info(f"✅ Boas-vindas automáticas (FORÇADO) para: {user_message}")
+
+                # ENVIA A MENSAGEM E A FOTO
+                if barbearia.url_tabela_precos:
+                    try:
+                        from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
+                        
+                        # 1. Envia Texto
+                        enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_texto, barbearia)
+                        
+                        # 2. Envia Foto
+                        logging.info(f"📸 Enviando Tabela automática para {cliente_whatsapp}")
+                        enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                        
+                        return "" # Retorna vazio para encerrar aqui
+                        
+                    except Exception as e:
+                        logging.error(f"Erro no envio forçado: {e}")
+                        return msg_texto
+                
+                return msg_texto
+
+        logging.info(f"Enviando mensagem para a IA: {user_message}")
+        
             return ""  # Retorna vazio para a rota principal não enviar nada duplicado
 
         # ==============================================================================
