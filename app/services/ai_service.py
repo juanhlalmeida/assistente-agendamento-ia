@@ -1230,6 +1230,14 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 regra_profissional_dinamica=regra_profissional
 
             )
+            
+        current_model = genai.GenerativeModel(
+            model_name=model_name_to_use,
+            tools=[tools],
+            generation_config=generation_config,
+            safety_settings=safety_settings,
+            system_instruction=system_prompt
+        )
 
         is_new_chat = not history_to_load
 
@@ -1273,8 +1281,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             # 💾 CONSTRUÇÃO MANUAL DO HISTÓRICO (para ambos os casos)
             history_manual = [
-                Content(role='user', parts=[protos.Part(text=system_prompt)]),
-                Content(role='model', parts=[protos.Part(text="Entendido. Vou agir conforme suas instruções.")]),
+                
                 Content(role='user', parts=[protos.Part(text=user_message)]),
                 Content(role='model', parts=[protos.Part(text=msg_boas_vindas)])
             ]
@@ -1289,7 +1296,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # FIM DO INTERCEPTADOR - Se não for new_chat, segue o fluxo normal abaixo
         # ==============================================================================
 
-        chat_session = model.start_chat(history=history_to_load)
+        chat_session = current_model.start_chat(history=history_to_load)
 
         # =========================================================================
         # 👇 ATUALIZAÇÃO FINAL: ENVIO DE TABELA FORÇADO NO PRIMEIRO CONTATO (APENAS PARA NÃO‑POUSADA) 👇
@@ -1340,17 +1347,6 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # Forçamos a IA a lembrar que é Pousada antes de responder qualquer coisa.
         # ======================================================================
         msg_para_enviar = user_message
-
-        if barbearia.business_type == 'pousada':
-            msg_para_enviar = f"""
-            [INSTRUÇÃO DO SISTEMA: ATENÇÃO IMEDIATA]
-            1. Você É a Pousada Recanto da Maré.
-            2. O cliente QUER reservar quartos. NÃO RECUSE O ATENDIMENTO.
-            3. IGNORE ferramentas de corte/barba. USE `verificar_disponibilidade_hotel`.
-            4. Responda ao cliente abaixo:
-            
-            CLIENTE: {user_message}
-            """
 
         # --- TENTATIVA DE COMUNICAÇÃO ---
         travou = False
