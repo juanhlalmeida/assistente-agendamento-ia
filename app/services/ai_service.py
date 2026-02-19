@@ -1350,7 +1350,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         logging.info(f"Enviando mensagem para a IA: {user_message}")
         
-            return ""  # Retorna vazio para a rota principal não enviar nada duplicado
+        return ""  # Retorna vazio para a rota principal não enviar nada duplicado
 
         # ==============================================================================
         # FIM DO INTERCEPTADOR - Se não for new_chat, segue o fluxo normal abaixo
