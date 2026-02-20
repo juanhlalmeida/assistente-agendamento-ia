@@ -1231,7 +1231,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             )
             
-       current_model = genai.GenerativeModel(
+         current_model = genai.GenerativeModel(
             model_name=model_name_to_use,
             tools=[tools],
             generation_config=generation_config,
