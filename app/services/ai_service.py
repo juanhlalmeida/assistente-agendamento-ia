@@ -1350,32 +1350,49 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         logging.info(f"Enviando mensagem para a IA: {user_message}")
         
         # ======================================================================
-        # 🩹 CURATIVO DE IDENTIDADE (O SUSSURRO)
-        # Forçamos a IA a lembrar que é Pousada antes de responder qualquer coisa.
+        # 🩹 CURATIVO DE IDENTIDADE (O SUSSURRO DINÂMICO MULTI-LOJAS)
         # ======================================================================
         msg_para_enviar = f"[Hoje é {data_hoje_str}]\nCliente diz: {user_message}"
 
-        if barbearia.business_type == 'pousada':
+        regras_da_loja = getattr(barbearia, 'regras_negocio', None)
+
+        # 1. Tenta usar as regras que a dona da loja digitou no painel
+        if regras_da_loja and regras_da_loja.strip() != "":
+            msg_para_enviar = f"""
+            [LEMBRETE DE SISTEMA - BASE DE CONHECIMENTO OBRIGATÓRIA]
+            Você é a Assistente Virtual de {barbearia.nome_fantasia}.
+            
+            INFRAESTRUTURA E REGRAS DO ESTABELECIMENTO (Responda com base nisto):
+            {regras_da_loja}
+            
+            [INSTRUÇÃO DE AÇÃO IMEDIATA]
+            - O cliente está falando com você agora. Responda a dúvida dele EXATAMENTE com a Base de Conhecimento acima. 
+            - Nunca invente informações. Se não souber, diga educadamente.
+            - Se ele quiser reservar/agendar, continue o fluxo usando as ferramentas.
+            
+            CLIENTE DIZ: {user_message}
+            """
+            
+        # 2. PLANO B: Se o painel estiver vazio, usa a regra fixa da pousada para não deixar o cliente na mão
+        elif barbearia.business_type == 'pousada':
             msg_para_enviar = f"""
             [LEMBRETE DE SISTEMA - BASE DE CONHECIMENTO OBRIGATÓRIA]
             Você é a Recepcionista Virtual da Pousada Recanto da Maré.
             
-            INFRAESTRUTURA DA POUSADA (Responda com base nisto):
+            INFRAESTRUTURA DA POUSADA:
             - Wi-Fi: SIM, gratuito.
             - Voltagem: 220v.
             - Pet Friendly: SIM (Apenas porte médio).
             - Roupas de Cama/Banho: SIM, inclusas.
             - Ventilador e Smart TV: TODOS os quartos possuem.
             - Piscina: NÃO TEMOS.
-            - Estacionamento: NÃO TEMOS (carros ficam na rua em frente).
+            - Estacionamento: NÃO TEMOS (carros ficam na rua).
             - Cozinha para hóspedes: NÃO TEMOS.
-            - Frigobar: SIM, temos frigobar nos quartos! 🧊
-            - Refeições / Café da Manhã / Almoço: (Tem no local, mas não é incluso na diária).
-            - Ar Condicionado: SIM, (nos quartos 1 e 4 somente).
-            - Formas de pagamento:(Pix e Cartão de crédito a vista).
+            - Refeições / Café da Manhã: NÃO TEMOS incluso.
+            - Frigobar: NÃO TEMOS frigobar nos quartos.
             
             [INSTRUÇÃO DE AÇÃO IMEDIATA]
-            - O cliente está falando com você agora. Responda a dúvida dele EXATAMENTE com a Base de Conhecimento acima. Não diga que não tem a informação.
+            - Responda a dúvida dele EXATAMENTE com a Base de Conhecimento acima. Não invente.
             - Se ele quiser reservar, continue o fluxo usando as ferramentas.
             
             CLIENTE DIZ: {user_message}
