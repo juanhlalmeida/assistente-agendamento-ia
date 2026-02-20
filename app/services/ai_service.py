@@ -1150,7 +1150,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         data_hoje_str = agora_br.strftime('%Y-%m-%d')
         data_amanha_str = (agora_br + timedelta(days=1)).strftime('%Y-%m-%d')
 
-        # --- VERIFICAÇÃO DE IDENTIDADE: É A PATROA/PATRÃO? 🕵️♀️ ---
+        # --- VERIFICAÇÃO DE IDENTIDADE: É A PATROA/PATRÃO? 🕵️‍♀️ ---
 
         tel_cliente_limpo = ''.join(filter(str.isdigit, cliente_whatsapp))
         tel_admin_limpo = ''.join(filter(str.isdigit, barbearia.telefone_admin or ''))
@@ -1228,10 +1228,9 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 data_de_hoje=data_hoje_str,
                 data_de_amanha=data_amanha_str,
                 regra_profissional_dinamica=regra_profissional
-
             )
             
-         current_model = genai.GenerativeModel(
+        current_model = genai.GenerativeModel(
             model_name=model_name_to_use,
             tools=[tools],
             generation_config=generation_config,
@@ -1468,12 +1467,6 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 "realizar_reserva_quarto": realizar_reserva_quarto
 
             }
-            
-            # ⚠️ NÃO substituímos ferramentas para pousada (a IA deve chamar as corretas via prompt)
-            # if barbearia.business_type == 'pousada':
-            #     logging.info("🏨 Usando Ferramentas de Hotelaria.")
-            #     tool_map["calcular_horarios_disponiveis"] = verificar_disponibilidade_hotel
-            #     tool_map["criar_agendamento"] = realizar_reserva_quarto
 
             if function_name in tool_map:
 
@@ -1637,7 +1630,6 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         return final_response_text
 
     except Exception as e:
-
         # 3. 🛡️ SEGURANÇA FINAL: Se explodir tudo, reseta o cache para não travar na próxima
         logging.error(f"Erro GRANDE ao processar com IA: {e}", exc_info=True)
         try:
@@ -1645,7 +1637,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         except:
             pass
         return "Tive um problema para processar sua solicitação. Vamos tentar de novo do começo. O que você gostaria?"
-        
+
 
 def listar_servicos_pousada(barbearia_id: int) -> str:
     """
