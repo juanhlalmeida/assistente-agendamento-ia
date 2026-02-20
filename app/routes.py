@@ -7,6 +7,7 @@ import json
 import requests
 import threading
 import urllib.parse
+import pytz
 from werkzeug.utils import secure_filename
 from datetime import datetime, date, time, timedelta
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
@@ -1276,6 +1277,9 @@ def monitor_chat():
         flash("Você precisa ter uma barbearia para ver o chat.", "warning")
         return redirect(url_for('main.agenda'))
 
+    # ⏱️ CONFIGURA O FUSO HORÁRIO DO BRASIL
+    sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
+
     # 1. PEGAR LISTA DE CONTATOS (Agrupados)
     subquery = db.session.query(
         ChatLog.cliente_telefone,
@@ -1304,10 +1308,17 @@ def monitor_chat():
             if len(nome_parts) > 1: # Adiciona sobrenome se tiver
                 display_name += " " + nome_parts[-1].capitalize()
 
+        # 👇 CORREÇÃO DO FUSO HORÁRIO PARA A LISTA LATERAL 👇
+        hora_br = item.ultima_interacao
+        if hora_br:
+            # Pega a hora do BD, avisa que é UTC, e converte pra SP
+            hora_utc = hora_br.replace(tzinfo=pytz.utc) if hora_br.tzinfo is None else hora_br
+            hora_br = hora_utc.astimezone(sao_paulo_tz)
+
         lista_contatos.append({
             'telefone': phone,
             'nome_exibicao': display_name, # Manda o nome descoberto
-            'hora': item.ultima_interacao
+            'hora': hora_br # Manda a HORA CONVERTIDA
         })
 
     # 2. CARREGAR CONVERSA
@@ -1322,10 +1333,17 @@ def monitor_chat():
                 nome_selecionado = c['nome_exibicao']
                 break
 
-        mensagens = ChatLog.query.filter_by(
+        mensagens_db = ChatLog.query.filter_by(
             barbearia_id=current_user.barbearia_id,
             cliente_telefone=telefone_selecionado
         ).order_by(ChatLog.data_hora.asc()).all()
+
+        # 👇 CORREÇÃO DO FUSO HORÁRIO PARA OS BALÕES DE MENSAGEM 👇
+        for msg in mensagens_db:
+            if msg.data_hora:
+                hora_utc = msg.data_hora.replace(tzinfo=pytz.utc) if msg.data_hora.tzinfo is None else msg.data_hora
+                msg.data_hora = hora_utc.astimezone(sao_paulo_tz)
+            mensagens.append(msg)
 
     # Se for uma requisição AJAX (Automática), retorna só o pedaço do chat
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
