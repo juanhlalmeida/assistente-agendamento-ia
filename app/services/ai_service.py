@@ -1369,7 +1369,10 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             - Piscina: NÃO TEMOS.
             - Estacionamento: NÃO TEMOS (carros ficam na rua em frente).
             - Cozinha para hóspedes: NÃO TEMOS.
-            - Refeições / Café da Manhã: NÃO TEMOS incluso.
+            - Frigobar: SIM, temos frigobar nos quartos! 🧊
+            - Refeições / Café da Manhã / Almoço: (Tem no local, mas não é incluso na diária).
+            - Ar Condicionado: SIM, (nos quartos 1 e 4 somente).
+            - Formas de pagamento:(Pix e Cartão de crédito a vista).
             
             [INSTRUÇÃO DE AÇÃO IMEDIATA]
             - O cliente está falando com você agora. Responda a dúvida dele EXATAMENTE com a Base de Conhecimento acima. Não diga que não tem a informação.
