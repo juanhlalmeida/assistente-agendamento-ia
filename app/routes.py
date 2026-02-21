@@ -949,6 +949,7 @@ def admin_editar_barbearia(barbearia_id):
 
     if request.method == 'POST':
         barbearia.nome_fantasia = request.form.get('nome_fantasia')
+        barbearia.regras_negocio = request.form.get('regras_negocio')
         
         # ✅ PERMITE MUDAR O TIPO NA EDIÇÃO
         barbearia.business_type = request.form.get('business_type', 'barbershop')
