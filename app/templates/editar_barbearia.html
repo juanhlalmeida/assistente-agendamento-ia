@@ -35,12 +35,14 @@
         
         <div class="space-y-4">
           <h2 class="text-xl font-semibold border-b border-gray-700 pb-2 mb-4 text-primary">Dados da Empresa</h2>
+          
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-400 mb-1">Nome Fantasia</label>
               <input type="text" name="nome_fantasia" value="{{ barbearia.nome_fantasia }}" required 
                      class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary outline-none transition-all">
             </div>
+            
             <div>
               <label class="block text-sm font-medium text-gray-400 mb-1">WhatsApp (com 55)</label>
               <input type="text" name="telefone_whatsapp" value="{{ barbearia.telefone_admin or '' }}" 
@@ -48,7 +50,18 @@
             </div>
           </div>
           
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="pt-4">
+            <label class="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-sm">psychology</span> Base de Conhecimento da IA
+            </label>
+            <p class="text-xs text-gray-500 mb-3">Escreva tudo que a IA precisa saber para responder aos clientes (Ex: tem wifi? aceita pet? tem estacionamento? regras de cancelamento? valores extras?)</p>
+            
+            <textarea name="regras_negocio" rows="6" 
+                      class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none transition-all" 
+                      placeholder="- Temos Wi-Fi grátis.&#10;- Aceitamos Pets de pequeno porte.&#10;- Não temos estacionamento.">{{ barbearia.regras_negocio if barbearia.regras_negocio else '' }}</textarea>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
              <div class="md:col-span-1">
                 <label class="block text-sm font-medium text-gray-400 mb-1">Status Assinatura</label>
                 <div class="relative">
