@@ -151,6 +151,25 @@
             </div>
         </div>
 
+        {# --- CARTÃO 4: BASE DE CONHECIMENTO IA (NOVO) --- #}
+        <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5 relative overflow-hidden">
+             <div class="absolute top-0 right-0 p-4 opacity-5">
+                <span class="material-symbols-outlined text-8xl">psychology</span>
+             </div>
+
+            <h2 class="text-xl font-bold text-green-400 flex items-center gap-2 mb-2">
+                <span class="material-symbols-outlined">psychology</span>
+                Cérebro da Inteligência Artificial
+            </h2>
+            <p class="text-gray-400 text-sm mb-4 max-w-xl">
+                Escreva abaixo todas as regras e informações que a IA precisa saber para responder corretamente aos seus clientes.
+            </p>
+
+            <textarea name="regras_negocio" rows="6" 
+                      class="w-full bg-background-dark border border-gray-700 rounded-lg p-4 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors relative z-10" 
+                      placeholder="Exemplo:&#10;- Temos Wi-Fi grátis.&#10;- Aceitamos Pets de pequeno porte.&#10;- Não temos estacionamento.&#10;- Tolerância de atraso: 15 minutos.">{{ barbearia.regras_negocio if barbearia.regras_negocio else '' }}</textarea>
+        </div>
+
         {# --- BOTÃO SALVAR --- #}
         <div class="pt-2 pb-10">
             <button type="submit" class="w-full bg-primary text-white font-bold py-4 rounded-xl hover:brightness-110 transition-all shadow-lg shadow-primary/20 text-lg flex items-center justify-center gap-2">
