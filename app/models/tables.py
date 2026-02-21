@@ -60,6 +60,9 @@ class Barbearia(db.Model):
     
     # Link da Imagem da Tabela de Preços (Segurança por ID)
     url_tabela_precos = db.Column(db.String(500), nullable=True)
+    
+    # 👇 A COLUNA NOVA E TÃO ESPERADA DA BASE DE CONHECIMENTO 👇
+    regras_negocio = db.Column(db.Text, nullable=True)
 
     # Relações: Define o que "pertence" a esta barbearia
     # O 'cascade="all, delete-orphan"' significa que se uma barbearia for
@@ -235,8 +238,6 @@ class Pagamento(db.Model):
     criado_em = db.Column(db.DateTime, default=datetime.utcnow)
     atualizado_em = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # app/models/tables.py ---
-
 class AgendamentoGoogleSync(db.Model):
     __tablename__ = 'agendamento_google_sync'
     
@@ -263,7 +264,3 @@ class ChatLog(db.Model):
 
     # Relacionamento opcional se quiser filtrar por loja
     barbearia = db.relationship('Barbearia', backref='chats')
-
-
-
-
