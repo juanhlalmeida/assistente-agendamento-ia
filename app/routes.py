@@ -786,6 +786,8 @@ def configuracoes():
             barbearia.cor_primaria = request.form.get('cor_primaria')
             barbearia.emojis_sistema = request.form.get('emojis_sistema')
 
+            barbearia.regras_negocio = request.form.get('regras_negocio')
+
             # Limpa telefone
             raw_tel = request.form.get('telefone_admin')
             if raw_tel:
