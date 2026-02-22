@@ -1,13 +1,12 @@
 {% extends 'base.html' %} 
 
 {# 
-  ARQUIVO: profissionais.html (COM VOCABULÁRIO DINÂMICO)
+  ARQUIVO: profissionais.html (COM VOCABULÁRIO DINÂMICO BLINDADO)
   Adapta os textos para "Quartos", "Designers" ou "Profissionais".
 #}
 
 {% block title %}
-  {# Lógica rápida para o título da aba #}
-  {% if current_user.barbearia.business_type == 'pousada' %}
+  {% if current_user.barbearia.business_type == 'pousada' or 'pousada' in current_user.barbearia.nome_fantasia.lower() %}
       Gerir Quartos
   {% elif 'lash' in current_user.barbearia.nome_fantasia.lower() %}
       Gerir Designers
@@ -19,11 +18,10 @@
 {% block content %}
 
   {# ================================================================= #}
-  {# 🧠 CÉREBRO DO VOCABULÁRIO LOCAL                                 #}
+  {# 🧠 CÉREBRO DO VOCABULÁRIO LOCAL (BLINDADO COM NAMESPACE)        #}
   {# ================================================================= #}
-  {% set termo_singular = 'Profissional' %}
-  {% set termo_plural = 'Profissionais' %}
-  {% set icon_item = 'person' %}
+  
+  {% set vocab_local = namespace(singular='Profissional', plural='Profissionais', icon='person') %}
 
   {% if current_user.is_authenticated and current_user.barbearia %}
       {% set tipo = current_user.barbearia.business_type %}
@@ -31,15 +29,15 @@
 
       {# POUSADA #}
       {% if tipo == 'pousada' or 'pousada' in nome %}
-          {% set termo_singular = 'Quarto' %}
-          {% set termo_plural = 'Quartos' %}
-          {% set icon_item = 'bed' %}
+          {% set vocab_local.singular = 'Quarto' %}
+          {% set vocab_local.plural = 'Quartos' %}
+          {% set vocab_local.icon = 'bed' %}
 
       {# LASH #}
       {% elif 'lash' in nome or 'studio' in nome %}
-          {% set termo_singular = 'Designer' %}
-          {% set termo_plural = 'Designers' %}
-          {% set icon_item = 'face_3' %}
+          {% set vocab_local.singular = 'Designer' %}
+          {% set vocab_local.plural = 'Designers' %}
+          {% set vocab_local.icon = 'face_3' %}
       {% endif %}
   {% endif %}
   {# ================================================================= #}
@@ -66,51 +64,56 @@
   {# Cabeçalho da Página #}
   <div class="flex justify-between items-center mb-6">
     {# Título Dinâmico #}
-    <h2 class="text-text-primary-dark text-3xl font-bold">{{ termo_plural }}</h2>
+    <h2 class="text-text-primary-dark text-3xl font-bold">{{ vocab_local.plural }}</h2>
     
     {# Botão Dinâmico #}
     <a href="{{ url_for('profissionais.novo_profissional') }}" 
-       class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
+       class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
       <span class="material-symbols-outlined">add</span>
-      <span class="truncate">Novo {{ termo_singular }}</span>
+      <span class="truncate">Novo {{ vocab_local.singular }}</span>
     </a>
   </div>
 
   {# Tabela #}
-  <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
+  <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto border border-white/5">
     <table class="w-full min-w-[400px] lg:min-w-full text-left align-middle">
-      <thead class="bg-background-dark">
+      <thead class="bg-background-dark/50">
         <tr>
           {# Coluna Nome Dinâmica #}
-          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Nome do {{ termo_singular }}</th>
-          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th>
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">Nome do {{ vocab_local.singular }}</th>
+          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider text-center">Ações</th>
         </tr>
       </thead>
       <tbody>
         {% for profissional in profissionais %}
-          <tr class="border-b border-gray-800 hover:bg-white/5">
+          <tr class="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
             <td class="p-4 font-semibold text-text-primary-dark flex items-center gap-3">
                 {# Ícone ao lado do nome (Cama ou Pessoa) #}
-                <span class="material-symbols-outlined text-text-secondary-dark">{{ icon_item }}</span>
+                <div class="bg-primary/10 p-2 rounded-lg flex items-center justify-center">
+                    <span class="material-symbols-outlined text-primary">{{ vocab_local.icon }}</span>
+                </div>
                 {{ profissional.nome }}
             </td>
-            <td class="p-4 text-center">
+            <td class="p-4 text-center space-x-2">
               <a href="{{ url_for('profissionais.editar_profissional', profissional_id=profissional.id) }}" 
-                 class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
-                <span class="material-symbols-outlined">edit</span>
+                 class="inline-flex items-center justify-center p-2 text-text-secondary-dark hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Editar">
+                <span class="material-symbols-outlined text-xl">edit</span>
               </a>
               <form action="{{ url_for('profissionais.apagar_profissional', profissional_id=profissional.id) }}" 
-                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar o {{ termo_singular|lower }} \'{{ profissional.nome }}\'?');">
-                <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Apagar">
-                  <span class="material-symbols-outlined">delete</span>
+                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar o {{ vocab_local.singular|lower }} \'{{ profissional.nome }}\'?');">
+                <button type="submit" class="inline-flex items-center justify-center p-2 text-text-secondary-dark hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all" title="Apagar">
+                  <span class="material-symbols-outlined text-xl">delete</span>
                 </button>
               </form>
             </td>
           </tr>
         {% else %} 
           <tr>
-            <td colspan="2" class="p-8 text-center text-text-secondary-dark">
-                Nenhum {{ termo_singular|lower }} cadastrado ainda.
+            <td colspan="2" class="p-12 text-center">
+                <div class="flex flex-col items-center justify-center text-text-secondary-dark">
+                    <span class="material-symbols-outlined text-6xl mb-4 opacity-20">{{ vocab_local.icon }}</span>
+                    <p class="text-lg">Nenhum {{ vocab_local.singular|lower }} cadastrado ainda.</p>
+                </div>
             </td>
           </tr>
         {% endfor %} 
