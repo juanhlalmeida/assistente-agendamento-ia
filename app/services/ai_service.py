@@ -965,7 +965,7 @@ realizar_reserva_quarto_func = FunctionDeclaration(
             "nome_cliente": {"type": "string", "description": "Nome completo do cliente"},
             "quarto_nome": {"type": "string", "description": "Nome exato do quarto, conforme retornado pela disponibilidade"},
             "data_entrada_str": {"type": "string", "description": "Data de check-in no formato YYYY-MM-DD"},
-            "qtd_dias": {"type": "number", "description": "Quantidade de diárias"},
+            "qtd_dias": {"type": "number", "description": "Quantidade de diárias desejadas (Ex: 1, 1.5, 2)"},
             "qtd_pessoas": {"type": "number", "description": "Quantidade de hóspedes na reserva"} # AQUI ESTÁ A MÁGICA
         },
         # Agora exigimos que a IA envie a qtd_pessoas obrigatoriamente
