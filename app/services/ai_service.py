@@ -949,7 +949,7 @@ verificar_disponibilidade_hotel_func = FunctionDeclaration(
         "type": "object",
         "properties": {
             "data_entrada_str": {"type": "string", "description": "Data de check-in no formato YYYY-MM-DD"},
-            "qtd_dias": {"type": "number", "description": "Quantidade de diárias desejadas"},
+            "qtd_dias": {"type": "number", "description": "Quantidade de diárias desejadas (Ex: 1, 1.5, 2)"},
             "qtd_pessoas": {"type": "number", "description": "Quantidade de pessoas na reserva"}
         },
         "required": ["data_entrada_str", "qtd_dias", "qtd_pessoas"]
