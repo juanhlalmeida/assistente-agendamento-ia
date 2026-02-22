@@ -3,6 +3,40 @@
 {% block title %}Painel de Controle - Agenda{% endblock %}
 
 {% block content %}
+
+{# ================================================================= #}
+{# 🧠 CÉREBRO DO VOCABULÁRIO LOCAL (BLINDADO)                      #}
+{# ================================================================= #}
+{% set vocab_agenda = namespace(
+    prof='Profissional', 
+    serv='Serviço', 
+    agenda='Agendamento',
+    agendas='Agendamentos',
+    novo_btn='Novo Agendamento',
+    msg_vazio='Nenhum agendamento'
+) %}
+
+{% if current_user.is_authenticated and current_user.barbearia %}
+    {% set tipo = current_user.barbearia.business_type %}
+    {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+
+    {# POUSADA #}
+    {% if tipo == 'pousada' or 'pousada' in nome %}
+        {% set vocab_agenda.prof = 'Quarto' %}
+        {% set vocab_agenda.serv = 'Tarifa/Day Use' %}
+        {% set vocab_agenda.agenda = 'Reserva' %}
+        {% set vocab_agenda.agendas = 'Reservas' %}
+        {% set vocab_agenda.novo_btn = 'Nova Reserva' %}
+        {% set vocab_agenda.msg_vazio = 'Nenhuma reserva' %}
+
+    {# LASH #}
+    {% elif 'lash' in nome or 'studio' in nome %}
+        {% set vocab_agenda.prof = 'Designer' %}
+        {% set vocab_agenda.serv = 'Procedimento' %}
+    {% endif %}
+{% endif %}
+{# ================================================================= #}
+
 {# Bloco de mensagens flash (alertas) estilizado com Tailwind #}
 {% with messages = get_flashed_messages(with_categories=true) %}
   {% if messages %}
@@ -22,46 +56,37 @@
   {% endif %}
 {% endwith %}
 
-{# 
-  Layout responsivo: 
-  - 'grid-cols-1': (Padrão/Mobile) 1 coluna
-  - 'lg:grid-cols-[1fr_400px]': (Desktop) 2 colunas
-#}
+{# Layout responsivo #}
 <div class="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8">
 
-  {# 
-    Coluna Principal (Agenda)
-    🚀 CORREÇÃO DE ORDEM:
-    - 'order-2': No mobile, aparece EM BAIXO
-    - 'lg:order-1': No desktop, aparece À ESQUERDA
-  #}
+  {# Coluna Principal (Agenda) #}
   <main class="flex flex-col gap-6 lg:order-1 order-2">
     <div class="flex justify-between items-center">
-      <h2 class="text-text-primary-dark text-3xl font-bold">Agendamentos do Dia</h2>
+      <h2 class="text-text-primary-dark text-3xl font-bold">{{ vocab_agenda.agendas }} do Dia</h2>
       <button 
         type="button" 
         id="btnAbrirModal" 
-        class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
+        class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
         <span class="material-symbols-outlined">add</span>
-        <span class="truncate">Novo Agendamento</span>
+        <span class="truncate">{{ vocab_agenda.novo_btn }}</span>
       </button>
     </div>
 
     {# Tabela com scroll horizontal no mobile #}
-    <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
+    <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto border border-white/5">
       <table class="w-full min-w-[600px] lg:min-w-full text-left align-middle">
-        <thead class="bg-background-dark">
+        <thead class="bg-background-dark/50">
           <tr>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Cliente</th>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Hora</th>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Serviço</th>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase">Profissional</th>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase text-center">Ações</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">Cliente</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">Hora</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">{{ vocab_agenda.serv }}</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">{{ vocab_agenda.prof }}</th>
+            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider text-center">Ações</th>
           </tr>
         </thead>
         <tbody>
           {% for agendamento in agendamentos %}
-            <tr class="border-b border-gray-800 hover:bg-white/5">
+            <tr class="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
               <td class="p-4">
                 <div class="font-semibold text-text-primary-dark">{{ agendamento.nome_cliente }}</div>
                 <div class="text-sm text-text-secondary-dark">{{ agendamento.telefone_cliente }}</div>
@@ -72,20 +97,20 @@
                 <span class="text-text-secondary-dark text-sm">(R$ {{ "%.2f"|format(agendamento.servico.preco) }})</span>
               </td>
               <td class="p-4 text-text-primary-dark">{{ agendamento.profissional.nome }}</td>
-              <td class="p-4 text-center">
-                <a href="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}" class="p-2 text-text-secondary-dark hover:text-primary rounded-full" title="Editar">
-                  <span class="material-symbols-outlined">edit</span>
+              <td class="p-4 text-center space-x-1">
+                <a href="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}" class="inline-flex p-2 text-text-secondary-dark hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Editar">
+                  <span class="material-symbols-outlined text-xl">edit</span>
                 </a>
                 <form action="{{ url_for('main.excluir_agendamento', agendamento_id=agendamento.id) }}" method="post" class="inline">
-                  <button type="submit" class="p-2 text-text-secondary-dark hover:text-red-500 rounded-full" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir este agendamento?');">
-                    <span class="material-symbols-outlined">delete</span>
+                  <button type="submit" class="inline-flex p-2 text-text-secondary-dark hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir?');">
+                    <span class="material-symbols-outlined text-xl">delete</span>
                   </button>
                 </form>
               </td>
             </tr>
           {% else %}
             <tr>
-              <td colspan="5" class="p-8 text-center text-text-secondary-dark">Nenhum agendamento para o dia selecionado.</td>
+              <td colspan="5" class="p-8 text-center text-text-secondary-dark">{{ vocab_agenda.msg_vazio }} para o dia selecionado.</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -93,25 +118,20 @@
     </div>
   </main>
 
-  {# 
-    Coluna Lateral (Disponibilidade)
-    🚀 CORREÇÃO DE ORDEM:
-    - 'order-1': No mobile, aparece EM CIMA
-    - 'lg:order-2': No desktop, aparece À DIREITA
-  #}
-  <aside class="bg-surface-dark rounded-xl p-6 flex flex-col gap-8 shadow-lg lg:order-2 order-1">
+  {# Coluna Lateral (Disponibilidade) #}
+  <aside class="bg-surface-dark rounded-xl p-6 flex flex-col gap-8 shadow-lg border border-white/5 lg:order-2 order-1">
     <div>
       <h3 class="text-text-primary-dark text-xl font-bold mb-4 flex items-center gap-2">
-        <span class="material-symbols-outlined">search</span>
+        <span class="material-symbols-outlined text-primary">search</span>
         Consultar Disponibilidade
       </h3>
       <form method="get" action="{{ url_for('main.agenda') }}">
         <div class="mb-4">
-          <label for="profissional_id_filtro" class="block text-sm font-medium text-text-secondary-dark mb-1">Profissional</label>
+          <label for="profissional_id_filtro" class="block text-sm font-medium text-text-secondary-dark mb-1">{{ vocab_agenda.prof }}</label>
           <select 
             name="profissional_id" 
             id="profissional_id_filtro" 
-            class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+            class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
             onchange="this.form.submit()">
             {% for p in profissionais %}
               <option value="{{ p.id }}" {% if profissional_selecionado and p.id == profissional_selecionado.id %}selected{% endif %}>{{ p.nome }}</option>
@@ -124,7 +144,7 @@
             type="date" 
             name="data" 
             id="data_filtro" 
-            class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+            class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
             value="{{ data_selecionada.strftime('%Y-%m-%d') }}" 
             onchange="this.form.submit()">
         </div>
@@ -138,7 +158,7 @@
       <div class="grid grid-cols-3 gap-3">
         {% for horario in horarios_disponiveis %}
           <button 
-            class="horario-btn py-2 px-4 rounded-lg bg-background-dark text-text-primary-dark font-medium hover:bg-primary hover:text-white transition-colors" 
+            class="horario-btn py-2 px-4 rounded-lg bg-background-dark text-text-primary-dark font-medium border border-gray-700 hover:bg-primary hover:border-primary hover:text-white transition-all" 
             data-horario="{{ horario.strftime('%Y-%m-%dT%H:%M') }}">
             {{ horario.strftime('%H:%M') }}
           </button>
@@ -151,13 +171,13 @@
 
 </div>
 
-{# Modal (Pop-up) de Novo Agendamento (Com a correção do 'servico.preco') #}
-<div id="novoAgendamentoModal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden">
-  <div class="bg-surface-dark rounded-xl shadow-lg w-full max-w-lg">
+{# Modal (Pop-up) de Novo Agendamento #}
+<div id="novoAgendamentoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden transition-opacity">
+  <div class="bg-surface-dark rounded-xl shadow-2xl w-full max-w-lg border border-white/10">
     
-    <div class="p-6 border-b border-gray-700 flex justify-between items-center">
-      <h3 class="text-xl font-bold text-text-primary-dark">Novo Agendamento Manual</h3>
-      <button id="btnFecharModal" class="text-text-secondary-dark hover:text-white">
+    <div class="p-6 border-b border-gray-800 flex justify-between items-center">
+      <h3 class="text-xl font-bold text-text-primary-dark">{{ vocab_agenda.novo_btn }} Manual</h3>
+      <button id="btnFecharModal" class="text-text-secondary-dark hover:text-white transition-colors">
         <span class="material-symbols-outlined">close</span>
       </button>
     </div>
@@ -167,17 +187,17 @@
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label for="nome_cliente" class="text-sm font-medium text-text-secondary-dark mb-1 block">Nome do Cliente</label>
-            <input type="text" id="nome_cliente" name="nome_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+            <input type="text" id="nome_cliente" name="nome_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
           </div>
           <div>
             <label for="telefone_cliente" class="text-sm font-medium text-text-secondary-dark mb-1 block">Telefone</label>
-            <input type="text" id="telefone_cliente" name="telefone_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+            <input type="text" id="telefone_cliente" name="telefone_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
           </div>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label for="profissional_id" class="text-sm font-medium text-text-secondary-dark mb-1 block">Profissional</label>
-            <select id="profissional_id" name="profissional_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+            <label for="profissional_id" class="text-sm font-medium text-text-secondary-dark mb-1 block">{{ vocab_agenda.prof }}</label>
+            <select id="profissional_id" name="profissional_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
               <option value="" disabled selected>Selecione...</option>
               {% for profissional in profissionais %}
                 <option value="{{ profissional.id }}">{{ profissional.nome }}</option>
@@ -185,11 +205,10 @@
             </select>
           </div>
           <div>
-            <label for="servico_id" class="text-sm font-medium text-text-secondary-dark mb-1 block">Serviço</label>
-            <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+            <label for="servico_id" class="text-sm font-medium text-text-secondary-dark mb-1 block">{{ vocab_agenda.serv }}</label>
+            <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
               <option value="" disabled selected>Selecione...</option>
               {% for servico in servicos %}
-                {# Correção de 'agendamento.servico.preco' para 'servico.preco' #}
                 <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
               {% endfor %}
             </select>
@@ -197,19 +216,19 @@
         </div>
         <div>
           <label for="data_hora" class="text-sm font-medium text-text-secondary-dark mb-1 block">Data e Hora</label>
-          <input type="datetime-local" id="data_hora" name="data_hora" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
+          <input type="datetime-local" id="data_hora" name="data_hora" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
         </div>
       </div>
-      <div class="p-6 border-t border-gray-700 flex justify-end gap-3">
-        <button id="btnCancelarModal" type="button" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">Cancelar</button>
-        <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">Confirmar Agendamento</button>
+      <div class="p-6 border-t border-gray-800 flex justify-end gap-3">
+        <button id="btnCancelarModal" type="button" class="py-2 px-4 rounded-lg bg-transparent border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors">Cancelar</button>
+        <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">Confirmar {{ vocab_agenda.agenda }}</button>
       </div>
     </form>
     
   </div>
 </div>
 
-{# SCRIPT (Sem alterações) #}
+{# SCRIPT (Sem alterações, apenas mantido seguro) #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const modal = document.getElementById('novoAgendamentoModal');
