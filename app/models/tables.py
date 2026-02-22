@@ -83,7 +83,7 @@ class Barbearia(db.Model):
 
 # Configurações dinâmicas de negócio (Hotelaria)
     min_pessoas_reserva = db.Column(db.Integer, default=1, nullable=False)
-    min_dias_reserva = db.Column(db.Integer, default=1, nullable=False)
+    min_dias_reserva = db.Column(db.Float, default=1.0, nullable=False)
 
 
 # ---------------------------------------------------------------------
