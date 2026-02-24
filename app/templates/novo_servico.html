@@ -1,8 +1,38 @@
 {% extends 'base.html' %} 
 
-{% block title %}Adicionar Novo Serviço{% endblock %}
+{% block title %}
+  {% if current_user.barbearia.business_type == 'pousada' or 'pousada' in current_user.barbearia.nome_fantasia.lower() %}
+      Adicionar Nova Tarifa
+  {% elif 'lash' in current_user.barbearia.nome_fantasia.lower() %}
+      Adicionar Novo Procedimento
+  {% else %}
+      Adicionar Novo Serviço
+  {% endif %}
+{% endblock %}
 
 {% block content %}
+
+  {# ================================================================= #}
+  {# 🧠 CÉREBRO DO VOCABULÁRIO LOCAL E VARIÁVEIS DO FORMULÁRIO       #}
+  {# ================================================================= #}
+  {% set vocab_local = namespace(singular='Serviço', novo='Novo') %}
+  {% if current_user.is_authenticated and current_user.barbearia %}
+      {% set tipo = current_user.barbearia.business_type %}
+      {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+      {% if tipo == 'pousada' or 'pousada' in nome %}
+          {% set vocab_local.singular = 'Tarifa / Day Use' %}
+          {% set vocab_local.novo = 'Nova' %}
+      {% elif 'lash' in nome or 'studio' in nome %}
+          {% set vocab_local.singular = 'Procedimento' %}
+          {% set vocab_local.novo = 'Novo' %}
+      {% endif %}
+  {% endif %}
+
+  {# Passando as variáveis para o include #}
+  {% set form_data = form_data | default({}) %}
+  {% set submit_button_text = 'Adicionar ' ~ vocab_local.singular %}
+  {# ================================================================= #}
+
   {# Mensagens Flash de Erro #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -20,22 +50,18 @@
   {% endwith %}
 
   {# Card principal com o formulário #}
-  <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden">
-    <div class="p-6 border-b border-gray-700">
-      <h2 class="text-xl font-bold text-text-primary-dark">Adicionar Novo Serviço</h2>
+  <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden border border-white/5">
+    <div class="p-6 border-b border-gray-800">
+      <h2 class="text-xl font-bold text-text-primary-dark flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary">add_circle</span>
+        Adicionar {{ vocab_local.novo }} {{ vocab_local.singular }}
+      </h2>
     </div>
     <div class="p-6">
       <form method="POST">
-        {# --- CORREÇÃO DEFINITIVA: Sintaxe correta para passar variáveis --- #}
         {% include '_form_servico.html' with context %}
-        {# ------------------------------------------------------------- #}
       </form>
     </div>
   </div>
 
 {% endblock %}
-
-{# --- CORREÇÃO DEFINITIVA: Definir as variáveis para o formulário no contexto #}
-{% set form_data = form_data | default({}) %}
-{% set submit_button_text = 'Adicionar Serviço' %}
-{# ------------------------------------------------------------- #}
