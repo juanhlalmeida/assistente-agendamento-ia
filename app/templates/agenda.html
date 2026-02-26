@@ -15,6 +15,7 @@
     novo_btn='Novo Agendamento',
     msg_vazio='Nenhum agendamento'
 ) %}
+{% set is_pousada = false %}
 
 {% if current_user.is_authenticated and current_user.barbearia %}
     {% set tipo = current_user.barbearia.business_type %}
@@ -22,6 +23,7 @@
 
     {# POUSADA #}
     {% if tipo == 'pousada' or 'pousada' in nome %}
+        {% set is_pousada = true %}
         {% set vocab_agenda.prof = 'Quarto' %}
         {% set vocab_agenda.serv = 'Tarifa/Day Use' %}
         {% set vocab_agenda.agenda = 'Reserva' %}
@@ -55,6 +57,75 @@
     {% endfor %}
   {% endif %}
 {% endwith %}
+
+
+{# ================================================================= #}
+{# 🏨 TELA EXCLUSIVA DA POUSADA (FULLCALENDAR + ANIME.JS)          #}
+{# ================================================================= #}
+{% if is_pousada %}
+
+<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 anime-header">
+    <h2 class="text-text-primary-dark text-3xl font-bold">Mapa de Reservas Mensal</h2>
+    
+    <div class="flex items-center gap-3 w-full md:w-auto">
+        {# Filtro por Quarto no Calendário #}
+        <div class="relative w-full md:w-64">
+            <span class="material-symbols-outlined absolute left-3 top-3 text-text-secondary-dark pointer-events-none">bed</span>
+            <select id="filtroQuarto" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full pl-10 p-2.5 outline-none transition-colors appearance-none">
+                <option value="todos">Todos os Quartos</option>
+                {% for p in profissionais %}
+                    <option value="{{ p.id }}">{{ p.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <button type="button" id="btnAbrirModalCalendario" class="flex items-center justify-center gap-2 rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 w-full md:w-auto shrink-0">
+            <span class="material-symbols-outlined">add</span>
+            <span class="truncate hidden md:inline">{{ vocab_agenda.novo_btn }}</span>
+        </button>
+    </div>
+</div>
+
+{# Container do Calendário (Inicia invisível para a animação do Anime.js agir) #}
+<div class="bg-surface-dark rounded-xl shadow-2xl border border-white/5 p-4 md:p-6 anime-calendar opacity-0 transform translate-y-8">
+    <div id="hotelCalendar" class="text-white"></div>
+</div>
+
+<style>
+    /* Estilos Premium para o FullCalendar no Dark Mode */
+    .fc { font-family: 'Inter', sans-serif; }
+    .fc-theme-standard td, .fc-theme-standard th { border-color: #2d3748 !important; }
+    .fc-col-header-cell-cushion { color: #A0A0A0 !important; font-weight: 600; padding: 12px 0; text-transform: uppercase; font-size: 0.85rem;}
+    .fc-daygrid-day-number { color: #fff !important; padding: 8px; font-weight: 500;}
+    .fc-day-today { background-color: rgba(var(--theme-color-rgb, 0, 166, 251), 0.08) !important; }
+    
+    /* REFINAMENTO DAS BARRAS DE RESERVA */
+    .fc-event { 
+        cursor: pointer; 
+        border: none; 
+        border-left: 3px solid rgba(255,255,255,0.7) !important; /* Detalhe lateral elegante */
+        border-radius: 4px; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15); 
+        transition: transform 0.2s; 
+    }
+    .fc-event:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); z-index: 50;}
+    
+    /* REFINAMENTO DOS BOTÕES */
+    .fc-button-primary { background-color: var(--theme-color) !important; border: none !important; text-transform: capitalize; font-weight: 600 !important; padding: 8px 16px !important; border-radius: 8px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;}
+    .fc-button-primary:hover { background-color: var(--theme-color) !important; filter: brightness(1.1); }
+    .fc-button-active { filter: brightness(0.8); }
+    .fc-toolbar-title { font-size: 1.5rem !important; color: #fff; font-weight: 800; text-transform: capitalize; }
+    
+    /* REFINAMENTO DA LISTA SEMANAL */
+    .fc-list-day-cushion { background-color: #1f2937 !important; color: #fff !important; font-weight: bold; }
+    .fc-list-event:hover td { background-color: rgba(255,255,255,0.05) !important; }
+</style>
+
+
+{# ================================================================= #}
+{# 💈 TELA ORIGINAL DA CAROL (INTACTA E SEM CORTES)                #}
+{# ================================================================= #}
+{% else %}
 
 {# Layout responsivo #}
 <div class="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-8">
@@ -171,7 +242,13 @@
 
 </div>
 
-{# Modal (Pop-up) de Novo Agendamento #}
+{% endif %}
+{# FIM DA CONDIÇÃO MULTI-TENANT #}
+
+
+{# ================================================================= #}
+{# MODAL ORIGINAL (COMPARTILHADO PARA AMBAS AS TELAS)              #}
+{# ================================================================= #}
 <div id="novoAgendamentoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden transition-opacity">
   <div class="bg-surface-dark rounded-xl shadow-2xl w-full max-w-lg border border-white/10">
     
@@ -228,11 +305,93 @@
   </div>
 </div>
 
-{# SCRIPT (Sem alterações, apenas mantido seguro) #}
+{# ================================================================= #}
+{# SCRIPTS DO PROJETO                                              #}
+{# ================================================================= #}
+{% if is_pousada %}
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // 1. Anime.js - Animações suaves de entrada
+    anime({ targets: '.anime-header', translateY: [-20, 0], opacity: [0, 1], duration: 800, easing: 'easeOutExpo' });
+    anime({ targets: '.anime-calendar', translateY: [40, 0], opacity: [0, 1], duration: 1000, delay: 200, easing: 'easeOutExpo' });
+
+    // 2. FullCalendar.js - Inicialização Premium
+    var calendarEl = document.getElementById('hotelCalendar');
+    if(calendarEl) {
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            locale: 'pt-br',
+            height: 'auto',
+            displayEventTime: false, // 🔥 MÁGICA 1: Remove o horário sujo (ex: 12:00) da frente do nome
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,listWeek' // 🔥 MÁGICA 2: Troca a grade de horas por uma Lista Limpa
+            },
+            buttonText: { today: 'Hoje', month: 'Mês', week: 'Lista da Semana' },
+            events: '/api/reservas_calendario', 
+            eventColor: 'var(--theme-color)',
+            
+            // 🔥 MÁGICA 3: Redesenha o texto dentro da barrinha colorida
+            eventContent: function(arg) {
+                // Separa o Nome do Quarto que vinha misturado do Python
+                let partes = arg.event.title.split('(');
+                let nomeCliente = partes[0].trim();
+                let nomeQuarto = arg.event.extendedProps.quarto_nome;
+
+                // Cria um layout de duas linhas (Nome forte, Quarto discreto embaixo)
+                let div = document.createElement('div');
+                div.className = 'flex flex-col px-2 py-1 overflow-hidden';
+                div.innerHTML = `
+                    <span class="font-bold text-sm truncate text-white drop-shadow-md leading-tight" title="${nomeCliente}">${nomeCliente}</span>
+                    <span class="text-xs text-white/80 truncate leading-tight" title="${nomeQuarto}">${nomeQuarto}</span>
+                `;
+                return { domNodes: [div] };
+            },
+            
+            // Abre o modal de nova reserva com a data pronta ao clicar num dia vazio
+            dateClick: function(info) {
+                let horaPadrao = info.dateStr + "T12:00"; 
+                document.getElementById('data_hora').value = horaPadrao;
+                document.getElementById('novoAgendamentoModal').classList.remove('hidden');
+            },
+            
+            // Exibe alert básico ao clicar num evento existente
+            eventClick: function(info) {
+                let nomeCliente = info.event.title.split('(')[0].trim();
+                alert(`Reserva: ${nomeCliente}\nQuarto: ${info.event.extendedProps.quarto_nome}\nTelefone: ${info.event.extendedProps.telefone}`);
+            }
+        });
+
+        calendar.render();
+
+        // 3. Lógica do Filtro por Quarto no Calendário
+        document.getElementById('filtroQuarto')?.addEventListener('change', function(e) {
+            let room_id = e.target.value;
+            let events = calendar.getEvents();
+            events.forEach(event => {
+                if (room_id === 'todos' || event.extendedProps.quarto_id === room_id) {
+                    event.setProp('display', 'auto');
+                } else {
+                    event.setProp('display', 'none');
+                }
+            });
+        });
+    }
+});
+</script>
+{% endif %}
+
+{# Script Original de Controle do Modal mantido seguro! #}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   const modal = document.getElementById('novoAgendamentoModal');
   const btnAbrirModal = document.getElementById('btnAbrirModal');
+  const btnAbrirModalCalendario = document.getElementById('btnAbrirModalCalendario'); // Novo botão da pousada
   const btnFecharModal = document.getElementById('btnFecharModal');
   const btnCancelarModal = document.getElementById('btnCancelarModal');
   const profissionalSelect = document.getElementById('profissional_id');
@@ -247,6 +406,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   if (btnAbrirModal) {
     btnAbrirModal.addEventListener('click', abrirModal);
+  }
+  if (btnAbrirModalCalendario) {
+    btnAbrirModalCalendario.addEventListener('click', abrirModal);
   }
   if (btnFecharModal) {
     btnFecharModal.addEventListener('click', fecharModal);

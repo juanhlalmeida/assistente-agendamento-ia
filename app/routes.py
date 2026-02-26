@@ -1571,3 +1571,37 @@ def fix_db_column_v2():
     except Exception as e:
         db.session.rollback()
         return f"ERRO na correção: {str(e)}"
+
+        # ============================================
+# 🏨 API EXCLUSIVA PARA O CALENDÁRIO DA POUSADA
+# ============================================
+from flask import jsonify
+
+@bp.route('/api/reservas_calendario')
+@login_required
+def api_reservas_calendario():
+    if not current_user.barbearia_id:
+        return jsonify([])
+    
+    # Busca todas as reservas da pousada
+    agendamentos = Agendamento.query.filter_by(barbearia_id=current_user.barbearia_id).all()
+    eventos = []
+    
+    for ag in agendamentos:
+        # Pega a duração do serviço ou assume 24h (1440 min)
+        duracao = ag.servico.duracao if ag.servico else 1440
+        fim = ag.data_hora + timedelta(minutes=duracao)
+        
+        eventos.append({
+            'id': ag.id,
+            'title': f"{ag.nome_cliente} ({ag.profissional.nome})",
+            'start': ag.data_hora.strftime('%Y-%m-%dT%H:%M:%S'),
+            'end': fim.strftime('%Y-%m-%dT%H:%M:%S'),
+            'extendedProps': {
+                'quarto_id': str(ag.profissional_id),
+                'quarto_nome': ag.profissional.nome,
+                'telefone': ag.telefone_cliente
+            }
+        })
+        
+    return jsonify(eventos)
