@@ -1573,6 +1573,7 @@ def fix_db_column_v2():
         return f"ERRO na correção: {str(e)}"
 
         # ============================================
+# ============================================
 # 🏨 API EXCLUSIVA PARA O CALENDÁRIO DA POUSADA
 # ============================================
 from flask import jsonify
@@ -1583,24 +1584,37 @@ def api_reservas_calendario():
     if not current_user.barbearia_id:
         return jsonify([])
     
-    # Busca todas as reservas da pousada
     agendamentos = Agendamento.query.filter_by(barbearia_id=current_user.barbearia_id).all()
     eventos = []
     
+    # Paleta de cores premium para diferenciar os quartos
+    cores = ['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981', '#f43f5e', '#6366f1', '#14b8a6', '#f97316']
+    
     for ag in agendamentos:
-        # Pega a duração do serviço ou assume 24h (1440 min)
         duracao = ag.servico.duracao if ag.servico else 1440
         fim = ag.data_hora + timedelta(minutes=duracao)
         
+        # Lógica inteligente: Se for menos de 12h (720 min) ou tiver 'day' no nome, é Day Use.
+        is_day_use = duracao <= 720 or (ag.servico and 'day' in ag.servico.nome.lower())
+        icone = '☀️' if is_day_use else '🛏️'
+        tipo_texto = 'Day Use' if is_day_use else 'Diária'
+        
+        # Cada quarto ganha uma cor fixa baseada no ID dele
+        cor_quarto = cores[ag.profissional_id % len(cores)]
+        
         eventos.append({
             'id': ag.id,
-            'title': f"{ag.nome_cliente} ({ag.profissional.nome})",
+            'title': f"{icone} {ag.nome_cliente}",
             'start': ag.data_hora.strftime('%Y-%m-%dT%H:%M:%S'),
             'end': fim.strftime('%Y-%m-%dT%H:%M:%S'),
+            'color': cor_quarto, # Envia a cor para o calendário
             'extendedProps': {
                 'quarto_id': str(ag.profissional_id),
                 'quarto_nome': ag.profissional.nome,
-                'telefone': ag.telefone_cliente
+                'telefone': ag.telefone_cliente,
+                'tipo': tipo_texto,
+                'checkin': ag.data_hora.strftime('%d/%m às %H:%M'),
+                'checkout': fim.strftime('%d/%m às %H:%M')
             }
         })
         
