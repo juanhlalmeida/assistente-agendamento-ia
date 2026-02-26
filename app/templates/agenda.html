@@ -131,6 +131,137 @@
 <script src="https://unpkg.com/tippy.js@6"></script>
 <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale-subtle.css" />
 
+<script>
+// Função de exclusão via AJAX (definida globalmente)
+function excluirReserva(url, eventId) {
+    if (!confirm('Tem certeza que deseja cancelar e apagar esta reserva?')) return;
+    
+    fetch(url, {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => {
+        if (response.ok) {
+            // Recarrega a página para refletir a exclusão
+            window.location.reload();
+        } else {
+            alert('Erro ao excluir a reserva.');
+        }
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        alert('Erro ao excluir a reserva.');
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Anime.js - Animações suaves
+    anime({ targets: '.anime-header', translateY: [-20, 0], opacity: [0, 1], duration: 800, easing: 'easeOutExpo' });
+    anime({ targets: '.anime-calendar', translateY: [40, 0], opacity: [0, 1], duration: 1000, delay: 200, easing: 'easeOutExpo' });
+
+    var calendarEl = document.getElementById('hotelCalendar');
+    if (!calendarEl) return;
+
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'pt-br',
+        height: 'auto',
+        displayEventTime: false,
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,listWeek'
+        },
+        buttonText: { today: 'Hoje', month: 'Mês', week: 'Lista da Semana' },
+        events: '/api/reservas_calendario',
+        
+        eventContent: function(arg) {
+            let tituloCompleto = arg.event.title;
+            let nomeQuarto = arg.event.extendedProps.quarto_nome;
+
+            let div = document.createElement('div');
+            div.className = 'flex flex-col px-2 py-1 overflow-hidden';
+            div.innerHTML = `
+                <span class="font-bold text-sm truncate text-white drop-shadow-md leading-tight">${tituloCompleto}</span>
+                <span class="text-xs text-white/90 truncate leading-tight mt-0.5">${nomeQuarto}</span>
+            `;
+            return { domNodes: [div] };
+        },
+        
+        eventDidMount: function(info) {
+            let props = info.event.extendedProps;
+            let id = info.event.id;
+            
+            let urlEditar = "{{ url_for('main.editar_agendamento', agendamento_id=999999) }}".replace('999999', id);
+            let urlExcluir = "{{ url_for('main.excluir_agendamento', agendamento_id=999999) }}".replace('999999', id);
+            
+            let zap = props.telefone.replace(/\D/g, '');
+            if (zap.length === 10 || zap.length === 11) { zap = '55' + zap; }
+            
+            let conteudoHTML = `
+                <div class="text-left p-2 font-sans w-56">
+                    <div class="font-bold text-base text-primary mb-2 border-b border-gray-700 pb-1">${info.event.title}</div>
+                    <div class="text-sm text-gray-200 mb-1"><strong class="text-gray-400">Quarto:</strong> ${props.quarto_nome}</div>
+                    <div class="text-sm text-gray-200 mb-1"><strong class="text-gray-400">Tipo:</strong> ${props.tipo}</div>
+                    <div class="text-sm text-gray-200 mb-1"><strong class="text-gray-400">Check-in:</strong> ${props.checkin}</div>
+                    <div class="text-sm text-gray-200 mb-2"><strong class="text-gray-400">Check-out:</strong> ${props.checkout}</div>
+                    
+                    <a href="https://wa.me/${zap}" target="_blank" onclick="event.stopPropagation();" class="block w-full text-sm text-green-400 hover:text-white font-medium mt-2 bg-green-400/10 hover:bg-green-600 px-2 py-1.5 rounded-md text-center transition-colors shadow-sm">
+                        <span class="material-symbols-outlined text-sm align-middle">chat</span> Falar no WhatsApp
+                    </a>
+                    
+                    <div class="flex gap-2 mt-2 pt-2 border-t border-gray-700">
+                        <a href="${urlEditar}" onclick="event.stopPropagation();" class="flex-1 bg-gray-700 hover:bg-primary text-white text-center py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm">
+                            EDITAR
+                        </a>
+                        <button onclick="event.stopPropagation(); excluirReserva('${urlExcluir}', '${id}');" 
+                                class="flex-1 bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white text-center py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm">
+                            EXCLUIR
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            tippy(info.el, {
+                content: conteudoHTML,
+                allowHTML: true,
+                animation: 'scale-subtle',
+                theme: 'translucent',
+                placement: 'top',
+                arrow: true,
+                interactive: true,
+                appendTo: document.body,
+                delay: [100, 200]
+            });
+        },
+        
+        dateClick: function(info) {
+            let horaPadrao = info.dateStr + "T14:00";
+            document.getElementById('data_hora').value = horaPadrao;
+            document.getElementById('novoAgendamentoModal').classList.remove('hidden');
+        }
+    });
+
+    calendar.render();
+
+    // Filtro por Quarto
+    document.getElementById('filtroQuarto')?.addEventListener('change', function(e) {
+        let room_id = e.target.value;
+        let events = calendar.getEvents();
+        events.forEach(event => {
+            if (room_id === 'todos' || event.extendedProps.quarto_id === room_id) {
+                event.setProp('display', 'auto');
+            } else {
+                event.setProp('display', 'none');
+            }
+        });
+    });
+});
+</script>
 
 {# ================================================================= #}
 {# 💈 TELA ORIGINAL DA CAROL (INTACTA E SEM CORTES)                #}
@@ -320,233 +451,7 @@
   </div>
 </div>
 
-{# ================================================================= #}
-{# SCRIPTS DO PROJETO                                              #}
-{# ================================================================= #}
-{% if is_pousada %}
+{# Meta tag para CSRF (se necessário) #}
+<meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
 
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // 1. Anime.js - Animações suaves
-    anime({ targets: '.anime-header', translateY: [-20, 0], opacity: [0, 1], duration: 800, easing: 'easeOutExpo' });
-    anime({ targets: '.anime-calendar', translateY: [40, 0], opacity: [0, 1], duration: 1000, delay: 200, easing: 'easeOutExpo' });
-
-    var calendarEl = document.getElementById('hotelCalendar');
-    if(calendarEl) {
-        var calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
-            locale: 'pt-br',
-            height: 'auto',
-            displayEventTime: false, // Esconde a hora estourada
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,listWeek'
-            },
-            buttonText: { today: 'Hoje', month: 'Mês', week: 'Lista da Semana' },
-            events: '/api/reservas_calendario', 
-            
-            // 🔥 MÁGICA 1: Redesenha o card limpo na tela
-            eventContent: function(arg) {
-                let tituloCompleto = arg.event.title; // Agora vem com o ícone do Python
-                let nomeQuarto = arg.event.extendedProps.quarto_nome;
-
-                let div = document.createElement('div');
-                div.className = 'flex flex-col px-2 py-1 overflow-hidden';
-                div.innerHTML = `
-                    <span class="font-bold text-sm truncate text-white drop-shadow-md leading-tight">${tituloCompleto}</span>
-                    <span class="text-xs text-white/90 truncate leading-tight mt-0.5">${nomeQuarto}</span>
-                `;
-                return { domNodes: [div] };
-            },
-            
-            // 🔥 MÁGICA 2: Cria o Balão Flutuante Elegante (Tooltip) ao passar o mouse
-            eventDidMount: function(info) {
-    let props = info.event.extendedProps;
-    let id = info.event.id;
-    
-    let urlEditar = "{{ url_for('main.editar_agendamento', agendamento_id=999999) }}".replace('999999', id);
-    let urlExcluir = "{{ url_for('main.excluir_agendamento', agendamento_id=999999) }}".replace('999999', id);
-    
-    let zap = props.telefone.replace(/\D/g, '');
-    if (zap.length === 10 || zap.length === 11) { zap = '55' + zap; }
-    
-    let conteudoHTML = `
-        <div class="text-left p-2 font-sans w-56">
-            <div class="font-bold text-base text-primary mb-2 border-b border-gray-700 pb-1">${info.event.title}</div>
-            <div class="text-sm text-gray-200 mb-1"><strong class="text-gray-400">Quarto:</strong> ${props.quarto_nome}</div>
-            <div class="text-sm text-gray-200 mb-1"><strong class="text-gray-400">Tipo:</strong> ${props.tipo}</div>
-            <div class="text-sm text-gray-200 mb-1"><strong class="text-gray-400">Check-in:</strong> ${props.checkin}</div>
-            <div class="text-sm text-gray-200 mb-2"><strong class="text-gray-400">Check-out:</strong> ${props.checkout}</div>
-            
-            <a href="https://wa.me/${zap}" target="_blank" onclick="event.stopPropagation();" class="block w-full text-sm text-green-400 hover:text-white font-medium mt-2 bg-green-400/10 hover:bg-green-600 px-2 py-1.5 rounded-md text-center transition-colors shadow-sm">
-                <span class="material-symbols-outlined text-sm align-middle">chat</span> Falar no WhatsApp
-            </a>
-            
-            <div class="flex gap-2 mt-2 pt-2 border-t border-gray-700">
-                <a href="${urlEditar}" onclick="event.stopPropagation();" class="flex-1 bg-gray-700 hover:bg-primary text-white text-center py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm">
-                    EDITAR
-                </a>
-                <form action="${urlExcluir}" method="POST" class="flex-1 m-0" onsubmit="event.stopPropagation(); return confirm('Tem certeza que deseja cancelar e apagar esta reserva?');">
-                    <button type="submit" onclick="event.stopPropagation();" class="w-full bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white text-center py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm">
-                        EXCLUIR
-                    </button>
-                </form>
-            </div>
-        </div>
-    `;
-    
-    tippy(info.el, {
-        content: conteudoHTML,
-        allowHTML: true,
-        animation: 'scale-subtle',
-        theme: 'translucent',
-        placement: 'top',
-        arrow: true,
-        interactive: true,
-        appendTo: document.body, // 🔥 ESSENCIAL: tira o tooltip do fluxo do calendário
-        delay: [100, 200]
-    });
-},
-            
-            // Abre o modal de nova reserva
-            dateClick: function(info) {
-                let horaPadrao = info.dateStr + "T14:00"; // Pousadas geralmente check-in as 14h
-                document.getElementById('data_hora').value = horaPadrao;
-                document.getElementById('novoAgendamentoModal').classList.remove('hidden');
-            }
-        });
-
-        calendar.render();
-
-        // Filtro por Quarto
-        document.getElementById('filtroQuarto')?.addEventListener('change', function(e) {
-            let room_id = e.target.value;
-            let events = calendar.getEvents();
-            events.forEach(event => {
-                if (room_id === 'todos' || event.extendedProps.quarto_id === room_id) {
-                    event.setProp('display', 'auto');
-                } else {
-                    event.setProp('display', 'none');
-                }
-            });
-        });
-    }
-});
-</script>
-
-{% endif %}
-
-{# Script Original de Controle do Modal mantido seguro! #}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // 1. Anime.js - Animações suaves
-    anime({ targets: '.anime-header', translateY: [-20, 0], opacity: [0, 1], duration: 800, easing: 'easeOutExpo' });
-    anime({ targets: '.anime-calendar', translateY: [40, 0], opacity: [0, 1], duration: 1000, delay: 200, easing: 'easeOutExpo' });
-
-    var calendarEl = document.getElementById('hotelCalendar');
-    if(calendarEl) {
-        var calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
-            locale: 'pt-br',
-            height: 'auto',
-            displayEventTime: false, 
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,listWeek'
-            },
-            buttonText: { today: 'Hoje', month: 'Mês', week: 'Lista da Semana' },
-            events: '/api/reservas_calendario', 
-            
-            // Redesenha o card limpo na tela
-            eventContent: function(arg) {
-                let tituloCompleto = arg.event.title; 
-                let nomeQuarto = arg.event.extendedProps.quarto_nome;
-
-                let div = document.createElement('div');
-                div.className = 'flex flex-col px-2 py-1 overflow-hidden';
-                div.innerHTML = `
-                    <span class="font-bold text-sm truncate text-white drop-shadow-md leading-tight">${tituloCompleto}</span>
-                    <span class="text-xs text-white/90 truncate leading-tight mt-0.5">${nomeQuarto}</span>
-                `;
-                return { domNodes: [div] };
-            },
-            
-            // 🔥 A MÁGICA: Adicionamos event.stopPropagation() nos cliques!
-            eventDidMount: function(info) {
-                let props = info.event.extendedProps;
-                let id = info.event.id;
-                
-                let urlEditar = "{{ url_for('main.editar_agendamento', agendamento_id=999999) }}".replace('999999', id);
-                let urlExcluir = "{{ url_for('main.excluir_agendamento', agendamento_id=999999) }}".replace('999999', id);
-                
-                let zap = props.telefone.replace(/\D/g, '');
-                if (zap.length === 10 || zap.length === 11) { zap = '55' + zap; }
-                
-                let conteudoHTML = `
-                    <div class="text-left p-2 font-sans w-56">
-                        <div class="font-bold text-base text-primary mb-2 border-b border-gray-700 pb-1">${info.event.title}</div>
-                        <div class="text-sm text-gray-200 mb-1"><strong class="text-gray-400">Quarto:</strong> ${props.quarto_nome}</div>
-                        <div class="text-sm text-gray-200 mb-1"><strong class="text-gray-400">Tipo:</strong> ${props.tipo}</div>
-                        <div class="text-sm text-gray-200 mb-1"><strong class="text-gray-400">Check-in:</strong> ${props.checkin}</div>
-                        <div class="text-sm text-gray-200 mb-2"><strong class="text-gray-400">Check-out:</strong> ${props.checkout}</div>
-                        
-                        <a href="https://wa.me/${zap}" target="_blank" onclick="event.stopPropagation();" class="block w-full text-sm text-green-400 hover:text-white font-medium mt-2 bg-green-400/10 hover:bg-green-600 px-2 py-1.5 rounded-md text-center transition-colors shadow-sm">
-                            <span class="material-symbols-outlined text-sm align-middle">chat</span> Falar no WhatsApp
-                        </a>
-                        
-                        <div class="flex gap-2 mt-2 pt-2 border-t border-gray-700">
-                            <a href="${urlEditar}" onclick="event.stopPropagation();" class="flex-1 bg-gray-700 hover:bg-primary text-white text-center py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm">
-                                EDITAR
-                            </a>
-                            <form action="${urlExcluir}" method="POST" class="flex-1 m-0" onsubmit="event.stopPropagation(); return confirm('Tem certeza que deseja cancelar e apagar esta reserva?');">
-                                <button type="submit" onclick="event.stopPropagation();" class="w-full bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white text-center py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm">
-                                    EXCLUIR
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                `;
-                
-                tippy(info.el, {
-                    content: conteudoHTML,
-                    allowHTML: true,
-                    animation: 'scale-subtle',
-                    theme: 'translucent',
-                    placement: 'top',
-                    arrow: true,
-                    interactive: true,
-                    delay: [100, 200]
-                });
-            },
-            
-            // Abre o modal de nova reserva ao clicar num dia vazio
-            dateClick: function(info) {
-                let horaPadrao = info.dateStr + "T14:00"; 
-                document.getElementById('data_hora').value = horaPadrao;
-                document.getElementById('novoAgendamentoModal').classList.remove('hidden');
-            }
-        });
-
-        calendar.render();
-
-        // Filtro por Quarto
-        document.getElementById('filtroQuarto')?.addEventListener('change', function(e) {
-            let room_id = e.target.value;
-            let events = calendar.getEvents();
-            events.forEach(event => {
-                if (room_id === 'todos' || event.extendedProps.quarto_id === room_id) {
-                    event.setProp('display', 'auto');
-                } else {
-                    event.setProp('display', 'none');
-                }
-            });
-        });
-    }
-});
-</script>
 {% endblock %}

@@ -1,14 +1,8 @@
 {% extends 'base.html' %} 
 
-{# 
-  ARQUIVO: servicos.html (COM VOCABULÁRIO DINÂMICO E FORMATAÇÃO DE HORAS)
-  Adapta para "Diárias" ou "Serviços" e formata 1440min como "1 Dia".
-#}
-
 {% block title %}
-  {# Título da Aba #}
-  {% if current_user.barbearia.business_type == 'pousada' %}
-      Gerir Diárias
+  {% if current_user.barbearia.business_type == 'pousada' or 'pousada' in current_user.barbearia.nome_fantasia.lower() %}
+      Gerir Tarifas e Pacotes
   {% else %}
       Gerir Serviços
   {% endif %}
@@ -17,10 +11,10 @@
 {% block content %}
 
   {# ================================================================= #}
-  {# 🧠 CÉREBRO DO VOCABULÁRIO (SERVIÇOS)                            #}
+  {# 🧠 CÉREBRO DO VOCABULÁRIO MULTI-TENANT (BLINDADO)               #}
   {# ================================================================= #}
-  {% set termo_singular = 'Serviço' %}
-  {% set termo_plural = 'Serviços' %}
+  {% set vocab = namespace(singular='Serviço', plural='Serviços', novo='Novo') %}
+  {% set is_pousada = false %}
   
   {% if current_user.is_authenticated and current_user.barbearia %}
       {% set tipo = current_user.barbearia.business_type %}
@@ -28,13 +22,16 @@
 
       {# POUSADA #}
       {% if tipo == 'pousada' or 'pousada' in nome %}
-          {% set termo_singular = 'Diária / Pacote' %}
-          {% set termo_plural = 'Tipos de Diária' %}
+          {% set is_pousada = true %}
+          {% set vocab.singular = 'Tarifa / Pacote' %}
+          {% set vocab.plural = 'Tarifas e Pacotes' %}
+          {% set vocab.novo = 'Nova' %}
       
       {# LASH #}
       {% elif 'lash' in nome or 'studio' in nome %}
-          {% set termo_singular = 'Procedimento' %}
-          {% set termo_plural = 'Procedimentos' %}
+          {% set vocab.singular = 'Procedimento' %}
+          {% set vocab.plural = 'Procedimentos' %}
+          {% set vocab.novo = 'Novo' %}
       {% endif %}
   {% endif %}
   {# ================================================================= #}
@@ -59,18 +56,97 @@
   {% endwith %}
 
   {# Cabeçalho da Página #}
-  <div class="flex justify-between items-center mb-6">
-    <h2 class="text-text-primary-dark text-3xl font-bold">{{ termo_plural }}</h2>
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+    <h2 class="text-text-primary-dark text-3xl font-bold anime-title">{{ vocab.plural }}</h2>
     
-    {# Botão Novo Item #}
     <a href="{{ url_for('servicos.novo_servico') }}" 
-       class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors">
+       class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 anime-title w-full sm:w-auto">
       <span class="material-symbols-outlined">add</span>
-      <span class="truncate">Novo {{ termo_singular }}</span>
+      <span class="truncate">{{ vocab.novo }} {{ vocab.singular }}</span>
     </a>
   </div>
 
-  {# Tabela #}
+
+  {# ================================================================= #}
+  {# 🏨 VISÃO EXCLUSIVA DA POUSADA (CARDS + ANIME.JS)                #}
+  {# ================================================================= #}
+  {% if is_pousada %}
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+      {% for servico in servicos %}
+        <div class="bg-surface-dark rounded-2xl p-6 shadow-xl border border-white/5 relative overflow-hidden anime-card opacity-0 transform translate-y-8 flex flex-col justify-between group hover:border-primary/50 transition-colors">
+          
+          {# Faixa Superior Colorida Decorativa #}
+          <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary to-blue-500 opacity-70 group-hover:opacity-100 transition-opacity"></div>
+          
+          <div class="mb-6">
+            <h3 class="text-xl font-bold text-white mb-3">{{ servico.nome }}</h3>
+            
+            {# Lógica Matemática de Diárias #}
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-background-dark/50 border border-gray-700 rounded-lg">
+              <span class="material-symbols-outlined text-sm text-primary">schedule</span>
+              <span class="text-sm font-medium text-text-secondary-dark">
+                {% set dias = servico.duracao / 1440 %}
+                {% if dias >= 1 %}
+                  {# Formata para mostrar 1.5, 2.0, etc #}
+                  Bloqueio de Agenda: <strong class="text-white">{{ dias | round(1) }} Diária(s)</strong>
+                {% else %}
+                  Bloqueio de Agenda: <strong class="text-white">{{ (servico.duracao / 60) | round(1) }} Hora(s)</strong>
+                {% endif %}
+              </span>
+            </div>
+          </div>
+          
+          <div class="flex items-end justify-between pt-4 border-t border-gray-800/80">
+            <div>
+              <p class="text-[11px] text-text-secondary-dark uppercase tracking-wider mb-1 font-semibold">Valor Final</p>
+              <p class="text-2xl font-black text-green-400">R$ {{ "%.2f"|format(servico.preco) }}</p>
+            </div>
+            
+            <div class="flex gap-2">
+              <a href="{{ url_for('servicos.editar_servico', servico_id=servico.id) }}" class="flex items-center justify-center w-10 h-10 bg-gray-800 hover:bg-primary text-gray-300 hover:text-white rounded-xl transition-all shadow-sm" title="Editar Tarifa">
+                <span class="material-symbols-outlined text-[20px]">edit</span>
+              </a>
+              <form action="{{ url_for('servicos.apagar_servico', servico_id=servico.id) }}" method="post" class="m-0" onsubmit="return confirm('Tem certeza que deseja apagar a tarifa \'{{ servico.nome }}\'?');">
+                <button type="submit" class="flex items-center justify-center w-10 h-10 bg-red-900/30 hover:bg-red-600 text-red-400 hover:text-white rounded-xl transition-all shadow-sm" title="Apagar Tarifa">
+                  <span class="material-symbols-outlined text-[20px]">delete</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      {% else %}
+        <div class="col-span-full py-16 px-6 text-center bg-surface-dark rounded-2xl border border-white/5 border-dashed">
+          <div class="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span class="material-symbols-outlined text-3xl text-gray-400">hotel_class</span>
+          </div>
+          <h3 class="text-lg font-bold text-white mb-1">Nenhuma Tarifa Cadastrada</h3>
+          <p class="text-text-secondary-dark text-sm">Crie pacotes de fim de semana ou diárias para começar.</p>
+        </div>
+      {% endfor %}
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        anime({ targets: '.anime-title', translateY: [-20, 0], opacity: [0, 1], duration: 800, easing: 'easeOutExpo' });
+        anime({ 
+          targets: '.anime-card', 
+          translateY: [40, 0], 
+          opacity: [0, 1], 
+          duration: 800, 
+          delay: anime.stagger(100, {start: 200}), // Efeito Cascata: um após o outro
+          easing: 'easeOutExpo' 
+        });
+      });
+    </script>
+
+
+  {# ================================================================= #}
+  {# 💈 TELA ORIGINAL DA BARBEARIA/LASH (TABELA INTACTA)             #}
+  {# ================================================================= #}
+  {% else %}
+  
   <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto">
     <table class="w-full min-w-[600px] lg:min-w-full text-left align-middle">
       <thead class="bg-background-dark">
@@ -84,24 +160,9 @@
       <tbody>
         {% for servico in servicos %}
           <tr class="border-b border-gray-800 hover:bg-white/5">
-            {# Nome #}
             <td class="p-4 font-semibold text-text-primary-dark">{{ servico.nome }}</td>
-            
-            {# Duração Inteligente (Transforma minutos em Dias/Horas) #}
-            <td class="p-4 text-text-primary-dark">
-                {% if servico.duracao == 1440 %}
-                    <span class="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-bold border border-blue-500/30">1 Dia (24h)</span>
-                {% elif servico.duracao == 720 %}
-                    <span class="px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded text-xs font-bold border border-yellow-500/30">12 Horas (Day Use)</span>
-                {% else %}
-                    {{ servico.duracao }} min
-                {% endif %}
-            </td>
-
-            {# Preço #}
+            <td class="p-4 text-text-primary-dark">{{ servico.duracao }} min</td>
             <td class="p-4 text-green-400 font-mono font-medium">R$ {{ "%.2f"|format(servico.preco) }}</td>
-            
-            {# Ações #}
             <td class="p-4 text-center">
               <a href="{{ url_for('servicos.editar_servico', servico_id=servico.id) }}" 
                  class="p-2 text-text-secondary-dark hover:text-primary rounded-full transition-colors" title="Editar">
@@ -118,12 +179,15 @@
         {% else %} 
           <tr>
             <td colspan="4" class="p-8 text-center text-text-secondary-dark">
-                Nenhum {{ termo_singular|lower }} cadastrado ainda.
+                Nenhum {{ vocab.singular|lower }} cadastrado ainda.
             </td>
           </tr>
         {% endfor %} 
       </tbody>
     </table>
   </div>
+
+  {% endif %}
+  {# FIM DA CONDIÇÃO MULTI-TENANT #}
 
 {% endblock %}

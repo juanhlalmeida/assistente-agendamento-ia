@@ -1,27 +1,38 @@
 {# app/templates/_form_servico.html #}
 
-{# 🧠 CÉREBRO LOCAL PARA O RECHEIO DO FORMULÁRIO #}
+{# ================================================================= #}
+{# 🧠 CÉREBRO LOCAL MULTI-TENANT PARA O FORMULÁRIO                 #}
+{# ================================================================= #}
+{% set is_pousada = false %}
 {% set form_vocab = namespace(
     label_nome='Nome do Serviço',
+    placeholder_nome='Ex: Corte Degradê',
     label_duracao='Duração (minutos)',
     help_duracao='Tempo que o serviço leva (ex: 30).'
 ) %}
+
 {% if current_user.is_authenticated and current_user.barbearia %}
     {% set tipo = current_user.barbearia.business_type %}
     {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+    
     {% if tipo == 'pousada' or 'pousada' in nome %}
-        {% set form_vocab.label_nome = 'Nome da Tarifa / Day Use' %}
-        {% set form_vocab.label_duracao = 'Tempo de Bloqueio da Agenda' %}
-        {% set form_vocab.help_duracao = 'Ex: Para 1 diária digite 1440. Para Day Use (8h) digite 480.' %}
+        {% set is_pousada = true %}
+        {% set form_vocab.label_nome = 'Nome do Pacote / Tarifa' %}
+        {% set form_vocab.placeholder_nome = 'Ex: Pacote Casal (Sexta a Domingo)' %}
+        {% set form_vocab.label_duracao = 'Tempo de Ocupação (Bloqueio)' %}
+        {% set form_vocab.help_duracao = 'Escolha o tempo que o quarto ficará bloqueado.' %}
     {% elif 'lash' in nome or 'studio' in nome %}
         {% set form_vocab.label_nome = 'Nome do Procedimento' %}
+        {% set form_vocab.placeholder_nome = 'Ex: Extensão Volume Russo' %}
         {% set form_vocab.label_duracao = 'Duração (minutos)' %}
         {% set form_vocab.help_duracao = 'Tempo que o procedimento leva (ex: 120).' %}
     {% endif %}
 {% endif %}
+{# ================================================================= #}
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-  {# Campo Nome #}
+  
+  {# CAMPO 1: NOME #}
   <div class="md:col-span-3">
     <label for="nome" class="block text-sm font-medium text-text-secondary-dark mb-1">{{ form_vocab.label_nome }}</label>
     <input 
@@ -30,46 +41,82 @@
       name="nome" 
       class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
       value="{{ form_data.get('nome', '') }}" 
+      placeholder="{{ form_vocab.placeholder_nome }}"
       required>
+      
+      {% if is_pousada %}
+        <p class="text-xs text-primary mt-1 flex items-center gap-1">
+            <span class="material-symbols-outlined text-[14px]">lightbulb</span>
+            Dica para a IA: Coloque a capacidade no nome (Ex: "Diária Triplo", "Pacote Casal") para a assistente entender quem cabe no quarto.
+        </p>
+      {% endif %}
   </div>
 
-  {# Campo Duração #}
-  <div>
+  {# CAMPO 2: DURAÇÃO (INTELIGENTE PARA POUSADA) #}
+  <div class="md:col-span-2">
     <label for="duracao" class="block text-sm font-medium text-text-secondary-dark mb-1">{{ form_vocab.label_duracao }}</label>
-    <input 
-      type="number" 
-      id="duracao" 
-      name="duracao" 
-      min="1" 
-      step="1"
-      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
-      value="{{ form_data.get('duracao', '') }}" 
-      required>
-      <p class="text-xs text-text-secondary-dark mt-1">{{ form_vocab.help_duracao }}</p>
+    
+    {% if is_pousada %}
+        {# Dropdown de Combos para a Pousada #}
+        {% set dur_atual = form_data.get('duracao', '') | string %}
+        <select id="duracao" name="duracao" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
+            <option value="" disabled {% if not dur_atual %}selected{% endif %}>Selecione o tipo de pacote...</option>
+            
+            <optgroup label="Day Use (Sem Pernoite)">
+                <option value="480" {% if dur_atual == '480' %}selected{% endif %}>Day Use Curto (8 Horas)</option>
+                <option value="720" {% if dur_atual == '720' %}selected{% endif %}>Day Use Padrão (12 Horas)</option>
+            </optgroup>
+            
+            <optgroup label="Diárias e Pernoites">
+                <option value="1440" {% if dur_atual == '1440' %}selected{% endif %}>1 Diária (24 Horas)</option>
+                <option value="2160" {% if dur_atual == '2160' %}selected{% endif %}>1 Diária e Meia (36 Horas - Ex: Sex noite até Dom cedo)</option>
+                <option value="2880" {% if dur_atual == '2880' %}selected{% endif %}>2 Diárias (48 Horas - Ex: Pacote Fim de Semana)</option>
+                <option value="4320" {% if dur_atual == '4320' %}selected{% endif %}>3 Diárias (72 Horas - Ex: Feriado Prolongado)</option>
+                <option value="5760" {% if dur_atual == '5760' %}selected{% endif %}>4 Diárias (96 Horas)</option>
+            </optgroup>
+        </select>
+    {% else %}
+        {# Input numérico normal para Barbearia/Lash #}
+        <input 
+          type="number" 
+          id="duracao" 
+          name="duracao" 
+          min="1" 
+          step="1"
+          class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
+          value="{{ form_data.get('duracao', '') }}" 
+          required>
+    {% endif %}
+    
+    <p class="text-xs text-text-secondary-dark mt-1">{{ form_vocab.help_duracao }}</p>
   </div>
 
-  {# Campo Preço #}
+  {# CAMPO 3: PREÇO #}
   <div>
-    <label for="preco" class="block text-sm font-medium text-text-secondary-dark mb-1">Preço (R$)</label>
-    <input 
-      type="text" 
-      inputmode="decimal" 
-      id="preco" 
-      name="preco" 
-      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
-      value="{{ form_data.get('preco', '') }}" 
-      placeholder="Ex: 40.00 ou 40,00"
-      required>
-     <p class="text-xs text-text-secondary-dark mt-1">Use ponto ou vírgula como separador decimal.</p>
+    <label for="preco" class="block text-sm font-medium text-text-secondary-dark mb-1">Preço Total (R$)</label>
+    <div class="relative">
+        <span class="absolute left-3 top-2.5 text-gray-400 text-sm font-bold">R$</span>
+        <input 
+          type="text" 
+          inputmode="decimal" 
+          id="preco" 
+          name="preco" 
+          class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full pl-9 p-2.5 outline-none transition-colors" 
+          value="{{ form_data.get('preco', '') }}" 
+          placeholder="0.00"
+          required>
+    </div>
+    <p class="text-xs text-text-secondary-dark mt-1">Total do pacote.</p>
   </div>
 </div>
 
-{# Botões de Ação #}
+{# BOTÕES DE AÇÃO #}
 <div class="border-t border-gray-800 pt-6 flex justify-end gap-3">
   <a href="{{ url_for('servicos.index') }}" class="py-2 px-4 rounded-lg bg-transparent border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors">
     Cancelar
   </a>
-  <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
+  <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 flex items-center gap-2">
+    <span class="material-symbols-outlined text-[20px]">save</span>
     {{ submit_button_text | default('Salvar') }} 
   </button>
 </div>
