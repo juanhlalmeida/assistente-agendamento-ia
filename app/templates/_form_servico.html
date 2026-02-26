@@ -1,56 +1,75 @@
-{# app/templates/_form_servico.html - Template reutilizável para o formulário #}
-{# Recebe 'form_data' para preencher os campos em caso de erro ou edição #}
+{# app/templates/_form_servico.html #}
+
+{# 🧠 CÉREBRO LOCAL PARA O RECHEIO DO FORMULÁRIO #}
+{% set form_vocab = namespace(
+    label_nome='Nome do Serviço',
+    label_duracao='Duração (minutos)',
+    help_duracao='Tempo que o serviço leva (ex: 30).'
+) %}
+{% if current_user.is_authenticated and current_user.barbearia %}
+    {% set tipo = current_user.barbearia.business_type %}
+    {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+    {% if tipo == 'pousada' or 'pousada' in nome %}
+        {% set form_vocab.label_nome = 'Nome da Tarifa / Day Use' %}
+        {% set form_vocab.label_duracao = 'Tempo de Bloqueio da Agenda' %}
+        {% set form_vocab.help_duracao = 'Ex: Para 1 diária digite 1440. Para Day Use (8h) digite 480.' %}
+    {% elif 'lash' in nome or 'studio' in nome %}
+        {% set form_vocab.label_nome = 'Nome do Procedimento' %}
+        {% set form_vocab.label_duracao = 'Duração (minutos)' %}
+        {% set form_vocab.help_duracao = 'Tempo que o procedimento leva (ex: 120).' %}
+    {% endif %}
+{% endif %}
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
   {# Campo Nome #}
   <div class="md:col-span-3">
-    <label for="nome" class="block text-sm font-medium text-text-secondary-dark mb-1">Nome do Serviço</label>
+    <label for="nome" class="block text-sm font-medium text-text-secondary-dark mb-1">{{ form_vocab.label_nome }}</label>
     <input 
       type="text" 
       id="nome" 
       name="nome" 
-      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
-      value="{{ form_data.get('nome', '') }}" {# Preenche se houver erro #}
+      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
+      value="{{ form_data.get('nome', '') }}" 
       required>
   </div>
 
   {# Campo Duração #}
   <div>
-    <label for="duracao" class="block text-sm font-medium text-text-secondary-dark mb-1">Duração (minutos)</label>
+    <label for="duracao" class="block text-sm font-medium text-text-secondary-dark mb-1">{{ form_vocab.label_duracao }}</label>
     <input 
       type="number" 
       id="duracao" 
       name="duracao" 
       min="1" 
       step="1"
-      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
-      value="{{ form_data.get('duracao', '') }}" {# Preenche se houver erro #}
+      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
+      value="{{ form_data.get('duracao', '') }}" 
       required>
-      <p class="text-xs text-text-secondary-dark mt-1">Tempo que o serviço leva (ex: 30).</p>
+      <p class="text-xs text-text-secondary-dark mt-1">{{ form_vocab.help_duracao }}</p>
   </div>
 
   {# Campo Preço #}
   <div>
     <label for="preco" class="block text-sm font-medium text-text-secondary-dark mb-1">Preço (R$)</label>
     <input 
-      type="text" {# Usar text permite vírgula, mas validamos no backend #}
-      inputmode="decimal" {# Ajuda teclados mobile #}
+      type="text" 
+      inputmode="decimal" 
       id="preco" 
       name="preco" 
-      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
-      value="{{ form_data.get('preco', '') }}" {# Preenche se houver erro #}
+      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
+      value="{{ form_data.get('preco', '') }}" 
       placeholder="Ex: 40.00 ou 40,00"
       required>
      <p class="text-xs text-text-secondary-dark mt-1">Use ponto ou vírgula como separador decimal.</p>
   </div>
 </div>
 
-{# Botões de Ação - O texto do botão primário pode ser passado como variável #}
-<div class="border-t border-gray-700 pt-6 flex justify-end gap-3">
-  <a href="{{ url_for('servicos.index') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">
+{# Botões de Ação #}
+<div class="border-t border-gray-800 pt-6 flex justify-end gap-3">
+  <a href="{{ url_for('servicos.index') }}" class="py-2 px-4 rounded-lg bg-transparent border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors">
     Cancelar
   </a>
-  <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
-    {{ submit_button_text | default('Salvar Serviço') }} {# Texto padrão ou customizado #}
+  <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
+    {{ submit_button_text | default('Salvar') }} 
   </button>
 </div>
