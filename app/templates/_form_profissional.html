@@ -1,27 +1,38 @@
-{# app/templates/_form_profissional.html - Template reutilizável para o formulário #}
-{# Recebe 'form_data' para preencher os campos #}
+{# app/templates/_form_profissional.html #}
+
+{# 🧠 CÉREBRO LOCAL PARA O RECHEIO DO FORMULÁRIO #}
+{% set form_vocab = namespace(label_nome='Nome do Profissional') %}
+{% if current_user.is_authenticated and current_user.barbearia %}
+    {% set tipo = current_user.barbearia.business_type %}
+    {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+    {% if tipo == 'pousada' or 'pousada' in nome %}
+        {% set form_vocab.label_nome = 'Nome do Quarto / Acomodação' %}
+    {% elif 'lash' in nome or 'studio' in nome %}
+        {% set form_vocab.label_nome = 'Nome da Designer' %}
+    {% endif %}
+{% endif %}
 
 <div class="grid grid-cols-1 gap-6 mb-6">
   {# Campo Nome #}
   <div>
-    <label for="nome" class="block text-sm font-medium text-text-secondary-dark mb-1">Nome do Profissional</label>
+    <label for="nome" class="block text-sm font-medium text-text-secondary-dark mb-1">{{ form_vocab.label_nome }}</label>
     <input 
       type="text" 
       id="nome" 
       name="nome" 
-      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" 
+      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
       value="{{ form_data.get('nome', '') }}" 
       required
-      maxlength="100"> {# Limite do banco de dados #}
+      maxlength="100">
   </div>
 </div>
 
 {# Botões de Ação #}
-<div class="border-t border-gray-700 pt-6 flex justify-end gap-3">
-  <a href="{{ url_for('profissionais.index') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">
+<div class="border-t border-gray-800 pt-6 flex justify-end gap-3">
+  <a href="{{ url_for('profissionais.index') }}" class="py-2 px-4 rounded-lg bg-transparent border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors">
     Cancelar
   </a>
-  <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
+  <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
     {{ submit_button_text | default('Salvar') }} 
   </button>
 </div>
