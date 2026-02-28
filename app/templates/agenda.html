@@ -453,5 +453,47 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {# Meta tag para CSRF (se necessário) #}
 <meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
+{# ================================================================= #}
+{# MOTOR ORIGINAL DA CAROL (ABRIR E FECHAR MODAL DE AGENDAMENTO)   #}
+{# ================================================================= #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const modal = document.getElementById('novoAgendamentoModal');
+  const btnAbrirModal = document.getElementById('btnAbrirModal');
+  const btnFecharModal = document.getElementById('btnFecharModal');
+  const btnCancelarModal = document.getElementById('btnCancelarModal');
+  
+  // 1. Faz o botão principal abrir o Modal
+  if (btnAbrirModal) {
+    btnAbrirModal.addEventListener('click', function() {
+        if (modal) modal.classList.remove('hidden');
+    });
+  }
+  
+  // 2. Faz os botões de fechar funcionarem
+  function fecharModal() {
+    if (modal) modal.classList.add('hidden');
+  }
+  if (btnFecharModal) btnFecharModal.addEventListener('click', fecharModal);
+  if (btnCancelarModal) btnCancelarModal.addEventListener('click', fecharModal);
+
+  // 3. Lógica para quando a Carol clica direto no horário livre da lateral
+  document.querySelectorAll('.horario-btn').forEach(button => {
+    button.addEventListener('click', function () {
+      const horarioSelecionado = this.dataset.horario;
+      const profissionalSelecionadoId = document.getElementById('profissional_id_filtro') ? document.getElementById('profissional_id_filtro').value : '';
+      
+      const profissionalSelect = document.getElementById('profissional_id');
+      const dataHoraInput = document.getElementById('data_hora');
+
+      if (profissionalSelect && profissionalSelecionadoId) profissionalSelect.value = profissionalSelecionadoId;
+      if (dataHoraInput) dataHoraInput.value = horarioSelecionado;
+      
+      if (modal) modal.classList.remove('hidden');
+    });
+  });
+});
+</script>
+
 
 {% endblock %}
