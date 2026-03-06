@@ -64,14 +64,14 @@
 {# ================================================================= #}
 {% if is_pousada %}
 
-<div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 anime-header">
-    <h2 class="text-text-primary-dark text-3xl font-bold">Mapa de Reservas Mensal</h2>
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 anime-header">
+    <h2 class="text-text-primary-dark text-2xl md:text-3xl font-bold">Mapa de Reservas Mensal</h2>
     
     <div class="flex items-center gap-3 w-full md:w-auto">
         {# Filtro por Quarto no Calendário #}
-        <div class="relative w-full md:w-64">
-            <span class="material-symbols-outlined absolute left-3 top-3 text-text-secondary-dark pointer-events-none">bed</span>
-            <select id="filtroQuarto" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full pl-10 p-2.5 outline-none transition-colors appearance-none">
+        <div class="relative flex-1 md:w-64">
+            <span class="material-symbols-outlined absolute left-3 top-[10px] text-text-secondary-dark pointer-events-none">bed</span>
+            <select id="filtroQuarto" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full pl-10 p-2.5 outline-none transition-colors appearance-none h-[42px]">
                 <option value="todos">Todos os Quartos</option>
                 {% for p in profissionais %}
                     <option value="{{ p.id }}">{{ p.nome }}</option>
@@ -79,14 +79,15 @@
             </select>
         </div>
         
-        <button type="button" id="btnAbrirModalCalendario" class="flex items-center justify-center gap-2 rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 w-full md:w-auto shrink-0">
+        {# Botão "+" Elegante (Quadrado no Mobile, Estendido no PC) #}
+        <button type="button" id="btnAbrirModalCalendario" onclick="document.getElementById('novoAgendamentoModal').classList.remove('hidden')" class="flex items-center justify-center gap-2 rounded-lg h-[42px] w-[42px] md:w-auto md:px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 shrink-0">
             <span class="material-symbols-outlined">add</span>
             <span class="truncate hidden md:inline">{{ vocab_agenda.novo_btn }}</span>
         </button>
     </div>
 </div>
 
-{# Container do Calendário (Inicia invisível para a animação do Anime.js agir) #}
+{# Container do Calendário #}
 <div class="bg-surface-dark rounded-xl shadow-2xl border border-white/5 p-4 md:p-6 anime-calendar opacity-0 transform translate-y-8">
     <div id="hotelCalendar" class="text-white"></div>
 </div>
@@ -103,26 +104,108 @@
     .fc-event { 
         cursor: pointer; 
         border: none; 
-        border-left: 4px solid rgba(255,255,255,0.8) !important; /* Borda lateral mais forte */
+        border-left: 4px solid rgba(255,255,255,0.8) !important; 
         border-radius: 6px; 
         box-shadow: 0 2px 4px rgba(0,0,0,0.15); 
         transition: all 0.2s ease; 
     }
     .fc-event:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 6px 12px rgba(0,0,0,0.4); z-index: 50;}
     
-    /* REFINAMENTO DOS BOTÕES */
-    .fc-button-primary { background-color: var(--theme-color) !important; border: none !important; text-transform: capitalize; font-weight: 600 !important; padding: 8px 16px !important; border-radius: 8px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;}
-    .fc-button-primary:hover { background-color: var(--theme-color) !important; filter: brightness(1.1); }
+    /* REFINAMENTO DOS BOTÕES E CABEÇALHO */
+    .fc-button-primary { background-color: var(--theme-color, #0ea5e9) !important; border: none !important; text-transform: capitalize; font-weight: 600 !important; padding: 8px 16px !important; border-radius: 8px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;}
+    .fc-button-primary:hover { filter: brightness(1.1); }
     .fc-button-active { filter: brightness(0.8); }
     .fc-toolbar-title { font-size: 1.5rem !important; color: #fff; font-weight: 800; text-transform: capitalize; }
     
-    /* REFINAMENTO DA LISTA SEMANAL */
-    .fc-list-day-cushion { background-color: #1f2937 !important; color: #fff !important; font-weight: bold; }
+    /* REFINAMENTO DA LISTA SEMANAL (VISÃO MOBILE) */
+    .fc-list-day-cushion { background-color: #1f2937 !important; color: #fff !important; font-weight: bold; padding: 12px !important; }
     .fc-list-event:hover td { background-color: rgba(255,255,255,0.05) !important; }
+    .fc-list-event-title { padding: 12px !important; font-weight: 600; }
+    .fc-list-event-time { padding: 12px !important; color: #9ca3af !important; }
     
     /* TOOLTIP TIPPY.JS */
     .tippy-box { background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
     .tippy-arrow { color: #1e293b; }
+
+    /* 📱 AJUSTES EXCLUSIVOS PARA CELULAR */
+    @media (max-width: 768px) {
+        .fc-toolbar-title { font-size: 1.2rem !important; }
+        .fc-header-toolbar { flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+        .fc-button { padding: 6px 10px !important; font-size: 0.8rem !important; }
+    }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+<script src="https://unpkg.com/@popperjs/core@2"></script>
+<script src="https://unpkg.com/tippy.js@6"></script>
+<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale-subtle.css" />
+
+<style>
+    /* Estilos Premium para o FullCalendar no Dark Mode */
+    .fc { font-family: 'Inter', sans-serif; }
+    .fc-theme-standard td, .fc-theme-standard th { border-color: #2d3748 !important; }
+    .fc-col-header-cell-cushion { color: #A0A0A0 !important; font-weight: 600; padding: 12px 0; text-transform: uppercase; font-size: 0.85rem;}
+    .fc-daygrid-day-number { color: #fff !important; padding: 8px; font-weight: 500;}
+    .fc-day-today { background-color: rgba(var(--theme-color-rgb, 0, 166, 251), 0.08) !important; }
+    
+    /* REFINAMENTO DAS BARRAS DE RESERVA */
+    .fc-event { 
+        cursor: pointer; 
+        border: none; 
+        border-left: 4px solid rgba(255,255,255,0.8) !important; 
+        border-radius: 6px; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.15); 
+        transition: all 0.2s ease; 
+    }
+    .fc-event:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 6px 12px rgba(0,0,0,0.4); z-index: 50;}
+    
+    /* REFINAMENTO DOS BOTÕES E CABEÇALHO */
+    .fc-button-primary { background-color: var(--theme-color, #0ea5e9) !important; border: none !important; text-transform: capitalize; font-weight: 600 !important; padding: 8px 16px !important; border-radius: 8px !important; box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;}
+    .fc-button-primary:hover { filter: brightness(1.1); }
+    .fc-button-active { filter: brightness(0.8); }
+    .fc-toolbar-title { font-size: 1.5rem !important; color: #fff; font-weight: 800; text-transform: capitalize; }
+    
+    /* REFINAMENTO DA LISTA SEMANAL */
+    .fc-list-day-cushion { background-color: #1f2937 !important; color: #fff !important; font-weight: bold; padding: 12px !important; }
+    .fc-list-event:hover td { background-color: rgba(255,255,255,0.05) !important; }
+    .fc-list-event-title { padding: 12px !important; font-weight: 600; }
+    .fc-list-event-time { padding: 12px !important; color: #9ca3af !important; }
+    
+    /* TOOLTIP TIPPY.JS */
+    .tippy-box { background-color: #1e293b; border: 1px solid #334155; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    .tippy-arrow { color: #1e293b; }
+
+    /* 📱 MÁGICA EXCLUSIVA PARA CELULAR (DESIGN DE APP NATIVO) */
+    @media (max-width: 768px) {
+        /* Empilha os elementos do cabeçalho de forma organizada */
+        .fc-header-toolbar { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 16px; 
+            padding-bottom: 10px;
+        }
+        .fc-toolbar-title { font-size: 1.3rem !important; }
+        
+        /* Pega o grupo de botões (Mês, Lista, Hoje) e faz ocupar 100% da tela */
+        .fc-toolbar-chunk:last-child {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+        }
+        /* Faz os botões dividirem o espaço igualmente (Estilo iPhone) */
+        .fc-toolbar-chunk:last-child .fc-button-group {
+            width: 100%;
+            display: flex;
+            gap: 2px;
+        }
+        .fc-button {
+            flex: 1; 
+            padding: 10px 4px !important; 
+            font-size: 0.85rem !important; 
+            border-radius: 6px !important;
+        }
+    }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
@@ -132,7 +215,6 @@
 <link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale-subtle.css" />
 
 <script>
-// Função de exclusão via AJAX (definida globalmente)
 function excluirReserva(url, eventId) {
     if (!confirm('Tem certeza que deseja cancelar e apagar esta reserva?')) return;
     
@@ -146,7 +228,6 @@ function excluirReserva(url, eventId) {
     })
     .then(response => {
         if (response.ok) {
-            // Recarrega a página para refletir a exclusão
             window.location.reload();
         } else {
             alert('Erro ao excluir a reserva.');
@@ -159,27 +240,36 @@ function excluirReserva(url, eventId) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Anime.js - Animações suaves
     anime({ targets: '.anime-header', translateY: [-20, 0], opacity: [0, 1], duration: 800, easing: 'easeOutExpo' });
     anime({ targets: '.anime-calendar', translateY: [40, 0], opacity: [0, 1], duration: 1000, delay: 200, easing: 'easeOutExpo' });
 
     var calendarEl = document.getElementById('hotelCalendar');
     if (!calendarEl) return;
 
+    var isMobile = window.innerWidth < 768;
+
     var calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
+        // Inicia na Lista se for celular, mas a dona pode trocar pro Calendário a hora que quiser!
+        initialView: isMobile ? 'listWeek' : 'dayGridMonth', 
         locale: 'pt-br',
         height: 'auto',
         displayEventTime: false,
         headerToolbar: {
-            left: 'prev,next today',
+            left: 'prev,next',
             center: 'title',
-            right: 'dayGridMonth,listWeek'
+            right: 'dayGridMonth,listWeek,today' // 🔥 AGORA FICA 100% VISÍVEL NO CELULAR E NO PC!
         },
-        buttonText: { today: 'Hoje', month: 'Mês', week: 'Lista da Semana' },
+        buttonText: { today: 'Hoje', month: 'Mês', week: 'Lista' },
         events: '/api/reservas_calendario',
         
+        // ⚠️ Removi a função "windowResize" que forçava a tela a esconder os botões. 
+        // Agora você tem controle total!
+        
         eventContent: function(arg) {
+            if (arg.view.type === 'listWeek') {
+                return { html: `<b>${arg.event.title}</b> <span class="text-xs text-gray-400 ml-2">(${arg.event.extendedProps.quarto_nome})</span>` };
+            }
+
             let tituloCompleto = arg.event.title;
             let nomeQuarto = arg.event.extendedProps.quarto_nome;
 
@@ -227,15 +317,8 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             
             tippy(info.el, {
-                content: conteudoHTML,
-                allowHTML: true,
-                animation: 'scale-subtle',
-                theme: 'translucent',
-                placement: 'top',
-                arrow: true,
-                interactive: true,
-                appendTo: document.body,
-                delay: [100, 200]
+                content: conteudoHTML, allowHTML: true, animation: 'scale-subtle', theme: 'translucent',
+                placement: 'top', arrow: true, interactive: true, appendTo: document.body, delay: [100, 200]
             });
         },
         
@@ -248,7 +331,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     calendar.render();
 
-    // Filtro por Quarto
     document.getElementById('filtroQuarto')?.addEventListener('change', function(e) {
         let room_id = e.target.value;
         let events = calendar.getEvents();
@@ -264,7 +346,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 {# ================================================================= #}
-{# 💈 TELA ORIGINAL DA CAROL (INTACTA E SEM CORTES)                #}
+{# 💈 TELA DA CAROL (AGORA PREMIUM E RESPONSIVA MOBILE)              #}
 {# ================================================================= #}
 {% else %}
 
@@ -273,77 +355,110 @@ document.addEventListener('DOMContentLoaded', function() {
 
   {# Coluna Principal (Agenda) #}
   <main class="flex flex-col gap-6 lg:order-1 order-2">
-    <div class="flex justify-between items-center">
-      <h2 class="text-text-primary-dark text-3xl font-bold">{{ vocab_agenda.agendas }} do Dia</h2>
+    
+    {# HEADER RESPONSIVO E ELEGANTE #}
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 anime-item opacity-0 transform translate-y-4">
+      <h2 class="text-text-primary-dark text-2xl md:text-3xl font-bold flex items-center gap-2">
+        <span class="material-symbols-outlined text-primary text-3xl">calendar_month</span>
+        {{ vocab_agenda.agendas }} do Dia
+      </h2>
+      
       <button 
         type="button" 
         id="btnAbrirModal" 
-        class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
+        class="flex cursor-pointer items-center justify-center gap-2 w-full md:w-auto overflow-hidden rounded-xl h-12 px-6 bg-gradient-to-r from-primary to-blue-600 text-white text-base font-bold hover:shadow-lg hover:shadow-primary/30 transition-all transform hover:-translate-y-0.5">
         <span class="material-symbols-outlined">add</span>
         <span class="truncate">{{ vocab_agenda.novo_btn }}</span>
       </button>
     </div>
 
-    {# Tabela com scroll horizontal no mobile #}
-    <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto border border-white/5">
-      <table class="w-full min-w-[600px] lg:min-w-full text-left align-middle">
-        <thead class="bg-background-dark/50">
-          <tr>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">Cliente</th>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">Hora</th>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">{{ vocab_agenda.serv }}</th>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">{{ vocab_agenda.prof }}</th>
-            <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider text-center">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for agendamento in agendamentos %}
-            <tr class="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
-              <td class="p-4">
-                <div class="font-semibold text-text-primary-dark">{{ agendamento.nome_cliente }}</div>
-                <div class="text-sm text-text-secondary-dark">{{ agendamento.telefone_cliente }}</div>
-              </td>
-              <td class="p-4 text-text-primary-dark font-medium">{{ agendamento.data_hora.strftime('%H:%M') }}</td>
-              <td class="p-4 text-text-primary-dark">
-                {{ agendamento.servico.nome }}
-                <span class="text-text-secondary-dark text-sm">(R$ {{ "%.2f"|format(agendamento.servico.preco) }})</span>
-              </td>
-              <td class="p-4 text-text-primary-dark">{{ agendamento.profissional.nome }}</td>
-              <td class="p-4 text-center space-x-1">
-                <a href="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}" class="inline-flex p-2 text-text-secondary-dark hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Editar">
-                  <span class="material-symbols-outlined text-xl">edit</span>
-                </a>
-                <form action="{{ url_for('main.excluir_agendamento', agendamento_id=agendamento.id) }}" method="post" class="inline">
-                  <button type="submit" class="inline-flex p-2 text-text-secondary-dark hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir?');">
-                    <span class="material-symbols-outlined text-xl">delete</span>
-                  </button>
-                </form>
-              </td>
-            </tr>
-          {% else %}
-            <tr>
-              <td colspan="5" class="p-8 text-center text-text-secondary-dark">{{ vocab_agenda.msg_vazio }} para o dia selecionado.</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    {# TABELA PREMIUM RESPONSIVA #}
+    <div class="bg-surface-dark rounded-2xl shadow-2xl overflow-hidden border border-white/10 anime-item opacity-0 transform translate-y-4">
+      <div class="overflow-x-auto">
+          <table class="w-full min-w-[600px] lg:min-w-full text-left align-middle">
+            <thead class="bg-black/20 border-b border-white/5">
+              <tr>
+                <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Cliente</th>
+                <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Hora</th>
+                <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">{{ vocab_agenda.serv }}</th>
+                <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">{{ vocab_agenda.prof }}</th>
+                <th class="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800/50">
+              {% for agendamento in agendamentos %}
+                <tr class="hover:bg-white/5 transition-colors group">
+                  <td class="p-4">
+                    <div class="font-bold text-white group-hover:text-primary transition-colors">{{ agendamento.nome_cliente }}</div>
+                    <div class="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[14px]">call</span>
+                      {{ agendamento.telefone_cliente }}
+                    </div>
+                  </td>
+                  <td class="p-4">
+                    <span class="px-3 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-sm font-bold shadow-sm inline-flex items-center gap-1">
+                      <span class="material-symbols-outlined text-[16px]">schedule</span>
+                      {{ agendamento.data_hora.strftime('%H:%M') }}
+                    </span>
+                  </td>
+                  <td class="p-4">
+                    <div class="text-white font-medium">{{ agendamento.servico.nome }}</div>
+                    <div class="text-xs text-green-400 mt-1 font-mono font-bold">R$ {{ "%.2f"|format(agendamento.servico.preco) }}</div>
+                  </td>
+                  <td class="p-4">
+                    <div class="flex items-center gap-2">
+                      <div class="w-7 h-7 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-xs text-white font-bold shadow-inner">
+                        {{ agendamento.profissional.nome[0] }}
+                      </div>
+                      <span class="text-gray-300 text-sm">{{ agendamento.profissional.nome }}</span>
+                    </div>
+                  </td>
+                  <td class="p-4 text-center space-x-2">
+                    <a href="{{ url_for('main.editar_agendamento', agendamento_id=agendamento.id) }}" class="inline-flex p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-xl transition-all" title="Editar">
+                      <span class="material-symbols-outlined text-xl">edit</span>
+                    </a>
+                    <form action="{{ url_for('main.excluir_agendamento', agendamento_id=agendamento.id) }}" method="post" class="inline">
+                      <button type="submit" class="inline-flex p-2 text-gray-400 hover:text-red-400 hover:bg-red-900/30 rounded-xl transition-all" title="Excluir" onclick="return confirm('Tem certeza que deseja apagar essa reserva?');">
+                        <span class="material-symbols-outlined text-xl">delete</span>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="5" class="p-16 text-center">
+                    <div class="w-20 h-20 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-700">
+                      <span class="material-symbols-outlined text-4xl text-gray-500">event_busy</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-1">Agenda Livre</h3>
+                    <p class="text-gray-400 text-sm">{{ vocab_agenda.msg_vazio }} para o dia selecionado.</p>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+      </div>
     </div>
   </main>
 
-  {# Coluna Lateral (Disponibilidade) #}
-  <aside class="bg-surface-dark rounded-xl p-6 flex flex-col gap-8 shadow-lg border border-white/5 lg:order-2 order-1">
+  {# Coluna Lateral (Disponibilidade) PREMIUM #}
+  <aside class="bg-surface-dark rounded-2xl p-6 flex flex-col gap-6 shadow-2xl border border-white/10 lg:order-2 order-1 anime-item opacity-0 transform translate-y-4 relative overflow-hidden">
+    
+    {# Faixa lateral decorativa sutil #}
+    <div class="absolute top-0 right-0 w-1.5 h-full bg-gradient-to-b from-primary to-purple-600 opacity-60"></div>
+
     <div>
-      <h3 class="text-text-primary-dark text-xl font-bold mb-4 flex items-center gap-2">
+      <h3 class="text-white text-lg font-bold mb-4 flex items-center gap-2 border-b border-gray-800 pb-3">
         <span class="material-symbols-outlined text-primary">search</span>
-        Consultar Disponibilidade
+        Disponibilidade
       </h3>
       <form method="get" action="{{ url_for('main.agenda') }}">
         <div class="mb-4">
-          <label for="profissional_id_filtro" class="block text-sm font-medium text-text-secondary-dark mb-1">{{ vocab_agenda.prof }}</label>
+          <label for="profissional_id_filtro" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{{ vocab_agenda.prof }}</label>
           <select 
             name="profissional_id" 
             id="profissional_id_filtro" 
-            class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
+            class="bg-black/40 border border-gray-700 text-white text-sm rounded-xl focus:ring-1 focus:ring-primary focus:border-primary block w-full p-3 outline-none transition-all shadow-inner" 
             onchange="this.form.submit()">
             {% for p in profissionais %}
               <option value="{{ p.id }}" {% if profissional_selecionado and p.id == profissional_selecionado.id %}selected{% endif %}>{{ p.nome }}</option>
@@ -351,12 +466,12 @@ document.addEventListener('DOMContentLoaded', function() {
           </select>
         </div>
         <div class="mb-4">
-          <label for="data_filtro" class="block text-sm font-medium text-text-secondary-dark mb-1">Data</label>
+          <label for="data_filtro" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Data</label>
           <input 
             type="date" 
             name="data" 
             id="data_filtro" 
-            class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
+            class="bg-black/40 border border-gray-700 text-white text-sm rounded-xl focus:ring-1 focus:ring-primary focus:border-primary block w-full p-3 outline-none transition-all shadow-inner" 
             value="{{ data_selecionada.strftime('%Y-%m-%d') }}" 
             onchange="this.form.submit()">
         </div>
@@ -364,18 +479,19 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     
     <div>
-      <h3 class="text-text-primary-dark text-xl font-bold mb-4">
-        Horários Livres ({{ data_selecionada.strftime('%d/%m') }})
+      <h3 class="text-white text-lg font-bold mb-4 flex items-center gap-2 border-b border-gray-800 pb-3">
+        <span class="material-symbols-outlined text-green-400">schedule</span>
+        Horários Livres
       </h3>
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-3 gap-2.5">
         {% for horario in horarios_disponiveis %}
           <button 
-            class="horario-btn py-2 px-4 rounded-lg bg-background-dark text-text-primary-dark font-medium border border-gray-700 hover:bg-primary hover:border-primary hover:text-white transition-all" 
+            class="horario-btn py-2.5 px-1 rounded-xl bg-gray-800/40 text-gray-200 font-bold text-sm border border-gray-700 hover:bg-primary hover:border-primary hover:text-white hover:shadow-lg hover:shadow-primary/30 transition-all transform hover:-translate-y-0.5" 
             data-horario="{{ horario.strftime('%Y-%m-%dT%H:%M') }}">
             {{ horario.strftime('%H:%M') }}
           </button>
         {% else %}
-          <p class="text-text-secondary-dark text-sm col-span-3">Nenhum horário disponível ou o dia já passou.</p>
+          <p class="text-gray-500 text-sm col-span-3 text-center py-5 bg-black/20 rounded-xl border border-dashed border-gray-700">O dia passou ou não há vagas.</p>
         {% endfor %}
       </div>
     </div>
@@ -383,17 +499,33 @@ document.addEventListener('DOMContentLoaded', function() {
 
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    if(typeof anime !== 'undefined') {
+      anime({ 
+        targets: '.anime-item', 
+        translateY: [20, 0], 
+        opacity: [0, 1], 
+        duration: 800, 
+        delay: anime.stagger(150), // Faz as caixas surgirem uma por uma
+        easing: 'easeOutExpo' 
+      });
+    }
+  });
+</script>
+
 {% endif %}
 {# FIM DA CONDIÇÃO MULTI-TENANT #}
 
 
 {# ================================================================= #}
-{# MODAL ORIGINAL (AGORA BLINDADO COM ONCLICK INLINE)              #}
+{# MODAL RESPONSIVO (COM ONCLICK INLINE)                             #}
 {# ================================================================= #}
 <div id="novoAgendamentoModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden transition-opacity">
-  <div class="bg-surface-dark rounded-xl shadow-2xl w-full max-w-lg border border-white/10">
+  <div class="bg-surface-dark rounded-xl shadow-2xl w-full max-w-lg border border-white/10 max-h-[90vh] overflow-y-auto">
     
-    <div class="p-6 border-b border-gray-800 flex justify-between items-center">
+    <div class="p-4 md:p-6 border-b border-gray-800 flex justify-between items-center sticky top-0 bg-surface-dark z-10">
       <h3 class="text-xl font-bold text-text-primary-dark">{{ vocab_agenda.novo_btn }} Manual</h3>
       
       <button type="button" onclick="document.getElementById('novoAgendamentoModal').classList.add('hidden')" class="text-text-secondary-dark hover:text-white transition-colors">
@@ -402,21 +534,23 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     
     <form method="post" action="{{ url_for('main.agenda') }}">
-      <div class="p-6 flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-4">
+      <div class="p-4 md:p-6 flex flex-col gap-4">
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label for="nome_cliente" class="text-sm font-medium text-text-secondary-dark mb-1 block">Nome do Cliente</label>
-            <input type="text" id="nome_cliente" name="nome_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
+            <input type="text" id="nome_cliente" name="nome_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-3 outline-none transition-colors" required>
           </div>
           <div>
             <label for="telefone_cliente" class="text-sm font-medium text-text-secondary-dark mb-1 block">Telefone</label>
-            <input type="text" id="telefone_cliente" name="telefone_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
+            <input type="text" id="telefone_cliente" name="telefone_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-3 outline-none transition-colors" required>
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label for="profissional_id" class="text-sm font-medium text-text-secondary-dark mb-1 block">{{ vocab_agenda.prof }}</label>
-            <select id="profissional_id" name="profissional_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
+            <select id="profissional_id" name="profissional_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-3 outline-none transition-colors" required>
               <option value="" disabled selected>Selecione...</option>
               {% for profissional in profissionais %}
                 <option value="{{ profissional.id }}">{{ profissional.nome }}</option>
@@ -425,7 +559,7 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
           <div>
             <label for="servico_id" class="text-sm font-medium text-text-secondary-dark mb-1 block">{{ vocab_agenda.serv }}</label>
-            <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
+            <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-3 outline-none transition-colors" required>
               <option value="" disabled selected>Selecione...</option>
               {% for servico in servicos %}
                 <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
@@ -433,18 +567,20 @@ document.addEventListener('DOMContentLoaded', function() {
             </select>
           </div>
         </div>
+        
         <div>
           <label for="data_hora" class="text-sm font-medium text-text-secondary-dark mb-1 block">Data e Hora</label>
-          <input type="datetime-local" id="data_hora" name="data_hora" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
+          <input type="datetime-local" id="data_hora" name="data_hora" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-3 outline-none transition-colors" required>
         </div>
       </div>
-      <div class="p-6 border-t border-gray-800 flex justify-end gap-3">
-        
-        <button type="button" onclick="document.getElementById('novoAgendamentoModal').classList.add('hidden')" class="py-2 px-4 rounded-lg bg-transparent border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors">
+      
+      <div class="p-4 md:p-6 border-t border-gray-800 flex flex-col-reverse sm:flex-row justify-end gap-3 sticky bottom-0 bg-surface-dark z-10">
+        <button type="button" onclick="document.getElementById('novoAgendamentoModal').classList.add('hidden')" class="py-2.5 px-5 rounded-lg bg-transparent border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors w-full sm:w-auto">
             Cancelar
         </button>
-        
-        <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">Confirmar {{ vocab_agenda.agenda }}</button>
+        <button type="submit" class="py-2.5 px-5 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 w-full sm:w-auto">
+            Confirmar {{ vocab_agenda.agenda }}
+        </button>
       </div>
     </form>
     
@@ -453,6 +589,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {# Meta tag para CSRF (se necessário) #}
 <meta name="csrf-token" content="{{ csrf_token() if csrf_token else '' }}">
+
 {# ================================================================= #}
 {# MOTOR ORIGINAL DA CAROL (ABRIR E FECHAR MODAL DE AGENDAMENTO)   #}
 {# ================================================================= #}
@@ -494,6 +631,5 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 </script>
-
 
 {% endblock %}

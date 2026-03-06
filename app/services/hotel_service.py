@@ -6,47 +6,49 @@ import traceback
 
 def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qtd_dias: float, qtd_pessoas: float) -> str:
     """
-    Verifica disponibilidade real de hotelaria (Colisão de Datas) e retorna STRING formatada para a IA,
-    agora incluindo a inteligência de procurar o Pacote/Tarifa correto.
+    Verifica disponibilidade real de hotelaria (Colisão de Datas) com as regras exatas de horários da dona.
     """
     try:
         qtd_dias_float = float(qtd_dias)
         qtd_pessoas_int = int(float(qtd_pessoas))
 
-        # Carrega a barbearia para obter as regras de negócio
         barbearia = Barbearia.query.get(barbearia_id)
         if not barbearia:
             return "Erro interno: Estabelecimento não encontrado."
 
-        # 🚨 TRAVA DINÂMICA
         if barbearia_id == 8:
             min_pessoas_real = getattr(barbearia, 'min_pessoas_reserva', 2)
-            min_dias_real = getattr(barbearia, 'min_dias_reserva', 1.5)
+            min_dias_real = getattr(barbearia, 'min_dias_reserva', 1.5) 
         else:
             min_pessoas_real = getattr(barbearia, 'min_pessoas_reserva', 1)
             min_dias_real = getattr(barbearia, 'min_dias_reserva', 1.0)
 
         # VALIDAÇÕES RÍGIDAS
         if qtd_pessoas_int < min_pessoas_real:
-            logging.warning(f"[TRAVA] Reserva recusada (ID {barbearia_id}): pessoas ({qtd_pessoas_int}) abaixo do mínimo exigido ({min_pessoas_real})")
-            return f"❌ REGRA: A pousada só aceita no mínimo {min_pessoas_real} pessoas. Avise o cliente com simpatia, NÃO encerre a conversa, e pergunte se ele gostaria de adicionar mais alguém na reserva."
+            logging.warning(f"[TRAVA] Reserva recusada (ID {barbearia_id}): pessoas ({qtd_pessoas_int}) abaixo do mínimo")
+            return f"❌ REGRA: A pousada só aceita no mínimo {min_pessoas_real} pessoas. Avise o cliente com simpatia, NÃO encerre a conversa, e pergunte se ele gostaria de adicionar mais alguém."
 
         if qtd_dias_float < min_dias_real:
-            logging.warning(f"[TRAVA] Reserva recusada (ID {barbearia_id}): dias ({qtd_dias_float}) abaixo do mínimo exigido ({min_dias_real})")
+            logging.warning(f"[TRAVA] Reserva recusada (ID {barbearia_id}): dias ({qtd_dias_float}) abaixo do mínimo")
             return f"❌ REGRA: A pousada exige um mínimo de {min_dias_real:g} diárias. Avise o cliente com simpatia, NÃO encerre a conversa, e pergunte se ele gostaria de estender a estadia."
             
-        # 1. Define Horários Padrão de Entrada (Sempre 12h)
-        dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0, second=0)
-        
-        # 🌟 LÓGICA DE LATE CHECKOUT (1.5 DIÁRIAS) 🌟
+        # 🌟 LÓGICA DE HORÁRIOS EXATOS DA DONA 🌟
         if qtd_dias_float == 1.5:
+            # 1.5 Diária: Sexta 10h até Sábado 17h
+            dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=10, minute=0, second=0)
             dt_saida = dt_entrada + timedelta(days=1)
-            dt_saida = dt_saida.replace(hour=22, minute=0, second=0) 
+            dt_saida = dt_saida.replace(hour=17, minute=0, second=0)
+        elif qtd_dias_float == 2.0:
+            # 2 Diárias: Sexta 12h até Domingo 17h
+            dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0, second=0)
+            dt_saida = dt_entrada + timedelta(days=2)
+            dt_saida = dt_saida.replace(hour=17, minute=0, second=0)
         else:
+            # 1 Diária (ou padrão): Sexta 12h até Sábado 14h
+            dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0, second=0)
             dt_saida = dt_entrada + timedelta(days=int(qtd_dias_float))
-            dt_saida = dt_saida.replace(hour=16, minute=0, second=0) 
+            dt_saida = dt_saida.replace(hour=14, minute=0, second=0) 
 
-        # 2. Busca quartos que comportam a quantidade de pessoas
         quartos_candidatos = Profissional.query.filter(
             Profissional.barbearia_id == barbearia_id,
             Profissional.tipo == 'quarto',
@@ -56,7 +58,6 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
         disponiveis = []
 
         for quarto in quartos_candidatos:
-            # 3. Verifica se tem agendamento a colidir nesse período
             agendamentos = Agendamento.query.filter(
                 Agendamento.profissional_id == quarto.id,
                 Agendamento.data_hora >= datetime.now().replace(hour=0, minute=0)
@@ -68,16 +69,16 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
                 duracao = ag.servico.duracao if ag.servico else 1440
                 ag_fim = ag_inicio + timedelta(minutes=duracao)
                 
-                # Teste de colisão de datas
+                # Teste de colisão
                 if dt_entrada < ag_fim and dt_saida > ag_inicio:
                     ocupado = True
                     break  
             
             if not ocupado:
-                disponiveis.append(f"{quarto.nome}")
+                disponiveis.append(quarto.nome)
 
         if not disponiveis:
-            return f"Infelizmente não temos nenhum quarto disponível que comporte {qtd_pessoas_int} pessoas para estas datas."
+            return f"Infelizmente não temos nenhuma acomodação disponível para {qtd_pessoas_int} pessoas nestas datas."
 
         # 🌟 MAGIA DA IA: Procurar o Pacote exato para dar o preço ao cliente 🌟
         minutos_buscados = int(qtd_dias_float * 1440)
@@ -85,12 +86,16 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
         
         info_pacote = ""
         if pacote:
-            info_pacote = f" 💰 O pacote para este período é o '{pacote.nome}' no valor total de R$ {pacote.preco:.2f}. Informe o valor ao cliente e pergunte se quer fazer a pré-reserva."
+            info_pacote = f" 💰 O pacote para este período é o '{pacote.nome}' no valor total de R$ {pacote.preco:.2f}. Informe O VALOR TOTAL ao cliente e pergunte se quer fazer a pré-reserva."
         else:
-            info_pacote = " ⚠️ Não há um pacote com valor fixo para essa quantidade exata de dias. Informe os quartos e diga que a receção confirmará o valor final, mas pergunte se quer garantir a pré-reserva."
+            info_pacote = " ⚠️ Informe que temos acomodação e diga que a receção confirmará o valor final, mas pergunte se quer garantir a pré-reserva."
 
-        # Retornamos a String super inteligente para a IA
-        return f"✅ Quartos disponíveis encontrados: {', '.join(disponiveis)}.{info_pacote}"
+        quarto_para_reserva = disponiveis[0]
+
+        # MÁGICA: Instrução oculta para a IA esconder o número do quarto
+        return (f"✅ Vaga Encontrada! [INSTRUÇÃO INTERNA DA IA: Para concluir a reserva, use o quarto '{quarto_para_reserva}' na ferramenta]. "
+                f"🚨 REGRA OBRIGATÓRIA DA POUSADA: NUNCA diga o nome ou número do quarto (ex: Quarto 01) para o cliente! Diga apenas que tem disponibilidade "
+                f"e descreva a estrutura se for necessário (ex: 'Quarto com beliche', 'Suíte com ar', etc).{info_pacote}")
 
     except Exception as e:
         logging.error(f"Erro na disponibilidade hotel: {e}\n{traceback.format_exc()}")
@@ -99,14 +104,12 @@ def verificar_disponibilidade_hotel(barbearia_id: int, data_entrada_str: str, qt
 
 def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str, quarto_nome: str, data_entrada_str: str, qtd_dias: float, qtd_pessoas: float) -> str:
     """
-    Cria a reserva no banco de dados e tenta amarrá-la ao pacote/tarifa real,
-    para que o painel financeiro funcione corretamente.
+    Cria a reserva no banco de dados e amarra ao pacote/tarifa real do financeiro.
     """
     try:
         qtd_dias_float = float(qtd_dias)
         qtd_pessoas_int = int(float(qtd_pessoas))
 
-        # 🚨 1. TRAVA DE REGRA DE NEGÓCIO 🚨
         barbearia = Barbearia.query.get(barbearia_id)
         
         if barbearia_id == 8:
@@ -122,24 +125,24 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
              if qtd_dias_float < min_dias_real:
                  return f"A Pousada exige um mínimo de {min_dias_real:g} diárias. Por favor, informe um período maior para prosseguir."
 
-        # 2. Busca o Quarto
         quarto = Profissional.query.filter_by(barbearia_id=barbearia_id, nome=quarto_nome).first()
         if not quarto:
             return "Erro: Quarto não encontrado no sistema. Por favor, escolha um da lista disponível."
 
-        # 3. Define datas
-        dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0)
+        # 3. Define datas de entrada baseadas na regra da dona
+        if qtd_dias_float == 1.5:
+            dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=10, minute=0)
+        else:
+            dt_entrada = datetime.strptime(data_entrada_str, '%Y-%m-%d').replace(hour=12, minute=0)
         
-        # 4. Define Duração Total em Minutos
         duracao_total_minutos = int(qtd_dias_float * 1440)
         dias_formatado = f"{qtd_dias_float:g}"
         
-        # 🌟 5. O SEGREDO DO FINANCEIRO: Procurar o pacote real criado pela dona 🌟
+        # 🌟 O SEGREDO DO FINANCEIRO: Procura o pacote real criado pela dona (PRESERVADO!) 🌟
         servico = Servico.query.filter_by(barbearia_id=barbearia_id, duracao=duracao_total_minutos).first()
         
         if not servico:
-            # Fallback de Segurança: A IA pediu 5 dias, mas a dona só tinha pacotes até 3 dias.
-            # O sistema não falha, ele cria um pacote "Personalizado" de R$ 0,00 para garantir a vaga.
+            # Fallback de Segurança
             nome_servico_generico = f"Reserva Personalizada ({dias_formatado} diárias)"
             servico = Servico.query.filter_by(barbearia_id=barbearia_id, nome=nome_servico_generico).first()
             
@@ -151,7 +154,6 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
         # Adicionar a quantidade de pessoas ao nome do cliente para a dona ver rápido no calendário
         nome_cliente_formatado = f"{nome_cliente} ({qtd_pessoas_int} pess.)"
 
-        # 6. Cria o Agendamento com o ID do Serviço Real!
         nova_reserva = Agendamento(
             nome_cliente=nome_cliente_formatado,
             telefone_cliente=telefone,
@@ -164,8 +166,8 @@ def realizar_reserva_quarto(barbearia_id: int, nome_cliente: str, telefone: str,
         db.session.add(nova_reserva)
         db.session.commit()
         
-        return f"✅ Tudo certo! Pré-reserva confirmada no {quarto.nome} para o dia {data_entrada_str} ({dias_formatado} diárias para {qtd_pessoas_int} pessoas). O pacote vinculado foi: {servico.nome}."
+        return f"✅ Tudo certo! Pré-reserva confirmada para o dia {data_entrada_str} ({dias_formatado} diárias para {qtd_pessoas_int} pessoas). O pacote vinculado foi: {servico.nome}."
 
     except Exception as e:
         logging.error(f"Erro ao reservar: {e}\n{traceback.format_exc()}")
-        return f"Desculpe, ocorreu um erro ao registar a reserva no sistema."
+        return f"Desculpe, ocorreu um erro ao registrar a reserva no sistema."

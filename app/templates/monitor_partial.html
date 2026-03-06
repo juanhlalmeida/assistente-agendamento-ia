@@ -1,20 +1,28 @@
 {% for msg in msgs %}
-<div class="flex {{ 'justify-start' if msg.tipo == 'ia' else 'justify-end' }}">
-    <div class="relative max-w-[70%] p-2 px-3 rounded-lg shadow-sm text-sm
-                {{ 'bg-white rounded-tl-none' if msg.tipo == 'ia' else 'bg-[#d9fdd3] rounded-tr-none' }}">
+<div class="msg-box flex w-full {{ 'justify-start' if msg.tipo == 'ia' else 'justify-end' }} mb-2">
+    <div class="relative max-w-[85%] md:max-w-[65%] p-1.5 px-2 rounded-lg shadow-[0_1px_0.5px_rgba(0,0,0,0.13)] text-sm {{ 'bg-white rounded-tl-none' if msg.tipo == 'ia' else 'bg-[#d9fdd3] rounded-tr-none' }}">
         
-        <p class="text-[10px] font-bold mb-1 {{ 'text-orange-500' if msg.tipo == 'ia' else 'text-gray-500' }}">
+        <div class="absolute top-0 {{ '-left-[8px]' if msg.tipo == 'ia' else '-right-[8px]' }}">
+            <svg viewBox="0 0 8 13" height="13" width="8" preserveAspectRatio="xMidYMid slice" version="1.1">
+                <path opacity="0.13" fill="#0000000" d="{{ 'M-2.36847578e-15,0 L-2.36847578e-15,13.5 L9.26853107e-16,13.5 L8,0 L-2.36847578e-15,0 Z' if msg.tipo == 'ia' else 'M5.11672322e-16,0 L5.11672322e-16,13.5 L-2.00063634e-16,13.5 L8,0 L5.11672322e-16,0 Z' }}"></path>
+                <path fill="{{ '#ffffff' if msg.tipo == 'ia' else '#d9fdd3' }}" d="{{ 'M1.98592144e-16,0 L-5.26620708e-16,12.5 L6.87879443e-16,12.5 L8,0 L1.98592144e-16,0 Z' if msg.tipo == 'ia' else 'M5.87522435e-16,0 L5.87522435e-16,12.5 L2.57147715e-16,12.5 L8,0 L5.87522435e-16,0 Z' }}"></path>
+            </svg>
+        </div>
+
+        <p class="text-[10px] font-bold mb-0.5 leading-tight {{ 'text-[#e542a3]' if msg.tipo == 'ia' else 'text-[#1fa855]' }}">
             {% if msg.tipo == 'ia' %} 🤖 Assistente IA {% else %} 👤 Cliente {% endif %}
         </p>
 
-        <p class="text-gray-800 whitespace-pre-wrap leading-relaxed">{{ msg.mensagem }}</p>
+        <p class="text-[#111b21] whitespace-pre-wrap leading-[1.3] text-[14.2px]">{{ msg.mensagem }}</p>
         
-        <p class="text-[9px] text-gray-400 text-right mt-1">
-            {{ msg.data_hora.strftime('%H:%M') }}
+        <div class="flex justify-end items-end -mt-1 gap-1">
+            <span class="text-[10px] text-[#667781] min-w-fit pt-1">
+                {{ msg.data_hora.strftime('%d/%m às %H:%M') }}
+            </span>
             {% if msg.tipo == 'cliente' %}
-                <span class="material-symbols-outlined text-[10px] align-middle text-blue-500">done_all</span>
+                <span class="material-symbols-outlined text-[14px] text-[#53bdeb]" style="font-size: 14px;">done_all</span>
             {% endif %}
-        </p>
+        </div>
     </div>
 </div>
 {% endfor %}

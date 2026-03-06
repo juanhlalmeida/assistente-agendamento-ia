@@ -1277,78 +1277,97 @@ def atualizar_planos_db():
 @login_required
 def monitor_chat():
     if not current_user.barbearia_id:
-        flash("Você precisa ter uma barbearia para ver o chat.", "warning")
+        flash("Você precisa estar vinculado a uma loja para ver o chat.", "warning")
         return redirect(url_for('main.agenda'))
 
-    # ⏱️ CONFIGURA O FUSO HORÁRIO DO BRASIL
+    # ⏱️ CONFIGURA O FUSO HORÁRIO
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
 
-    # 1. PEGAR LISTA DE CONTATOS (Agrupados)
+    # 1. PEGAR LISTA DE CONTATOS (Agrupados) e IGNORAR VAZIOS/FANTASMAS
     subquery = db.session.query(
         ChatLog.cliente_telefone,
         func.max(ChatLog.data_hora).label('ultima_interacao')
-    ).filter_by(barbearia_id=current_user.barbearia_id)\
-     .group_by(ChatLog.cliente_telefone)\
+    ).filter(
+        ChatLog.barbearia_id == current_user.barbearia_id,
+        ChatLog.cliente_telefone != None,
+        ChatLog.cliente_telefone != ''
+    ).group_by(ChatLog.cliente_telefone)\
      .order_by(func.max(ChatLog.data_hora).desc())\
      .all()
 
     lista_contatos = []
+    
+    # MÁGICA 1: Formatador de Telefone Padrão WhatsApp
+    def formatar_tel(tel):
+        t = ''.join(filter(str.isdigit, str(tel)))
+        if len(t) == 13 and t.startswith('55'): 
+            return f"+{t[:2]} ({t[2:4]}) {t[4:9]}-{t[9:]}"
+        if len(t) == 12 and t.startswith('55'): # Sem o nono dígito
+            return f"+{t[:2]} ({t[2:4]}) {t[4:8]}-{t[8:]}"
+        if len(t) == 11: 
+            return f"+55 ({t[:2]}) {t[2:7]}-{t[7:]}"
+        return f"+{t}" if t else ""
+
     for item in subquery:
         phone = item.cliente_telefone
-        display_name = phone # Padrão é o telefone
+        telefone_formatado = formatar_tel(phone)
+        display_name = telefone_formatado
 
-        # 🕵️‍♂️ BUSCA INTELIGENTE DE NOME
-        # Procura no histórico de agendamentos se esse telefone tem um nome
-        cliente_conhecido = Agendamento.query.filter_by(
-            barbearia_id=current_user.barbearia_id,
-            telefone_cliente=phone
+        # MÁGICA 2: Busca Inteligente de Nome (Pega só os últimos 8 dígitos para não falhar)
+        base_phone = phone[-8:] if len(phone) >= 8 else phone 
+        cliente_conhecido = Agendamento.query.filter(
+            Agendamento.barbearia_id == current_user.barbearia_id,
+            Agendamento.telefone_cliente.like(f"%{base_phone}%")
         ).order_by(Agendamento.id.desc()).first()
 
         if cliente_conhecido and cliente_conhecido.nome_cliente:
-            # Pega o primeiro nome e capitaliza (Ex: "MARIA SILVA" -> "Maria")
-            nome_parts = cliente_conhecido.nome_cliente.split()
+            # Capitaliza o Primeiro e o Último nome para ficar elegante
+            nome_parts = cliente_conhecido.nome_cliente.strip().split()
             display_name = nome_parts[0].capitalize()
-            if len(nome_parts) > 1: # Adiciona sobrenome se tiver
+            if len(nome_parts) > 1:
                 display_name += " " + nome_parts[-1].capitalize()
 
-        # 👇 CORREÇÃO DO FUSO HORÁRIO PARA A LISTA LATERAL 👇
+        # Ajuste Fuso Horário da Lista Lateral
         hora_br = item.ultima_interacao
         if hora_br:
-            # Pega a hora do BD, avisa que é UTC, e converte pra SP
             hora_utc = hora_br.replace(tzinfo=pytz.utc) if hora_br.tzinfo is None else hora_br
             hora_br = hora_utc.astimezone(sao_paulo_tz)
 
         lista_contatos.append({
             'telefone': phone,
-            'nome_exibicao': display_name, # Manda o nome descoberto
-            'hora': hora_br # Manda a HORA CONVERTIDA
+            'telefone_formatado': telefone_formatado, # Adicionado para o HTML
+            'nome_exibicao': display_name,
+            'hora': hora_br 
         })
 
-    # 2. CARREGAR CONVERSA
+    # 2. CARREGAR CONVERSA SELECIONADA
     telefone_selecionado = request.args.get('telefone')
     mensagens = []
-    nome_selecionado = telefone_selecionado # Padrão
+    nome_selecionado = ""
 
     if telefone_selecionado:
-        # Busca nome do selecionado também
+        # Preenche nome e formata o topo do chat
         for c in lista_contatos:
             if c['telefone'] == telefone_selecionado:
                 nome_selecionado = c['nome_exibicao']
                 break
+        
+        if not nome_selecionado:
+            nome_selecionado = formatar_tel(telefone_selecionado)
 
+        # Busca APENAS as mensagens daquele telefone exato
         mensagens_db = ChatLog.query.filter_by(
             barbearia_id=current_user.barbearia_id,
             cliente_telefone=telefone_selecionado
         ).order_by(ChatLog.data_hora.asc()).all()
 
-        # 👇 CORREÇÃO DO FUSO HORÁRIO PARA OS BALÕES DE MENSAGEM 👇
         for msg in mensagens_db:
             if msg.data_hora:
                 hora_utc = msg.data_hora.replace(tzinfo=pytz.utc) if msg.data_hora.tzinfo is None else msg.data_hora
                 msg.data_hora = hora_utc.astimezone(sao_paulo_tz)
             mensagens.append(msg)
 
-    # Se for uma requisição AJAX (Automática), retorna só o pedaço do chat
+    # Motor de Auto-Update Invisível
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return render_template('monitor_partial.html', msgs=mensagens)
 
@@ -1359,6 +1378,7 @@ def monitor_chat():
         selecionado=telefone_selecionado,
         nome_selecionado=nome_selecionado
     )
+
 # ============================================
 # 🔒 ROTAS PERIGOSAS - PROTEGIDAS
 # ============================================

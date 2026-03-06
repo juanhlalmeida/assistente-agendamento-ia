@@ -480,6 +480,32 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
                 duracao=duracao_calculo
             )
 
+            # =========================================================
+            # 🛡️ REGRA ANTI-SURPRESA (EXCLUSIVA DA CAROL / LASH)
+            # =========================================================
+            nome_loja = barbearia.nome_fantasia.lower()
+            is_lash = any(x in nome_loja for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
+            
+            # Só aplica a regra se o cliente estiver pedindo para HOJE
+            if is_lash and dia_dt.date() == agora_br.date():
+                horarios_seguros = []
+                
+                for h in horarios:
+                    # CASO 1: Cliente chamou de MANHÃ (Antes das 12:00)
+                    if agora_br.hour < 12:
+                        # Só libera os horários da TARDE (A partir das 13:00)
+                        if h.hour >= 13:
+                            horarios_seguros.append(h)
+                            
+                    # CASO 2: Cliente chamou de TARDE (12:00 em diante)
+                    else:
+                        # Bloqueia tudo! A lista fica vazia.
+                        pass 
+                
+                # Substitui os horários originais pelos horários blindados
+                horarios = horarios_seguros
+            # =========================================================
+
             # Formatação da Resposta
             if not horarios:
                 # 👇 IMPLEMENTAÇÃO DA BUSCA PROATIVA DE VAGAS 👇
@@ -1174,9 +1200,23 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             # Pega o Prompt especializado (Quartos, Check-in, Regras)
             base_prompt = plugin.gerar_system_prompt()
             
+            regras_pousada_dona = """
+🚨 REGRAS OBRIGATÓRIAS DE ATENDIMENTO (SIGA À RISCA):
+1. NUNCA INFORME O NÚMERO OU NOME DO QUARTO (ex: "Quarto 1", "Quarto 2") para o cliente. É estritamente PROIBIDO.
+2. Quando houver disponibilidade, diga apenas que "temos disponibilidade" e informe o VALOR TOTAL.
+3. Se o cliente perguntar detalhes do quarto ou cama para "X" pessoas, descreva APENAS com base nestes estilos:
+   - "Temos quarto com 2 beliches (para até 4 pessoas)"
+   - "Temos quarto de casal com colchão de solteiro"
+   - "Temos suíte com Ar Condicionado"
+   - "Temos suíte com Ventilador"
+4. REGRAS DE DIÁRIAS E HORÁRIOS (Explique se o cliente perguntar):
+   - 1 Diária: Entrada às 12h e Saída às 14h do dia seguinte.
+   - 1 Diária e Meia (1.5): Entrada às 10h e Saída às 17h do dia seguinte.
+   - 2 Diárias: Entrada a partir das 12h e Saída às 17h do último dia.
+"""
+            
             # Adiciona o contexto temporal que a IA precisa
-            system_prompt = f"{base_prompt}\n\nHOJE: {data_hoje_str} | AMANHÃ: {data_amanha_str}\nID_CLIENTE: {cliente_whatsapp}"
-
+            system_prompt = f"{base_prompt}\n\n{regras_pousada_dona}\n\nHOJE: {data_hoje_str} | AMANHÃ: {data_amanha_str}\nID_CLIENTE: {cliente_whatsapp}"
         else:
             # --- LÓGICA MULTI-TENANCY (BARBEARIA VS LASH) - MODO CLIENTE ---
 
@@ -1374,22 +1414,25 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             """
             
         # 2. PLANO B: Se o painel estiver vazio, usa a regra fixa da pousada para não deixar o cliente na mão
+        # 2. PLANO B: Se o painel estiver vazio, usa a regra fixa da pousada para não deixar o cliente na mão
         elif barbearia.business_type == 'pousada':
             msg_para_enviar = f"""
             [LEMBRETE DE SISTEMA - BASE DE CONHECIMENTO OBRIGATÓRIA]
             Você é a Recepcionista Virtual da Pousada Recanto da Maré.
             
-            INFRAESTRUTURA DA POUSADA:
+            INFRAESTRUTURA E REGRAS DA POUSADA:
+            - REGRA DE OURO: NUNCA diga o número/nome do quarto para o cliente.
+            - 1 Diária: Check-in 12h / Check-out 14h (dia seguinte).
+            - 1.5 Diária: Check-in 10h / Check-out 17h (dia seguinte).
+            - 2 Diárias: Check-in 12h / Check-out 17h (último dia).
+            - Como descrever quartos: "Quarto com 2 beliches (4 pessoas)", "Casal com colchão de solteiro", "Suíte com Ar", "Suíte com Ventilador".
             - Wi-Fi: SIM, gratuito.
             - Voltagem: 220v.
             - Pet Friendly: SIM (Apenas porte médio).
             - Roupas de Cama/Banho: SIM, inclusas.
             - Ventilador e Smart TV: TODOS os quartos possuem.
-            - Piscina: NÃO TEMOS.
+            - Piscina / Cozinha / Refeições / Frigobar: NÃO TEMOS.
             - Estacionamento: NÃO TEMOS (carros ficam na rua).
-            - Cozinha para hóspedes: NÃO TEMOS.
-            - Refeições / Café da Manhã: NÃO TEMOS incluso.
-            - Frigobar: NÃO TEMOS frigobar nos quartos.
             
             [INSTRUÇÃO DE AÇÃO IMEDIATA]
             - Responda a dúvida dele EXATAMENTE com a Base de Conhecimento acima. Não invente.
