@@ -125,13 +125,16 @@ def detectar_ghost_call(resposta_final: str, historico_chat) -> tuple:
     if ia_confirmou and not tool_executada:
         logging.error(f"🚨 GHOST CALL DETECTADO: IA disse 'confirmado/bloqueado' mas ferramenta NÃO foi executada!")
         
-        resposta_segura = (
-            "⚠️ Ops! Detectei um problema de sincronização. "
-            "Por favor, verifique se a ação foi concluída ou me envie os dados novamente "
-            "(data, horário e ação) para eu confirmar no sistema."
+        # MENSAGEM INTERNA PARA AUTO-REFLEXÃO (O cliente não lê isso)
+        mensagem_auto_cura = (
+            "[ALERTA DE SISTEMA - AUTO-REFLEXÃO]: Você disse ao cliente que o agendamento foi confirmado, "
+            "mas FALHOU em chamar a ferramenta de banco de dados. "
+            "VERIFIQUE O HISTÓRICO AGORA: O cliente já te disse o NOME dele? "
+            "Se NÃO disse o nome, gere uma mensagem amigável pedindo: 'Quase tudo pronto! Só preciso do seu nome completo para salvar na agenda.' "
+            "Se ELE JÁ DISSE O NOME, o erro foi de formatação. Corrija o horário para HH:MM e chame a ferramenta `criar_agendamento` AGORA."
         )
         
-        return True, resposta_segura
+        return True, mensagem_auto_cura
     
     return False, resposta_final
 
@@ -150,13 +153,18 @@ HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
 🚨 REGRA DO PROFISSIONAL (IMPORTANTE):
 {regra_profissional_dinamica}
 
-🚨 PROTOCOLO DE EXECUÇÃO IMEDIATA (REGRA SUPREMA):
-ASSIM QUE O CLIENTE DER O "OK" OU CONFIRMAR O HORÁRIO E VOCÊ TIVER OS 5 DADOS (Serviço, Profissional, Data, Hora, Nome):
+🚨 O CHECKLIST MENTAL (REGRA SUPREMA):
+Para agendar de verdade, você PRECISA OBRIGATORIAMENTE ter estes 5 dados:
+[ ] 1. Serviço
+[ ] 2. Profissional
+[ ] 3. Data (AAAA-MM-DD)
+[ ] 4. Hora (HH:MM - Converta "16;00" ou "16h" para "16:00")
+[ ] 5. Nome do Cliente
 
-1. 🛑 PARE DE FALAR.
-2. 🤐 NÃO DIGA "Vou agendar" ou "Estou confirmando".
-3. ⚡ CHAME A FERRAMENTA `criar_agendamento` IMEDIATAMENTE.
-- O agendamento SÓ EXISTE se a ferramenta for chamada. Se você apenas digitar texto confirmando, VOCÊ ESTÁ MENTINDO e falhando na tarefa.
+Se o cliente aprovar o horário, FAÇA O CHECKLIST MENTAL:
+- Faltou o Nome? PERGUNTE: "Tudo certo com o horário! Qual o seu nome completo para eu anotar?"
+- Faltou o Serviço? PERGUNTE o serviço.
+- Se você tem os 5 dados: PARE DE FALAR e CHAME A FERRAMENTA `criar_agendamento` IMEDIATAMENTE. NUNCA diga que agendou antes de a ferramenta retornar sucesso!
 
 🚨 REGRA DE OURO - INTEGRIDADE DO SISTEMA (LEIA COM ATENÇÃO):
 VOCÊ É PROIBIDA DE DIZER "AGENDADO" OU "CONFIRMADO" SE NÃO TIVER CHAMADO A FERRAMENTA `criar_agendamento` COM SUCESSO.
@@ -174,6 +182,10 @@ Se a ferramenta `calcular_horarios_disponiveis` retornar que NÃO há vagas no h
 2. SEJA PROATIVA: Diga "Não tenho às Xh, mas tenho livre às Yh e Zh. Algum desses serve?".
 3. Liste imediatamente as opções que a ferramenta retornou.
 4. Se a ferramenta disser "Sem horários hoje", ofereça horários de AMANHÃ.
+
+🚨 AUTO-CORREÇÃO DE DADOS (MUITO IMPORTANTE):
+- Horários com erros (ex: "16;00", "16h"): CONVERTA silenciosamente para "HH:MM" (ex: "16:00") antes de chamar as ferramentas.
+- DADOS FALTANTES: Nunca tente chamar a ferramenta de agendamento se faltar o NOME do cliente. Se faltar, PERGUNTE antes de confirmar qualquer coisa.
 
 🚨 PROTOCOLO DE SEGURANÇA & ANTI-ALUCINAÇÃO (PRIORIDADE MÁXIMA):
 
@@ -1650,16 +1662,78 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             pass
 
         # ==========================================================================
-        # 🚨 ⭐ DETECTOR DE GHOST CALL (IMPLEMENTAÇÃO DO PAPER ACADÊMICO) ⭐ 🚨
+        # 🚨 ⭐ DETECTOR DE GHOST CALL COM AUTO-CURA (AGENTIC RETRY) ⭐ 🚨
         # ==========================================================================
 
-        eh_ghost, resposta_corrigida = detectar_ghost_call(final_response_text, chat_session.history)
+        eh_ghost, instrucao_auto_cura = detectar_ghost_call(final_response_text, chat_session.history)
 
         if eh_ghost:
+            logging.warning(f"🚨 Ghost call interceptado para {cliente_whatsapp}. Iniciando Auto-Cura...")
+            
+            try:
+                # 1. Envia a "bronca" invisível para a IA corrigir seu próprio erro
+                response_retry = chat_session.send_message(instrucao_auto_cura)
+                
+                # 2. Se a IA decidir finalmente chamar a ferramenta após a bronca:
+                while response_retry.candidates[0].content.parts and response_retry.candidates[0].content.parts[0].function_call:
+                    function_call = response_retry.candidates[0].content.parts[0].function_call
+                    function_name = function_call.name
+                    function_args = function_call.args
+                    logging.info(f"🔄 AUTO-CURA: IA solicitou a ferramenta '{function_name}'")
+                    
+                    tool_map = {
+                        "listar_profissionais": listar_profissionais,
+                        "listar_servicos": listar_servicos,
+                        "calcular_horarios_disponiveis": calcular_horarios_disponiveis,
+                        "criar_agendamento": criar_agendamento,
+                        "cancelar_agendamento_por_telefone": cancelar_agendamento_por_telefone,
+                        "consultar_agenda_dono": consultar_agenda_dono,
+                        "bloquear_agenda_dono": bloquear_agenda_dono,
+                        "verificar_disponibilidade_hotel": verificar_disponibilidade_hotel,
+                        "realizar_reserva_quarto": realizar_reserva_quarto
+                    }
 
-            logging.error(f"🚨 Ghost call bloqueado para cliente {cliente_whatsapp}")
+                    if function_name in tool_map:
+                        function_to_call = tool_map[function_name]
+                        kwargs = dict(function_args)
+                        kwargs['barbearia_id'] = barbearia_id
 
-            final_response_text = resposta_corrigida
+                        if function_name in ['criar_agendamento', 'cancelar_agendamento_por_telefone']:
+                            kwargs['telefone_cliente'] = cliente_whatsapp
+                        elif function_name == 'realizar_reserva_quarto':
+                            kwargs['telefone'] = cliente_whatsapp
+                            if 'qtd_pessoas' in kwargs: kwargs['qtd_pessoas'] = float(kwargs['qtd_pessoas'])
+                            if 'qtd_dias' in kwargs: kwargs['qtd_dias'] = float(kwargs['qtd_dias'])
+                        elif function_name == 'verificar_disponibilidade_hotel':
+                            if 'qtd_pessoas' in kwargs: kwargs['qtd_pessoas'] = float(kwargs['qtd_pessoas'])
+                            if 'qtd_dias' in kwargs: kwargs['qtd_dias'] = float(kwargs['qtd_dias'])
+
+                        tool_response = function_to_call(**kwargs)
+
+                        response_retry = chat_session.send_message(
+                            protos.Part(
+                                function_response=protos.FunctionResponse(
+                                    name=function_name,
+                                    response={"result": tool_response}
+                                )
+                            )
+                        )
+                    else:
+                        response_retry = chat_session.send_message(
+                            protos.Part(function_response=protos.FunctionResponse(name=function_name, response={"error": "Ferramenta não encontrada."}))
+                        )
+
+                # 3. Define o novo texto final gerado APÓS a autocura
+                if response_retry.candidates and response_retry.candidates[0].content.parts:
+                    part = response_retry.candidates[0].content.parts[0]
+                    if part.text:
+                        final_response_text = part.text
+                        logging.info("✅ Auto-Cura concluída com sucesso!")
+            
+            except Exception as e:
+                logging.error(f"❌ Falha no loop de Auto-Cura: {e}")
+                # QUEDA ELEGANTE: Parece que a IA só está confirmando os dados
+                final_response_text = "Opa, tive um leve engasgo aqui no sistema! Pra gente não perder a vaga, me confirma de novo o horário certinho e o seu nome completo? ✨"
 
         # ==========================================================================
 
