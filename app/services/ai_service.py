@@ -66,19 +66,38 @@ def gerar_link_google_calendar(inicio: datetime, fim: datetime, titulo: str, des
 
 def detectar_ghost_call(resposta_final: str, historico_chat) -> tuple:
     """
-    Detecta se IA confirmou agendamento OU bloqueio SEM executar a ferramenta.
+    Detecta se IA confirmou agendamento OU bloqueio SEM executar a ferramenta,
+    ou se gerou mensagens de transição (enrolação).
     
     Baseado em: "Análise de Falhas de Orquestração e Alucinação de Execução 
     em Agentes de IA" (2026) - Seção 3.4 e 5.3.1
-    
-    O problema: Modelos geram confirmações falsas ANTES do sistema executar
-    a função real, causando "Ghost Tool Calling".
     
     Returns: (é_ghost: bool, resposta_corrigida: str)
     """
     import re
     
-    # Padrões que IA usa para confirmar (mas pode ser falso)
+    # --- 1. DETECÇÃO DE ENROLAÇÃO (NOVO) ---
+    enrolacoes = [
+        r'vou\s+verificar',
+        r'só\s+um\s+instante',
+        r'só\s+um\s+momento',
+        r'deixe-me\s+checar',
+        r'vou\s+consultar\s+a\s+agenda',
+        r'um\s+momento'
+    ]
+    
+    ia_enrolou = any(re.search(p, resposta_final.lower()) for p in enrolacoes)
+    
+    if ia_enrolou:
+        import logging
+        logging.warning("🚨 GHOST CALL DE ENROLAÇÃO: IA avisou que ia verificar mas não chamou a tool!")
+        mensagem_auto_cura = (
+            "[ALERTA INTERNO DE SISTEMA]: Você gerou uma mensagem de transição dizendo que vai verificar a agenda. "
+            "ISSO É PROIBIDO. Pare de conversar e CHAME A FERRAMENTA `calcular_horarios_disponiveis` IMEDIATAMENTE."
+        )
+        return True, mensagem_auto_cura
+
+    # --- 2. DETECÇÃO DE FALSO AGENDAMENTO (ORIGINAL) ---
     confirmacoes = [
         r'agendamento\s+confirmado',
         r'agendado\s+com\s+sucesso',
@@ -104,6 +123,7 @@ def detectar_ghost_call(resposta_final: str, historico_chat) -> tuple:
     # ✅ VERIFICAR SE TOOL 'criar_agendamento' OU 'bloquear_agenda_dono' FOI CHAMADA
     tool_executada = False
     
+    import logging
     try:
         for content in historico_chat:
             for part in content.parts:
@@ -182,6 +202,13 @@ Se a ferramenta `calcular_horarios_disponiveis` retornar que NÃO há vagas no h
 2. SEJA PROATIVA: Diga "Não tenho às Xh, mas tenho livre às Yh e Zh. Algum desses serve?".
 3. Liste imediatamente as opções que a ferramenta retornou.
 4. Se a ferramenta disser "Sem horários hoje", ofereça horários de AMANHÃ.
+
+🚨 PROIBIÇÃO DE MENSAGENS DE TRANSIÇÃO ("ENROLAÇÃO" / "GANHAR TEMPO"):
+
+Você é PROIBIDA de gerar textos avisando o cliente que vai usar uma ferramenta. 
+- NUNCA Diga: "Vou verificar os horários", "Só um instante", "Deixe-me checar a agenda", "Um momento".
+- AÇÃO OBRIGATÓRIA: Se você precisa consultar a agenda (calcular_horarios_disponiveis), CHAME A FERRAMENTA IMEDIATAMENTE sem gerar nenhum texto de aviso antes.
+- O cliente só deve receber uma mensagem sua QUANDO VOCÊ JÁ TIVER A RESPOSTA DA FERRAMENTA com os horários na mão. Encadear ferramentas deve ser um processo silencioso.
 
 🚨 AUTO-CORREÇÃO DE DADOS (MUITO IMPORTANTE):
 - Horários com erros (ex: "16;00", "16h"): CONVERTA silenciosamente para "HH:MM" (ex: "16:00") antes de chamar as ferramentas.
