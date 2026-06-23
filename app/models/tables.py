@@ -85,6 +85,13 @@ class Barbearia(db.Model):
     min_pessoas_reserva = db.Column(db.Integer, default=1, nullable=False)
     min_dias_reserva = db.Column(db.Float, default=1.0, nullable=False)
 
+    # --- NOVOS CAMPOS PARA MIGRAÇÃO WAHA (Padrão Estrangulador) ---
+    # Este campo define o roteamento. O 'server_default' garante que todos os seus 
+    # clientes atuais continuarão automaticamente no sistema da Meta.
+    provedor_mensageria = db.Column(db.String(20), default='meta', server_default='meta', nullable=False)
+    
+    # ID exclusivo da sessão deste cliente lá no WAHA (ex: 'barbearia_do_joao_01').
+    waha_session_id = db.Column(db.String(100), unique=True, nullable=True)
 
 # ---------------------------------------------------------------------
 # FASE DE EXPANSÃO: MODELOS ATUALIZADOS (AS "ETIQUETAS")

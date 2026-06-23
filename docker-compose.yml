@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  waha:
+    image: devlikeapro/waha-plus:latest # Imagem Plus para Multi-sessões
+    container_name: waha_agendamento_ia
+    restart: unless-stopped
+    ports:
+      # SEGURANÇA MÁXIMA: O IP 127.0.0.1 impede que hackers acessem sua API do WAHA por fora. 
+      # Só a sua aplicação Flask rodando no mesmo servidor vai conseguir se comunicar com ela.
+      - "127.0.0.1:3000:3000" 
+    environment:
+      - TZ=America/Sao_Paulo
+      # Motor NOWEB: Suporta centenas de sessões sem explodir a memória RAM do seu servidor.
+      - WHATSAPP_DEFAULT_ENGINE=NOWEB 
+      # CRIE UMA SENHA FORTE ABAIXO E NÃO A PERCA. Seu Flask precisará dela.
+      - WAHA_API_KEY=sua_chave_secreta_super_segura_aqui_123!
+      - WAHA_WORKER_RESTART_SESSIONS=True
+      - WAHA_LOG_LEVEL=info
+    volumes:
+      # Persistência de Dados: Se o Docker reiniciar, as sessões não caem e o cliente não precisa ler o QR Code de novo.
+      - ./waha_data/sessions:/app/.sessions 
+      - ./waha_data/media:/app/.media
+    networks:
+      - ai_network
+
+networks:
+  ai_network:
+    driver: bridge
