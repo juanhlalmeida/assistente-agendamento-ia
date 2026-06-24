@@ -762,6 +762,111 @@ def webhook_meta():
     
     else:
         return "Método não permitido", 405
+    
+# ==============================================================================
+# 🚀 ROTA DO WEBHOOK DO WAHA (NOVO MOTOR - FASE 3)
+# ==============================================================================
+@bp.route('/api/webhooks/waha', methods=['POST'])
+def webhook_waha():
+    """
+    Recebe as mensagens do WAHA de forma descentralizada e limpa.
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"status": "ignored", "reason": "No payload"}), 200
+
+    event = data.get('event')
+    session_id = data.get('session')
+    payload = data.get('payload', {})
+
+    # 1. SE FOR MUDANÇA DE STATUS (Ex: Pedindo QR Code, ou Conectado)
+    if event == 'session.status':
+        status = payload.get('status')
+        logging.info(f"🔄 WAHA Status: A sessão '{session_id}' mudou para '{status}'")
+        # Na Fase 5 usaremos isso para mostrar no painel para o seu cliente!
+        return jsonify({"status": "success"}), 200
+
+    # 2. SE FOR MENSAGEM RECEBIDA
+    elif event == 'message':
+        # Ignora mensagens enviadas pelo próprio robô ou dono para evitar loop infinito de auto-resposta
+        if payload.get('fromMe', False):
+            return jsonify({"status": "ignored_from_me"}), 200
+
+        # O WAHA envia o número no formato interno "551199999999@c.us"
+        remetente_raw = payload.get('from', '')
+        remetente = remetente_raw.replace('@c.us', '').replace('@s.whatsapp.net', '')
+        
+        # Extrai o texto limpo direto do payload
+        mensagem_recebida = payload.get('body', '')
+        msg_type = payload.get('type', 'text') # Identifica se é texto, áudio, imagem
+
+        # Busca a loja no banco de dados usando o ID DA SESSÃO em vez do ID longo do Facebook
+        barbearia = Barbearia.query.filter_by(waha_session_id=session_id).first()
+
+        if not barbearia:
+            logging.error(f"❌ WAHA Webhook: Nenhuma loja possui a sessão '{session_id}'.")
+            return jsonify({"status": "session_not_found"}), 200
+
+        # Regra de Assinatura (A mesma proteção que você já usava para a Meta)
+        if not barbearia.assinatura_ativa:
+            logging.warning(f"🚫 WAHA: Loja '{barbearia.nome_fantasia}' com assinatura inativa.")
+            return jsonify({"status": "inactive"}), 200
+
+        logging.info(f"✅ WAHA: Mensagem de {remetente} para a loja {barbearia.nome_fantasia}")
+
+        # Processamos texto ou áudio nativo (ptt)
+        if msg_type in ['chat', 'text']:
+            
+            # --- ESPIÃO DO CLIENTE (Salva no Log do Painel) ---
+            try:
+                log_cliente = ChatLog(
+                    barbearia_id=barbearia.id,
+                    cliente_telefone=remetente,
+                    mensagem=mensagem_recebida,
+                    tipo='cliente'
+                )
+                db.session.add(log_cliente)
+                db.session.commit()
+            except Exception as e:
+                logging.error(f"Erro ao salvar log WAHA cliente: {e}")
+
+            # --- O CÉREBRO: CHAMA A INTELIGÊNCIA ARTIFICIAL ---
+            from app.services import ai_service
+            resposta_ia = ai_service.processar_ia_gemini(
+                user_message=mensagem_recebida,
+                barbearia_id=barbearia.id,
+                cliente_whatsapp=remetente
+            )
+
+            if resposta_ia:
+                # --- ESPIÃO DA IA (Salva no Log do Painel) ---
+                try:
+                    log_ia = ChatLog(
+                        barbearia_id=barbearia.id,
+                        cliente_telefone=remetente,
+                        mensagem=resposta_ia,
+                        tipo='ia'
+                    )
+                    db.session.add(log_ia)
+                    db.session.commit()
+                except Exception as e:
+                    logging.error(f"Erro ao salvar log WAHA IA: {e}")
+
+                # --- DISPARO: ENVIA A RESPOSTA USANDO O NOVO MOTOR WAHA ---
+                from app.services.waha_service import enviar_mensagem_waha
+                enviar_mensagem_waha(session_id, remetente, resposta_ia)
+
+        elif msg_type == 'ptt':
+             # Na próxima fase poderemos integrar a tradução de áudio do WAHA
+             logging.info("🔊 Áudio recebido via WAHA (Ainda em implementação)")
+             from app.services.waha_service import enviar_mensagem_waha
+             enviar_mensagem_waha(session_id, remetente, "Desculpe, ainda estou aprendendo a ouvir áudios por este novo sistema! Poderia digitar? ✨")
+
+        return jsonify({"status": "success"}), 200
+
+    # Se for qualquer outro evento desconhecido, ignora educadamente
+    return jsonify({"status": "ignored_event"}), 200
 
 # ============================================
 # ⚙️ ROTA DE CONFIGURAÇÕES (ATUALIZADA)
