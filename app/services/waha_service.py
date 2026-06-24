@@ -108,3 +108,27 @@ def obter_qr_code_waha(session_id):
         return True, response.json() # WAHA costuma retornar Base64
     except Exception as e:
         return False, None
+
+        def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
+    """Envia imagem/mídia (Tabela de preços, flyers) via WAHA"""
+    chat_id = formatar_numero_waha(to_number)
+    payload = {
+        "session": session_id,
+        "chatId": chat_id,
+        "file": {"url": url_arquivo},
+        "caption": caption
+    }
+    try:
+        # Usamos sendFile que o WAHA aceita universalmente para imagens e PDFs
+        response = requests.post(
+            f"{WAHA_BASE_URL}/api/sendFile", 
+            json=payload,
+            headers=get_waha_headers(),
+            timeout=15
+        )
+        response.raise_for_status()
+        logging.info(f"[WAHA] Mídia enviada com sucesso para {chat_id}")
+        return True
+    except Exception as e:
+        logging.error(f"[WAHA] Erro ao enviar mídia: {e}")
+        return False

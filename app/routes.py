@@ -124,16 +124,28 @@ def enviar_mensagem_whatsapp_twilio(destinatario, mensagem):
         return False
 
 # --- FUNÇÃO DE ENVIO DA META (PRINCIPAL) ---
+# --- FUNÇÃO DE ENVIO DE TEXTO (AGORA: ROTEADOR INTELIGENTE FASE 4) ---
 def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: Barbearia):
     """
-    Envia uma mensagem de texto para o destinatário usando a API do WhatsApp (Meta).
-    Lê as credenciais diretamente da barbearia.
+    Roteador Central: Decide se envia pela Meta ou pelo WAHA baseado no cadastro.
+    Mantemos o nome da função original para não quebrar a IA nem outras dependências.
     """
+    # 1. DESVIO PARA O NOVO MOTOR (WAHA)
+    if getattr(barbearia, 'provedor_mensageria', 'meta') == 'waha':
+        from app.services.waha_service import enviar_mensagem_waha
+        try:
+            sucesso, _ = enviar_mensagem_waha(barbearia.waha_session_id, destinatario, mensagem)
+            return sucesso
+        except Exception as e:
+            logging.error(f"❌ Erro no Roteador WAHA (Texto): {e}")
+            return False
+
+    # 2. FLUXO ORIGINAL (META OFICIAL)
     access_token = barbearia.meta_access_token
     phone_number_id = barbearia.meta_phone_number_id
     
     if not access_token or not phone_number_id:
-        logging.error(f"Erro: Barbearia ID {barbearia.id} está sem META_ACCESS_TOKEN ou META_PHONE_NUMBER_ID.")
+        logging.error(f"Erro: Barbearia ID {barbearia.id} está sem credenciais META.")
         return False
     
     if destinatario.startswith('whatsapp:'):
@@ -147,13 +159,53 @@ def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: B
         "type": "text",
         "text": {"body": mensagem}
     }
-    
     try:
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
         return True
     except requests.exceptions.RequestException as e:
         logging.error(f"❌ Erro ao enviar mensagem via Meta: {e}")
+        return False
+
+# --- FUNÇÃO PARA ENVIAR MÍDIA (AGORA: ROTEADOR INTELIGENTE FASE 4) ---
+def enviar_midia_whatsapp_meta(destinatario: str, url_arquivo: str, barbearia: Barbearia):
+    """
+    Envia imagem para o WhatsApp do cliente. Roteia entre WAHA e Meta.
+    """
+    if not url_arquivo: return False
+
+    # 1. DESVIO PARA O NOVO MOTOR (WAHA)
+    if getattr(barbearia, 'provedor_mensageria', 'meta') == 'waha':
+        from app.services.waha_service import enviar_midia_waha
+        try:
+            return enviar_midia_waha(barbearia.waha_session_id, destinatario, url_arquivo)
+        except Exception as e:
+            logging.error(f"❌ Erro no Roteador WAHA (Mídia): {e}")
+            return False
+            
+    # 2. FLUXO ORIGINAL (META OFICIAL)
+    if destinatario.startswith('whatsapp:'):
+        destinatario = destinatario.replace('whatsapp:', '')
+
+    url = f"https://graph.facebook.com/v19.0/{barbearia.meta_phone_number_id}/messages"
+    headers = {"Authorization": f"Bearer {barbearia.meta_access_token}", "Content-Type": "application/json"}
+    
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": destinatario,
+        "type": "image", 
+        "image": {"link": url_arquivo}
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            logging.info(f"✅ Mídia enviada com sucesso para {destinatario} via Meta")
+            return True
+        else:
+            logging.error(f"❌ Erro Meta Media: {response.text}")
+            return False
+    except Exception as e:
+        logging.error(f"❌ Erro ao enviar mídia: {e}")
         return False
 
 # --- NOVO: FUNÇÃO PARA ENVIAR MÍDIA (FOTO/PDF) ---
