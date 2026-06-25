@@ -77,7 +77,7 @@ def criar_sessao_waha(session_id):
             "webhooks": [
                 {
                     # Rota que criaremos na Fase 3
-                    "url": "http://host.docker.internal:5000/api/webhooks/waha",
+                    "url": "https://assistente-agendamento-ia.onrender.com",
                     "events": ["message", "session.status"],
                 }
             ]
