@@ -66,6 +66,71 @@
             </div>
         </div>
 
+        {% if current_user.barbearia.provedor_mensageria == 'waha' %}
+<div class="card shadow mb-4" style="border-left: 4px solid #25D366;">
+    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+        <h6 class="m-0 font-weight-bold text-success"><i class="fab fa-whatsapp"></i> Conexão WhatsApp (Nova Geração)</h6>
+    </div>
+    <div class="card-body text-center">
+        <p class="text-muted mb-4">
+            Sistema de inteligência autônoma habilitado. Clique abaixo para gerar o código e aponte a câmera do WhatsApp do seu estabelecimento.
+        </p>
+        
+        <button id="btn-gerar-qr" type="button" class="btn btn-success font-weight-bold px-4 py-2">
+            <i class="fas fa-qrcode"></i> Gerar QR Code
+        </button>
+        
+        <div id="qr-container" class="mt-4" style="display: none;">
+            <p class="small text-muted mb-2">Aponte a câmera (Dispositivos Conectados):</p>
+            <div class="d-flex justify-content-center">
+                <img id="qr-image" src="" alt="QR Code" class="img-fluid border rounded p-2 shadow-sm" style="max-width: 250px;">
+            </div>
+            <p class="small text-danger mt-3">
+                <i class="fas fa-clock"></i> O código expira em 20 segundos por segurança.<br>Se sumir, clique em "Atualizar QR Code".
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const btnGerar = document.getElementById('btn-gerar-qr');
+    if (btnGerar) {
+        btnGerar.addEventListener('click', function() {
+            const container = document.getElementById('qr-container');
+            const img = document.getElementById('qr-image');
+            
+            // Estado de carregamento
+            btnGerar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Gerando... Aguarde';
+            btnGerar.disabled = true;
+
+            fetch('/api/waha/gerar-qr', { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    img.src = data.qr_code;
+                    container.style.display = 'block';
+                    btnGerar.innerHTML = '<i class="fas fa-sync"></i> Atualizar QR Code';
+                } else {
+                    alert('Aviso: ' + data.error);
+                    btnGerar.innerHTML = '<i class="fas fa-qrcode"></i> Tentar Novamente';
+                }
+                btnGerar.disabled = false;
+            })
+            .catch(err => {
+                alert('Erro de comunicação com o servidor. Tente novamente.');
+                btnGerar.innerHTML = '<i class="fas fa-qrcode"></i> Gerar QR Code';
+                btnGerar.disabled = false;
+            });
+        });
+    }
+});
+</script>
+{% endif %}
+
         {# --- CARTÃO 2: INTEGRAÇÃO GOOGLE AGENDA (MANTIDO) --- #}
         <div class="bg-surface-dark p-6 rounded-xl shadow-lg border border-white/5 relative overflow-hidden">
              <div class="absolute top-0 right-0 p-4 opacity-5">

@@ -2,6 +2,7 @@ import os
 import requests
 import time
 import logging
+import base64
 
 # Configurações do WAHA (Puxamos do ambiente, se não houver, usa o padrão local)
 WAHA_BASE_URL = os.environ.get('WAHA_BASE_URL', 'http://127.0.0.1:3000')
@@ -97,17 +98,22 @@ def criar_sessao_waha(session_id):
         return False, str(e)
 
 def obter_qr_code_waha(session_id):
-    """Puxa a imagem do QR Code para o administrador ler."""
+    """Puxa a imagem do QR Code e converte para Base64 para exibir no HTML de forma segura."""
     try:
         response = requests.get(
             f"{WAHA_BASE_URL}/api/{session_id}/auth/qr",
             headers=get_waha_headers(),
-            timeout=10
+            timeout=15 # Damos um tempo maior caso o WAHA esteja gerando a imagem
         )
         response.raise_for_status()
-        return True, response.json() # WAHA costuma retornar Base64
-    except Exception as e:
-        return False, None
+        
+        # Transforma a imagem crua (bytes) em texto Base64 legível para navegadores
+        encoded_img = base64.b64encode(response.content).decode('utf-8')
+        return True, f"data:image/png;base64,{encoded_img}"
+        
+    except requests.exceptions.RequestException as e:
+        logging.error(f"[WAHA] Erro ao obter QR Code: {e}")
+        return False, str(e)
 
         def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
     """Envia imagem/mídia (Tabela de preços, flyers) via WAHA"""
