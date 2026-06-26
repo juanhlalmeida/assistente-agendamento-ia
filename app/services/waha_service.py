@@ -69,15 +69,27 @@ def enviar_mensagem_waha(session_id, to_number, text):
         return False, str(e)
 
 def criar_sessao_waha(session_id):
-    """Aciona a criação de uma nova sessão e FORÇA o motor a ligar."""
-    # Adicionamos "start": True para forçar a inicialização imediata
+    """Aciona a criação de uma nova sessão, FORÇA o motor a ligar e AVISA O WEBHOOK."""
+    
+    # O link exato do "ouvido" do seu sistema na Render
+    meu_webhook = "https://assistente-agendamento-ia.onrender.com/api/webhooks/waha"
+    
+    # Payload completo: Nome + Chave de Ignição + Webhook
     payload = {
         "name": session_id,
-        "start": True
+        "start": True,
+        "config": {
+            "webhooks": [
+                {
+                    "url": meu_webhook,
+                    "events": ["message", "session.status"]
+                }
+            ]
+        }
     }
     
     try:
-        # 1. Cria a sessão no banco de dados do WAHA
+        # 1. Cria a sessão avisando para onde mandar as mensagens
         response = requests.post(
             f"{WAHA_BASE_URL}/api/sessions/",
             json=payload,
@@ -85,7 +97,7 @@ def criar_sessao_waha(session_id):
             timeout=15
         )
         
-        # 2. A CHAVE DE IGNIÇÃO: Dá um segundo comando para garantir que não fique "STOPPED"
+        # 2. Gira a Chave de Ignição
         requests.post(
             f"{WAHA_BASE_URL}/api/sessions/{session_id}/start",
             headers=get_waha_headers(),
@@ -93,15 +105,14 @@ def criar_sessao_waha(session_id):
         )
         
         if response.status_code == 422:
-            logging.info(f"[WAHA] Sessão já existe ou em uso: {session_id}")
+            logging.info(f"[WAHA] Sessão já existe: {session_id}")
             return True, {"status": "already_exists"}
             
         response.raise_for_status()
         return True, response.json()
     except Exception as e:
         logging.error(f"[WAHA] Falha ao criar/iniciar sessão {session_id}: {e}")
-        return False, str(e)
-    
+        return False, str(e)    
 
 def obter_qr_code_waha(session_id):
     """Puxa a imagem do QR Code com ALTA PACIÊNCIA para servidores gratuitos lentos."""
