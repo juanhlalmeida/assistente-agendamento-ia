@@ -114,8 +114,9 @@ def obter_qr_code_waha(session_id):
     except requests.exceptions.RequestException as e:
         logging.error(f"[WAHA] Erro ao obter QR Code: {e}")
         return False, str(e)
+    
 
-        def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
+def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
     """Envia imagem/mídia (Tabela de preços, flyers) via WAHA"""
     chat_id = formatar_numero_waha(to_number)
     payload = {
@@ -138,3 +139,5 @@ def obter_qr_code_waha(session_id):
     except Exception as e:
         logging.error(f"[WAHA] Erro ao enviar mídia: {e}")
         return False
+
+        
