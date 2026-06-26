@@ -69,19 +69,29 @@ def enviar_mensagem_waha(session_id, to_number, text):
         return False, str(e)
 
 def criar_sessao_waha(session_id):
-    """Aciona a criação de uma nova sessão no WAHA (Carga Minimalista)."""
-    # Agora o payload só tem o nome. Impossível dar erro 422.
+    """Aciona a criação de uma nova sessão e FORÇA o motor a ligar."""
+    # Adicionamos "start": True para forçar a inicialização imediata
     payload = {
-        "name": session_id
+        "name": session_id,
+        "start": True
     }
     
     try:
+        # 1. Cria a sessão no banco de dados do WAHA
         response = requests.post(
             f"{WAHA_BASE_URL}/api/sessions/",
             json=payload,
             headers=get_waha_headers(),
             timeout=15
         )
+        
+        # 2. A CHAVE DE IGNIÇÃO: Dá um segundo comando para garantir que não fique "STOPPED"
+        requests.post(
+            f"{WAHA_BASE_URL}/api/sessions/{session_id}/start",
+            headers=get_waha_headers(),
+            timeout=10
+        )
+        
         if response.status_code == 422:
             logging.info(f"[WAHA] Sessão já existe ou em uso: {session_id}")
             return True, {"status": "already_exists"}
@@ -89,7 +99,7 @@ def criar_sessao_waha(session_id):
         response.raise_for_status()
         return True, response.json()
     except Exception as e:
-        logging.error(f"[WAHA] Falha ao criar sessão {session_id}: {e}")
+        logging.error(f"[WAHA] Falha ao criar/iniciar sessão {session_id}: {e}")
         return False, str(e)
     
 
