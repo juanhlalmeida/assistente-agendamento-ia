@@ -1803,36 +1803,33 @@ def api_reservas_calendario():
 @bp.route('/api/waha/gerar-qr', methods=['POST'])
 @login_required
 
+# ==============================================================================
+# 🚀 GERAÇÃO DE QR CODE WAHA (PAINEL DO CLIENTE)
+# ==============================================================================
+@bp.route('/api/waha/gerar-qr', methods=['POST'])
+@login_required
 def waha_gerar_qr():
     """Rota chamada pelo botão no painel do cliente para gerar o QR Code"""
     barbearia = Barbearia.query.get(current_user.barbearia_id)
     
-    # 1. BLOQUEIO DE SEGURANÇA: Só gera se você (SuperAdmin) liberou o WAHA para ele
     if getattr(barbearia, 'provedor_mensageria', 'meta') != 'waha':
-        return jsonify({"error": "Acesso negado. Solicite a liberação desta função ao suporte."}), 403
+        return jsonify({"error": "Acesso negado."}), 403
 
-    # 2. GERAÇÃO DA SESSÃO (Trilho Invisível)
-    session_id = barbearia.waha_session_id
-    if not session_id:
-        import time
-        # Cria um ID fixo e único para a loja (ex: loja_5_17100000)
-        session_id = f"loja-{barbearia.id}-{int(time.time())}"
-        barbearia.waha_session_id = session_id
-        db.session.commit()
-
-    from app.services.waha_service import criar_sessao_waha, obter_qr_code_waha
     import time
+    from app.services.waha_service import criar_sessao_waha, obter_qr_code_waha
 
-    # 3. Inicia o contêiner do cliente no WAHA
-    criar_sessao_waha(session_id)
+    # 1. FORÇAR UM NOVO ID COM TRAÇOS (Mata a sessão zumbi antiga)
+    novo_id = f"loja-{barbearia.id}-{int(time.time())}"
+    barbearia.waha_session_id = novo_id
+    db.session.commit()
     
-    # 4. Aguarda 3 segundos. O WhatsApp demora um pouco para criptografar e desenhar o QR Code.
-    time.sleep(3)
-
-    # 5. Puxa a imagem Base64
-    sucesso, qr_b64 = obter_qr_code_waha(session_id)
+    # 2. Inicia o contêiner do cliente no WAHA
+    criar_sessao_waha(novo_id)
+    
+    # 3. Puxa a imagem com a Super Paciência (Pode levar até 40s)
+    sucesso, qr_b64 = obter_qr_code_waha(novo_id)
     
     if sucesso:
         return jsonify({"success": True, "qr_code": qr_b64})
     else:
-        return jsonify({"success": False, "error": "O servidor ainda está gerando. Clique novamente em 5 segundos."}), 500
+        return jsonify({"success": False, "error": qr_b64}), 500

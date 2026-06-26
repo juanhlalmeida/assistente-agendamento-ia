@@ -94,22 +94,41 @@ def criar_sessao_waha(session_id):
     
 
 def obter_qr_code_waha(session_id):
-    """Puxa a imagem do QR Code e converte para Base64 para exibir no HTML de forma segura."""
-    try:
-        response = requests.get(
-            f"{WAHA_BASE_URL}/api/{session_id}/auth/qr",
-            headers=get_waha_headers(),
-            timeout=15 # Damos um tempo maior caso o WAHA esteja gerando a imagem
-        )
-        response.raise_for_status()
-        
-        # Transforma a imagem crua (bytes) em texto Base64 legível para navegadores
-        encoded_img = base64.b64encode(response.content).decode('utf-8')
-        return True, f"data:image/png;base64,{encoded_img}"
-        
-    except requests.exceptions.RequestException as e:
-        logging.error(f"[WAHA] Erro ao obter QR Code: {e}")
-        return False, str(e)
+    """Puxa a imagem do QR Code com ALTA PACIÊNCIA para servidores gratuitos lentos."""
+    import time
+    import base64
+    import logging
+    import requests
+    
+    # 1. Dá 10 segundos de vantagem para o motor do WAHA ligar na nuvem
+    time.sleep(10)
+    
+    # 2. Vai tentar buscar a imagem 6 vezes, esperando 5 segundos entre cada (Total 30s extras)
+    for tentativa in range(6):
+        try:
+            response = requests.get(
+                f"{WAHA_BASE_URL}/api/{session_id}/auth/qr",
+                headers=get_waha_headers(),
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                # SUCESSO! Transforma a imagem e entrega pra tela
+                encoded_img = base64.b64encode(response.content).decode('utf-8')
+                return True, f"data:image/png;base64,{encoded_img}"
+                
+            elif response.status_code == 422:
+                # Ainda não está pronto. Espera e tenta de novo.
+                logging.warning(f"[WAHA] Servidor desenhando QR Code. Tentativa {tentativa+1} de 6...")
+                time.sleep(5)
+            else:
+                response.raise_for_status()
+                
+        except Exception as e:
+            logging.warning(f"[WAHA] Aguardando o motor iniciar... Erro: {e}")
+            time.sleep(5)
+            
+    return False, "O servidor demorou muito para gerar a imagem. Clique em 'Gerar QR Code' novamente!"
     
 
 def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
