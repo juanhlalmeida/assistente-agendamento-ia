@@ -1802,12 +1802,6 @@ def api_reservas_calendario():
 # ==============================================================================
 @bp.route('/api/waha/gerar-qr', methods=['POST'])
 @login_required
-
-# ==============================================================================
-# 🚀 GERAÇÃO DE QR CODE WAHA (PAINEL DO CLIENTE)
-# ==============================================================================
-@bp.route('/api/waha/gerar-qr', methods=['POST'])
-@login_required
 def waha_gerar_qr():
     """Rota chamada pelo botão no painel do cliente para gerar o QR Code"""
     barbearia = Barbearia.query.get(current_user.barbearia_id)
