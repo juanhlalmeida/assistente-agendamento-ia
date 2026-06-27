@@ -648,6 +648,21 @@ def webhook_twilio():
         
         if not barbearia or barbearia.status_assinatura != 'ativa':
             return 'OK', 200
+        
+        # --- IA (TEXTO) ---
+        resposta_ia = ai_service.processar_ia_gemini(
+            user_message=mensagem_recebida,
+            barbearia_id=barbearia.id,
+            cliente_whatsapp=remetente
+        )
+        if resposta_ia:
+            enviar_mensagem_whatsapp_twilio(remetente, resposta_ia)
+        
+        return "Mensagem processada", 200
+    
+    except Exception as e:
+        logging.error(f"❌ Erro no webhook do Twilio: {e}")
+        return "Erro interno", 500
 
 # ==============================================================================
 # ✨ ROTA DO WEBHOOK DA META (COM DEBUG ATIVADO)
@@ -852,9 +867,9 @@ def webhook_waha():
 
         logging.info(f"✅ WAHA: Mensagem de {remetente} para a loja {barbearia.nome_fantasia}")
         
-    # ==============================================================================
-    # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
-    # ==============================================================================
+        # ==============================================================================
+        # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
+        # ==============================================================================
         if from_number and '@g.us' in from_number:
             logging.info(f"🚫 [ESCUDO] Mensagem de grupo ignorada: {from_number}")
             return jsonify({"status": "ignorado", "motivo": "mensagem_de_grupo"}), 200
@@ -862,7 +877,9 @@ def webhook_waha():
         if not body or str(body).strip() == "":
             logging.info(f"🚫 [ESCUDO] Mensagem sem texto ignorada de: {from_number}")
             return jsonify({"status": "ignorado", "motivo": "sem_texto"}), 200
-        
+        # ==============================================================================
+
+        # Cache do histórico / Conversa com a IA continua daqui para baixo...
 
         # Processamos texto ou áudio nativo (ptt)
         if msg_type in ['chat', 'text']:
