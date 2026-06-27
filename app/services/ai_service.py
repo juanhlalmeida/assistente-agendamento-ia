@@ -1185,7 +1185,7 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
     # 1. 🛑 COMANDO DE RESET MANUAL (IMPLEMENTAÇÃO SEGURA)
     # Se o usuário pedir reset, limpamos o cache antes de qualquer processamento pesado.
     comandos_reset = ['reset', 'reiniciar', 'começar de novo', 'limpar', 'resetar']
-    if user_message.lower().strip() in comandos_reset:
+    if user_message and str(user_message).lower().strip() in comandos_reset:
         try:
             cache.delete(cache_key)
             logging.info(f"🧹 Histórico resetado manualmente para {cliente_whatsapp}")

@@ -16,8 +16,16 @@ def get_waha_headers():
     }
 
 def formatar_numero_waha(numero):
-    """Garante que o número seja apenas dígitos e adiciona a flag @c.us (obrigatório no WAHA)"""
-    numero_limpo = ''.join(filter(str.isdigit, str(numero)))
+    """Mantém a extensão original do WAHA (@lid, @g.us, @c.us) ou adiciona @c.us se for só número"""
+    numero_str = str(numero).strip()
+    
+    # Se o número já veio do WAHA com a extensão correta (@), devolve intacto!
+    if '@' in numero_str:
+        return numero_str
+        
+    # Se for um número puro vindo do banco de dados, limpa e coloca @c.us
+    import re
+    numero_limpo = re.sub(r'\D', '', numero_str)
     return f"{numero_limpo}@c.us"
 
 def enviar_mensagem_waha(session_id, to_number, text):

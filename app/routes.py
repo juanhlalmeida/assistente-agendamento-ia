@@ -648,6 +648,18 @@ def webhook_twilio():
         
         if not barbearia or barbearia.status_assinatura != 'ativa':
             return 'OK', 200
+
+    # ==============================================================================
+    # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
+    # ==============================================================================
+        if telefone_cliente and '@g.us' in telefone_cliente:
+        logging.info(f"🚫 [ESCUDO] Mensagem de grupo ignorada: {telefone_cliente}")
+            return jsonify({"status": "ignorado", "motivo": "mensagem_de_grupo"}), 200
+        
+        if not user_message or str(user_message).strip() == "":
+        logging.info(f"🚫 [ESCUDO] Mensagem sem texto ignorada de: {telefone_cliente}")
+            return jsonify({"status": "ignorado", "motivo": "sem_texto"}), 200
+    # ==============================================================================
         
         # --- IA (TEXTO) ---
         resposta_ia = ai_service.processar_ia_gemini(
