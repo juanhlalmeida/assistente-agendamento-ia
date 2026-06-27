@@ -649,33 +649,6 @@ def webhook_twilio():
         if not barbearia or barbearia.status_assinatura != 'ativa':
             return 'OK', 200
 
-    # ==============================================================================
-    # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
-    # ==============================================================================
-        if telefone_cliente and '@g.us' in telefone_cliente:
-        logging.info(f"🚫 [ESCUDO] Mensagem de grupo ignorada: {telefone_cliente}")
-            return jsonify({"status": "ignorado", "motivo": "mensagem_de_grupo"}), 200
-        
-        if not user_message or str(user_message).strip() == "":
-        logging.info(f"🚫 [ESCUDO] Mensagem sem texto ignorada de: {telefone_cliente}")
-            return jsonify({"status": "ignorado", "motivo": "sem_texto"}), 200
-    # ==============================================================================
-        
-        # --- IA (TEXTO) ---
-        resposta_ia = ai_service.processar_ia_gemini(
-            user_message=mensagem_recebida,
-            barbearia_id=barbearia.id,
-            cliente_whatsapp=remetente
-        )
-        if resposta_ia:
-            enviar_mensagem_whatsapp_twilio(remetente, resposta_ia)
-        
-        return "Mensagem processada", 200
-    
-    except Exception as e:
-        logging.error(f"❌ Erro no webhook do Twilio: {e}")
-        return "Erro interno", 500
-
 # ==============================================================================
 # ✨ ROTA DO WEBHOOK DA META (COM DEBUG ATIVADO)
 # ==============================================================================
@@ -878,6 +851,18 @@ def webhook_waha():
             return jsonify({"status": "inactive"}), 200
 
         logging.info(f"✅ WAHA: Mensagem de {remetente} para a loja {barbearia.nome_fantasia}")
+        
+    # ==============================================================================
+    # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
+    # ==============================================================================
+        if from_number and '@g.us' in from_number:
+            logging.info(f"🚫 [ESCUDO] Mensagem de grupo ignorada: {from_number}")
+            return jsonify({"status": "ignorado", "motivo": "mensagem_de_grupo"}), 200
+        
+        if not body or str(body).strip() == "":
+            logging.info(f"🚫 [ESCUDO] Mensagem sem texto ignorada de: {from_number}")
+            return jsonify({"status": "ignorado", "motivo": "sem_texto"}), 200
+        
 
         # Processamos texto ou áudio nativo (ptt)
         if msg_type in ['chat', 'text']:
