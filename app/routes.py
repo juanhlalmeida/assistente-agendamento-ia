@@ -889,56 +889,57 @@ def webhook_waha():
 
         # Processamos texto ou áudio nativo (ptt)
     if msg_type in ['chat', 'text']:
-            
-            # --- ESPIÃO DO CLIENTE (Salva no Log do Painel) ---
+        
+        # --- ESPIÃO DO CLIENTE (Salva no Log do Painel) ---
+        try:
+            log_cliente = ChatLog(
+                barbearia_id=barbearia.id,
+                cliente_telefone=from_number,
+                mensagem=body,
+                tipo='cliente'
+            )
+            db.session.add(log_cliente)
+            db.session.commit()
+        except Exception as e:
+            logging.error(f"Erro ao salvar log WAHA cliente: {e}")
+
+        # --- O CÉREBRO: CHAMA A INTELIGÊNCIA ARTIFICIAL ---
+        from app.services import ai_service
+        resposta_ia = ai_service.processar_ia_gemini(
+            user_message=body,
+            barbearia_id=barbearia.id,
+            cliente_whatsapp=from_number
+        )
+
+        if resposta_ia:
+            # --- ESPIÃO DA IA (Salva no Log do Painel) ---
             try:
-                log_cliente = ChatLog(
+                log_ia = ChatLog(
                     barbearia_id=barbearia.id,
-                    cliente_telefone=remetente,
-                    mensagem=mensagem_recebida,
-                    tipo='cliente'
+                    cliente_telefone=from_number,
+                    mensagem=resposta_ia,
+                    tipo='ia'
                 )
-                db.session.add(log_cliente)
+                db.session.add(log_ia)
                 db.session.commit()
             except Exception as e:
-                logging.error(f"Erro ao salvar log WAHA cliente: {e}")
+                logging.error(f"Erro ao salvar log WAHA IA: {e}")
 
-            # --- O CÉREBRO: CHAMA A INTELIGÊNCIA ARTIFICIAL ---
-            from app.services import ai_service
-            resposta_ia = ai_service.processar_ia_gemini(
-                user_message=mensagem_recebida,
-                barbearia_id=barbearia.id,
-                cliente_whatsapp=remetente
-            )
+            # --- DISPARO: ENVIA A RESPOSTA USANDO O NOVO MOTOR WAHA ---
+            from app.services.waha_service import enviar_mensagem_waha
+            enviar_mensagem_waha(session_id, from_number, resposta_ia)
 
-            if resposta_ia:
-                # --- ESPIÃO DA IA (Salva no Log do Painel) ---
-                try:
-                    log_ia = ChatLog(
-                        barbearia_id=barbearia.id,
-                        cliente_telefone=remetente,
-                        mensagem=resposta_ia,
-                        tipo='ia'
-                    )
-                    db.session.add(log_ia)
-                    db.session.commit()
-                except Exception as e:
-                    logging.error(f"Erro ao salvar log WAHA IA: {e}")
+    elif msg_type == 'ptt':
+        # Na próxima fase poderemos integrar a tradução de áudio do WAHA
+        logging.info("🔊 Áudio recebido via WAHA (Ainda em implementação)")
+        from app.services.waha_service import enviar_mensagem_waha
+        enviar_mensagem_waha(session_id, from_number, "Desculpe, ainda estou aprendendo a ouvir áudios por este novo sistema! Poderia digitar? ✨")
 
-                # --- DISPARO: ENVIA A RESPOSTA USANDO O NOVO MOTOR WAHA ---
-                from app.services.waha_service import enviar_mensagem_waha
-                enviar_mensagem_waha(session_id, remetente, resposta_ia)
+    return jsonify({"status": "success"}), 200
 
-        elif msg_type == 'ptt':
-             # Na próxima fase poderemos integrar a tradução de áudio do WAHA
-             logging.info("🔊 Áudio recebido via WAHA (Ainda em implementação)")
-             from app.services.waha_service import enviar_mensagem_waha
-             enviar_mensagem_waha(session_id, remetente, "Desculpe, ainda estou aprendendo a ouvir áudios por este novo sistema! Poderia digitar? ✨")
+# Se for qualquer outro evento desconhecido, ignora educadamente
+return jsonify({"status": "ignored_event"}), 200
 
-        return jsonify({"status": "success"}), 200
-
-    # Se for qualquer outro evento desconhecido, ignora educadamente
-    return jsonify({"status": "ignored_event"}), 200
 
 # ============================================
 # ⚙️ ROTA DE CONFIGURAÇÕES (ATUALIZADA)
