@@ -825,59 +825,47 @@ def webhook_waha():
         return jsonify({"status": "no_data"}), 200
 
     event = data.get('event')
-    session = data.get('session')
+    session_id = data.get('session')  # 🔴 CORREÇÃO AQUI: 'session_id' em vez de 'session'
     payload = data.get('payload', {})
+
+    if event == 'session.status':
+        status = payload.get('status')
+        logging.info(f"🔄 WAHA Status: A sessão '{session_id}' mudou para '{status}'")
+        return jsonify({"status": "success"}), 200
+
+    if event != 'message':
+        return jsonify({"status": "ignored_event"}), 200
+
+    from_me = payload.get('fromMe', False)
+    if from_me:
+        return jsonify({"status": "ignored_from_me"}), 200
 
     # ==============================================================================
     # 🚀 CHAMADA DO NOSSO PROTETOR ISOLADO (WAHA_UTILS)
     # ==============================================================================
-    if event == 'message':
-        from app.services.waha_utils import extrair_e_filtrar_mensagem_waha
+    from app.services.waha_utils import extrair_e_filtrar_mensagem_waha
+    sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload)
+    
+    if not sucesso:
+        # Barrado no escudo (grupo ou sem texto), encerra sem dar erro!
+        return jsonify({"status": "ignorado", "motivo": resultado}), 200
         
-        sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload)
-        
-        if not sucesso:
-            # Se foi barrado no escudo (grupo ou sem texto), responde 200 e encerra aqui de forma segura!
-            return jsonify({"status": "ignorado", "motivo": resultado}), 200
-            
-        # Se deu sucesso, a variável 'body' recebe o texto extraído perfeitamente!
-        body = resultado
+    # Se passou, recebe o texto limpo à prova de falhas
+    body = resultado
+    from_number = payload.get('from')
     # ==============================================================================
 
-    # 1. SE FOR MUDANÇA DE STATUS (Ex: Pedindo QR Code, ou Conectado)
-    if event == 'session.status':
-        status = payload.get('status')
-        logging.info(f"🔄 WAHA Status: A sessão '{session_id}' mudou para '{status}'")
-        # Na Fase 5 usaremos isso para mostrar no painel para o seu cliente!
-        return jsonify({"status": "success"}), 200
+    # Identificar barbearia
+    if not session_id:
+        return jsonify({"status": "no_session_id"}), 200
 
-    # 2. SE FOR MENSAGEM RECEBIDA
-    elif event == 'message':
-        # Ignora mensagens enviadas pelo próprio robô ou dono para evitar loop infinito de auto-resposta
-        if payload.get('fromMe', False):
-            return jsonify({"status": "ignored_from_me"}), 200
+    barbearia = Barbearia.query.filter_by(waha_session_id=session_id).first()
+    if not barbearia:
+        return jsonify({"status": "barbearia_not_found"}), 200
 
-        # O WAHA envia o número no formato interno "551199999999@c.us"
-        remetente_raw = payload.get('from', '')
-        remetente = remetente_raw.replace('@c.us', '').replace('@s.whatsapp.net', '')
-        
-        # Extrai o texto limpo direto do payload
-        mensagem_recebida = payload.get('body', '')
-        msg_type = payload.get('type', 'text') # Identifica se é texto, áudio, imagem
+    logging.info(f"✅ WAHA: Mensagem de {from_number} para a loja {barbearia.nome_estabelecimento}")
 
-        # Busca a loja no banco de dados usando o ID DA SESSÃO em vez do ID longo do Facebook
-        barbearia = Barbearia.query.filter_by(waha_session_id=session_id).first()
-
-        if not barbearia:
-            logging.error(f"❌ WAHA Webhook: Nenhuma loja possui a sessão '{session_id}'.")
-            return jsonify({"status": "session_not_found"}), 200
-
-        # Regra de Assinatura (A mesma proteção que você já usava para a Meta)
-        if not barbearia.assinatura_ativa:
-            logging.warning(f"🚫 WAHA: Loja '{barbearia.nome_fantasia}' com assinatura inativa.")
-            return jsonify({"status": "inactive"}), 200
-
-        logging.info(f"✅ WAHA: Mensagem de {remetente} para a loja {barbearia.nome_fantasia}")
+    # ... daqui para baixo, o seu código da IA continua normalmente ...
         
         # ==============================================================================
         # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
