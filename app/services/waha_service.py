@@ -16,7 +16,7 @@ def get_waha_headers():
     }
 
 def formatar_numero_waha(numero):
-    """Mantém a extensão original do WAHA (@lid, @g.us, @c.us) ou adiciona @c.us se for só número"""
+    """Mantém a extensão original do WAHA (@lid, @g.us, @c.us) para não enviar para números fantasmas"""
     numero_str = str(numero).strip()
     
     # Se o número já veio do WAHA com a extensão correta (@), devolve intacto!
@@ -27,6 +27,7 @@ def formatar_numero_waha(numero):
     import re
     numero_limpo = re.sub(r'\D', '', numero_str)
     return f"{numero_limpo}@c.us"
+
 
 def enviar_mensagem_waha(session_id, to_number, text):
     """Envia uma mensagem de texto simulando o comportamento humano (Typing...)"""

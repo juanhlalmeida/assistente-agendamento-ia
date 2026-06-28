@@ -820,17 +820,29 @@ def webhook_meta():
 # ==============================================================================
 @bp.route('/api/webhooks/waha', methods=['POST'])
 def webhook_waha():
-    """
-    Recebe as mensagens do WAHA de forma descentralizada e limpa.
-    """
-    data = request.get_json()
-    
+    data = request.json
     if not data:
-        return jsonify({"status": "ignored", "reason": "No payload"}), 200
+        return jsonify({"status": "no_data"}), 200
 
     event = data.get('event')
-    session_id = data.get('session')
+    session = data.get('session')
     payload = data.get('payload', {})
+
+    # ==============================================================================
+    # 🚀 CHAMADA DO NOSSO PROTETOR ISOLADO (WAHA_UTILS)
+    # ==============================================================================
+    if event == 'message':
+        from app.services.waha_utils import extrair_e_filtrar_mensagem_waha
+        
+        sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload)
+        
+        if not sucesso:
+            # Se foi barrado no escudo (grupo ou sem texto), responde 200 e encerra aqui de forma segura!
+            return jsonify({"status": "ignorado", "motivo": resultado}), 200
+            
+        # Se deu sucesso, a variável 'body' recebe o texto extraído perfeitamente!
+        body = resultado
+    # ==============================================================================
 
     # 1. SE FOR MUDANÇA DE STATUS (Ex: Pedindo QR Code, ou Conectado)
     if event == 'session.status':
@@ -870,12 +882,12 @@ def webhook_waha():
         # ==============================================================================
         # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
         # ==============================================================================
-        if from_number and '@g.us' in from_number:
-            logging.info(f"🚫 [ESCUDO] Mensagem de grupo ignorada: {from_number}")
+        if remetente_raw and '@g.us' in remetente_raw:
+            logging.info(f"🚫 [ESCUDO] Mensagem de grupo ignorada: {remetente_raw}")
             return jsonify({"status": "ignorado", "motivo": "mensagem_de_grupo"}), 200
-        
-        if not body or str(body).strip() == "":
-            logging.info(f"🚫 [ESCUDO] Mensagem sem texto ignorada de: {from_number}")
+            
+        if not mensagem_recebida or str(mensagem_recebida).strip() == "":
+            logging.info(f"🚫 [ESCUDO] Mensagem sem texto ignorada de: {remetente_raw}")
             return jsonify({"status": "ignorado", "motivo": "sem_texto"}), 200
         # ==============================================================================
 
