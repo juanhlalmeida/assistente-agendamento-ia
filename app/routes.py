@@ -888,7 +888,7 @@ def webhook_waha():
         # Cache do histórico / Conversa com a IA continua daqui para baixo...
 
         # Processamos texto ou áudio nativo (ptt)
-        if msg_type in ['chat', 'text']:
+    if msg_type in ['chat', 'text']:
             
             # --- ESPIÃO DO CLIENTE (Salva no Log do Painel) ---
             try:
