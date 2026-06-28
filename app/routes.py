@@ -825,7 +825,7 @@ def webhook_waha():
         return jsonify({"status": "no_data"}), 200
 
     event = data.get('event')
-    session_id = data.get('session')  # 🔴 CORREÇÃO AQUI: 'session_id' em vez de 'session'
+    session_id = data.get('session')
     payload = data.get('payload', {})
 
     if event == 'session.status':
@@ -847,7 +847,7 @@ def webhook_waha():
     sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload)
     
     if not sucesso:
-        # Barrado no escudo (grupo ou sem texto), encerra sem dar erro!
+        # Se foi barrado no escudo (grupo ou figurinha), encerra sem dar erro!
         return jsonify({"status": "ignorado", "motivo": resultado}), 200
         
     # Se passou, recebe o texto limpo à prova de falhas
@@ -865,7 +865,7 @@ def webhook_waha():
 
     logging.info(f"✅ WAHA: Mensagem de {from_number} para a loja {barbearia.nome_estabelecimento}")
 
-    # ... daqui para baixo, o seu código da IA continua normalmente ...
+    # Daqui para baixo, o seu código continua intacto chamando a IA...
         
         # ==============================================================================
         # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
