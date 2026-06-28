@@ -937,8 +937,8 @@ def webhook_waha():
 
     return jsonify({"status": "success"}), 200
 
-# Se for qualquer outro evento desconhecido, ignora educadamente
-return jsonify({"status": "ignored_event"}), 200
+    # Se for qualquer outro evento desconhecido, ignora educadamente
+    return jsonify({"status": "ignored_event"}), 200
 
 
 # ============================================
