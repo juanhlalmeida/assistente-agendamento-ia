@@ -863,21 +863,14 @@ def webhook_waha():
     if not barbearia:
         return jsonify({"status": "barbearia_not_found"}), 200
 
-    logging.info(f"✅ WAHA: Mensagem de {from_number} para a loja {barbearia.nome_fantasia}")
+        logging.info(f"✅ WAHA: Mensagem de {from_number} para a loja {barbearia.nome_fantasia}")
 
     # Daqui para baixo, o seu código continua intacto chamando a IA...
         
     # ==============================================================================
     # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
     # ==============================================================================
-    if remetente_raw and '@g.us' in remetente_raw:
-        logging.info(f"🚫 [ESCUDO] Mensagem de grupo ignorada: {remetente_raw}")
-        return jsonify({"status": "ignorado", "motivo": "mensagem_de_grupo"}), 200
-            
-    if not mensagem_recebida or str(mensagem_recebida).strip() == "":
-        logging.info(f"🚫 [ESCUDO] Mensagem sem texto ignorada de: {remetente_raw}")
-        return jsonify({"status": "ignorado", "motivo": "sem_texto"}), 200
-        # ==============================================================================
+    # ==============================================================================
 
         # Cache do histórico / Conversa com a IA continua daqui para baixo...
 
