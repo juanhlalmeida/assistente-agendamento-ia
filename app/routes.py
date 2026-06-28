@@ -863,7 +863,7 @@ def webhook_waha():
     if not barbearia:
         return jsonify({"status": "barbearia_not_found"}), 200
 
-    logging.info(f"✅ WAHA: Mensagem de {from_number} para a loja {barbearia.nome_estabelecimento}")
+    logging.info(f"✅ WAHA: Mensagem de {from_number} para a loja {barbearia.nome}")
 
     # Daqui para baixo, o seu código continua intacto chamando a IA...
         
