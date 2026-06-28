@@ -840,6 +840,9 @@ def webhook_waha():
     if from_me:
         return jsonify({"status": "ignored_from_me"}), 200
 
+    from_number = payload.get('from')
+    logging.info(f"🕵️‍♂️ DEBUG WAHA: Mensagem batendo na porta vinda de: {from_number}")
+
     # ==============================================================================
     # 🚀 CHAMADA DO NOSSO PROTETOR ISOLADO (WAHA_UTILS)
     # ==============================================================================
@@ -847,23 +850,33 @@ def webhook_waha():
     sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload)
     
     if not sucesso:
-        # Se foi barrado no escudo (grupo ou figurinha), encerra sem dar erro!
         return jsonify({"status": "ignorado", "motivo": resultado}), 200
         
-    # Se passou, recebe o texto limpo à prova de falhas
     body = resultado
-    from_number = payload.get('from')
+    logging.info(f"📝 DEBUG WAHA: Texto lido com sucesso: '{body}'")
     # ==============================================================================
 
-    # Identificar barbearia
-    if not session_id:
-        return jsonify({"status": "no_session_id"}), 200
+    # ==============================================================================
+    # 🕵️‍♂️ IDENTIFICADOR A LASER (À Prova de Falhas de Sessão)
+    # ==============================================================================
+    barbearia_id = None
+    if session_id:
+        import re
+        match = re.search(r'loja[-_](\d+)', session_id)
+        if match:
+            barbearia_id = int(match.group(1))
 
-    barbearia = Barbearia.query.filter_by(waha_session_id=session_id).first()
+    if not barbearia_id:
+        logging.error(f"❌ ERRO WAHA: Não foi possível extrair ID da sessão '{session_id}'")
+        return jsonify({"status": "no_barbearia_id"}), 200
+
+    barbearia = Barbearia.query.get(barbearia_id)
     if not barbearia:
+        logging.error(f"❌ ERRO WAHA: A loja ID {barbearia_id} não existe no banco!")
         return jsonify({"status": "barbearia_not_found"}), 200
 
-        logging.info(f"✅ WAHA: Mensagem de {from_number} para a loja {barbearia.nome_fantasia}")
+    logging.info(f"✅ WAHA: Mensagem de {from_number} conectada à loja {barbearia.nome_fantasia}")
+    # ... O código de chamar a IA continua daqui para baixo ...
 
     # Daqui para baixo, o seu código continua intacto chamando a IA...
         
