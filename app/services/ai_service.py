@@ -1166,7 +1166,7 @@ def deserialize_history(json_string: str) -> list[Content]:
 
 # --- FUNÇÃO PRINCIPAL DE PROCESSAMENTO ---
 
-def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str) -> str:
+def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: str, waha_session_id=None) -> str:    
     """
     Processa a mensagem do usuário usando o Gemini, mantendo o histórico
     da conversa no cache (Redis) associado ao número do cliente.
@@ -1320,6 +1320,27 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         is_new_chat = not history_to_load
 
         # ==============================================================================
+        # ⚙️ MOTOR DE DECISÃO MULTI-PROVEDORES (META vs WAHA)
+        # ==============================================================================
+        provedor = getattr(barbearia, 'provedor_mensageria', 'meta')
+        
+        def enviar_texto_direto(texto):
+            if provedor == 'waha' and waha_session_id:
+                from app.services.waha_service import enviar_mensagem_waha
+                enviar_mensagem_waha(waha_session_id, cliente_whatsapp, texto)
+            else:
+                from app.routes import enviar_mensagem_whatsapp_meta
+                enviar_mensagem_whatsapp_meta(cliente_whatsapp, texto, barbearia)
+                
+        def enviar_midia_direta(url, caption=""):
+            if provedor == 'waha' and waha_session_id:
+                from app.services.waha_service import enviar_midia_waha
+                enviar_midia_waha(waha_session_id, cliente_whatsapp, url, caption)
+            else:
+                from app.routes import enviar_midia_whatsapp_meta
+                enviar_midia_whatsapp_meta(cliente_whatsapp, url, barbearia)
+
+        # ==============================================================================
         # 🛡️ INTERCEPTADOR DE PRIMEIRO CONTATO (UNIFICADO PARA POUSADA E DEMAIS)
         # ==============================================================================
         if is_new_chat:
@@ -1336,15 +1357,13 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                     "3️⃣ Quantas **pessoas** virão? (Mínimo 2) 👥"
                 )
                 try:
-                    from app.routes import enviar_mensagem_whatsapp_meta, enviar_midia_whatsapp_meta
-                    
                     # 1. Envia a Foto (Flyer) primeiro, se existir no painel
                     if barbearia.url_tabela_precos:
                         logging.info(f"📸 Enviando Flyer inicial para a Pousada: {cliente_whatsapp}")
-                        enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                        enviar_midia_direta(barbearia.url_tabela_precos)
                     
                     # 2. Envia a mensagem de texto logo em seguida
-                    enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_boas_vindas, barbearia)
+                    enviar_texto_direto(msg_boas_vindas)
                 except Exception as e:
                     logging.error(f"Erro ao enviar boas-vindas pousada com flyer: {e}")
 
@@ -1356,11 +1375,10 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                     f"Qual desses procedimentos você gostaria de agendar hoje? 😊"
                 )
                 try:
-                    from app.routes import enviar_mensagem_whatsapp_meta, enviar_midia_whatsapp_meta
-                    enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_boas_vindas, barbearia)
+                    enviar_texto_direto(msg_boas_vindas)
                     if barbearia.url_tabela_precos:
                         logging.info(f"📸 Enviando Tabela de Preços inicial para {cliente_whatsapp}")
-                        enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                        enviar_midia_direta(barbearia.url_tabela_precos)
                 except Exception as e:
                     logging.error(f"Erro ao enviar boas-vindas com tabela: {e}")
 
@@ -1409,14 +1427,12 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 # ENVIA A MENSAGEM E A FOTO
                 if barbearia.url_tabela_precos:
                     try:
-                        from app.routes import enviar_midia_whatsapp_meta, enviar_mensagem_whatsapp_meta
-                        
                         # 1. Envia Texto
-                        enviar_mensagem_whatsapp_meta(cliente_whatsapp, msg_texto, barbearia)
+                        enviar_texto_direto(msg_texto)
                         
                         # 2. Envia Foto
                         logging.info(f"📸 Enviando Tabela automática para {cliente_whatsapp}")
-                        enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                        enviar_midia_direta(barbearia.url_tabela_precos)
                         
                         return "" # Retorna vazio para encerrar aqui
                         
@@ -1452,7 +1468,6 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             CLIENTE DIZ: {user_message}
             """
             
-        # 2. PLANO B: Se o painel estiver vazio, usa a regra fixa da pousada para não deixar o cliente na mão
         # 2. PLANO B: Se o painel estiver vazio, usa a regra fixa da pousada para não deixar o cliente na mão
         elif barbearia.business_type == 'pousada':
             msg_para_enviar = f"""
@@ -1514,8 +1529,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 logging.info("🚨 RESGATE ATIVADO: Enviando tabela/preços.")
                 
                 if barbearia.url_tabela_precos:
-                    from app.routes import enviar_midia_whatsapp_meta
-                    enviar_midia_whatsapp_meta(cliente_whatsapp, barbearia.url_tabela_precos, barbearia)
+                    enviar_midia_direta(barbearia.url_tabela_precos)
                     resposta_resgate = "Enviei nossa tabela abaixo! 👇 Se já souber o que quer, é só me falar o serviço e horário."
                 else:
                     lista = listar_servicos(barbearia_id)
@@ -1776,9 +1790,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
                 logging.info(f"📸 Enviando Tabela de Preços para {cliente_whatsapp}")
 
-                from app.routes import enviar_midia_whatsapp_meta
-
-                enviar_midia_whatsapp_meta(cliente_whatsapp, link_foto, barbearia)
+                enviar_midia_direta(link_foto)
 
             if not final_response_text:
 

@@ -898,7 +898,8 @@ def webhook_waha():
     resposta_ia = ai_service.processar_ia_gemini(
         user_message=body,
         barbearia_id=barbearia.id,
-        cliente_whatsapp=from_number
+        cliente_whatsapp=from_number,
+        waha_session_id=session_id
     )
 
     if resposta_ia:
