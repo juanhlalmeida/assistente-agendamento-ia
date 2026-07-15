@@ -1322,10 +1322,11 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # ==============================================================================
         # ⚙️ MOTOR DE DECISÃO MULTI-PROVEDORES (META vs WAHA)
         # ==============================================================================
-        provedor = getattr(barbearia, 'provedor_mensageria', 'meta')
+        # Retiramos a checagem do banco. A regra agora é:
+        # Se veio com um ID de sessão do WAHA, DEVE ser respondido pelo WAHA!
         
         def enviar_texto_direto(texto):
-            if provedor == 'waha' and waha_session_id:
+            if waha_session_id: 
                 from app.services.waha_service import enviar_mensagem_waha
                 enviar_mensagem_waha(waha_session_id, cliente_whatsapp, texto)
             else:
@@ -1333,7 +1334,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 enviar_mensagem_whatsapp_meta(cliente_whatsapp, texto, barbearia)
                 
         def enviar_midia_direta(url, caption=""):
-            if provedor == 'waha' and waha_session_id:
+            if waha_session_id: 
                 from app.services.waha_service import enviar_midia_waha
                 enviar_midia_waha(waha_session_id, cliente_whatsapp, url, caption)
             else:

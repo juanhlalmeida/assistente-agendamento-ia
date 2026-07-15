@@ -844,6 +844,13 @@ def webhook_waha():
     logging.info(f"🕵️‍♂️ DEBUG WAHA: Mensagem batendo na porta vinda de: {from_number}")
 
     # ==============================================================================
+    # 🚫 ESCUDO ANTI-STATUS E ANTI-CANAIS (NEWSLETTER)
+    # ==============================================================================
+    if from_number == 'status@broadcast' or '@newsletter' in str(from_number):
+        logging.info(f"🚫 Bloqueio Rápido: Ignorando Status/Canal vindo de {from_number}")
+        return jsonify({"status": "ignored_system_message"}), 200    
+
+    # ==============================================================================
     # 🚀 CHAMADA DO NOSSO PROTETOR ISOLADO (WAHA_UTILS)
     # ==============================================================================
     from app.services.waha_utils import extrair_e_filtrar_mensagem_waha
