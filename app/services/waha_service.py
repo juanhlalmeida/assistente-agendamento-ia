@@ -162,7 +162,7 @@ def obter_qr_code_waha(session_id):
     
 
 def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
-    """Envia imagem/mídia (Tabela de preços, flyers) via WAHA"""
+    """Envia imagem/mídia via WAHA forçando o formato de Imagem (Foto nativa)"""
     chat_id = formatar_numero_waha(to_number)
     payload = {
         "session": session_id,
@@ -171,15 +171,15 @@ def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
         "caption": caption
     }
     try:
-        # Usamos sendFile que o WAHA aceita universalmente para imagens e PDFs
+        # Trocamos sendFile por sendImage e aumentamos o timeout para 30 segundos
         response = requests.post(
-            f"{WAHA_BASE_URL}/api/sendFile", 
+            f"{WAHA_BASE_URL}/api/sendImage", 
             json=payload,
             headers=get_waha_headers(),
-            timeout=15
+            timeout=30
         )
         response.raise_for_status()
-        logging.info(f"[WAHA] Mídia enviada com sucesso para {chat_id}")
+        logging.info(f"[WAHA] Imagem enviada com sucesso para {chat_id}")
         return True
     except Exception as e:
         logging.error(f"[WAHA] Erro ao enviar mídia: {e}")

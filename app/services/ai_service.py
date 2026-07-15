@@ -1370,11 +1370,22 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             else:
                 # ----- BARBEARIA / LASH / OUTROS: mensagem com tabela e foto -----
-                msg_boas_vindas = (
-                    f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\n"
-                    f"Para facilitar, estou enviando logo abaixo nossa tabela completa de serviços e valores atualizados. 💖\n\n"
-                    f"Qual desses procedimentos você gostaria de agendar hoje? 😊"
-                )
+                nome_loja_check = barbearia.nome_fantasia.lower()
+                is_lash_check = any(x in nome_loja_check for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
+                
+                if is_lash_check:
+                    msg_boas_vindas = (
+                        f"Olá! Seja muito bem-vinda ao *{barbearia.nome_fantasia}*! ✨\n\n"
+                        f"Para facilitar, estou enviando logo abaixo nossa tabela de serviços e valores atualizados. 👇💖\n\n"
+                        f"Qual procedimento você gostaria de agendar hoje? 😊"
+                    )
+                else:
+                    msg_boas_vindas = (
+                        f"Fala, campeão! Seja bem-vindo ao *{barbearia.nome_fantasia}*! ✂️💈\n\n"
+                        f"Dá uma olhada na nossa tabela de preços e serviços logo abaixo. 👇👊\n\n"
+                        f"Qual serviço você quer agendar hoje?"
+                    )
+
                 try:
                     enviar_texto_direto(msg_boas_vindas)
                     if barbearia.url_tabela_precos:
@@ -1413,7 +1424,13 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
             if eh_inicio_conversa:
                 # Mensagem gentil padrão para TODOS os casos (Barbearia/Lash)
-                msg_texto = f"Olá! Seja muito bem-vindo(a) ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui abaixo! 👇💖\n\nQual desses serviços você gostaria de agendar? 😊"
+                # Mensagem gentil dinâmica
+                nome_loja_check2 = barbearia.nome_fantasia.lower()
+                if any(x in nome_loja_check2 for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty']):
+                    msg_texto = f"Olá! Seja muito bem-vinda ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui abaixo! 👇💖\n\nQual desses serviços você gostaria de agendar? 😊"
+                else:
+                    msg_texto = f"Fala, campeão! Seja bem-vindo ao *{barbearia.nome_fantasia}*! ✂️💈\n\nJá separei nossa tabela de valores para você conferir aqui abaixo! 👇👊\n\nQual serviço você quer agendar hoje?"
+                    
                 
                 # ATUALIZA O HISTÓRICO MANUALMENTE
                 if len(history_to_load) > 1 and getattr(history_to_load[-1], 'role', '') == 'model':
