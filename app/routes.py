@@ -1884,7 +1884,7 @@ def waha_gerar_qr():
     from app.services.waha_service import criar_sessao_waha, obter_qr_code_waha
 
     # 1. FORÇAR UM NOVO ID COM TRAÇOS (Mata a sessão zumbi antiga)
-    novo_id = f"loja-{barbearia.id}-{int(time.time())}"
+    novo_id = f"loja-{barbearia.id}"
     barbearia.waha_session_id = novo_id
     db.session.commit()
     
