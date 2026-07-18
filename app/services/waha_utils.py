@@ -46,39 +46,48 @@ def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
 
     # 1. Escudo Anti-Grupo
     if from_number and '@g.us' in str(from_number):
-        logging.info(f"🚫 [ESCUDO-UTILS] Mensagem de grupo ignorada: {from_number}")
         return False, "mensagem_de_grupo"
 
-    message_id = payload.get('id')
-    
-    # 2. 🎙️ INTERCEPTADOR DE ÁUDIO VIA API WAHA (Substitui a busca no disco)
-    if (has_media or msg_type in ['ptt', 'audio', 'voice']) and session_id and message_id:
-        logging.info(f"🔊 Áudio detectado! ID: {message_id}. Consultando WAHA via API...")
+    # 2. 🎙️ INTERCEPTADOR VIA URL OFICIAL DO WAHA
+    if has_media or msg_type in ['ptt', 'audio', 'voice']:
+        message_id = payload.get('id')
+        logging.info(f"🔊 Mídia detectada! ID: {message_id}")
+        
         try:
-            # Limpa o ID da mensagem para a URL (remove caracteres que quebram links)
-            safe_message_id = urllib.parse.quote(message_id, safe='')
+            # A BALA DE PRATA: Pega a URL exata que o WAHA gerou e mandou!
+            media_info = payload.get('media', {})
+            url_original = media_info.get('url')
             
-            # URL Universal de Download do WAHA
-            url_download = f"{WAHA_BASE_URL}/api/{session_id}/messages/{safe_message_id}/download"
+            if not url_original:
+                logging.error("❌ O WAHA não enviou o link! A variável WHATSAPP_DOWNLOAD_MEDIA=true foi configurada na Render?")
+                return False, "sem_url_no_payload"
+                
+            # BLINDAGEM DE REDE: O WAHA pode mandar a URL como 'localhost'. Nós trocamos pelo domínio da Render.
+            if "localhost" in url_original or "127.0.0.1" in url_original:
+                caminho_arquivo = urllib.parse.urlparse(url_original).path
+                url_download = f"{WAHA_BASE_URL}{caminho_arquivo}"
+            else:
+                url_download = url_original
+                
+            logging.info(f"🔗 Baixando áudio da URL oficial: {url_download}")
             
-            logging.info(f"🔗 Chamando API de download: {url_download}")
-            
-            # Faz o download direto da API do WAHA
+            # Baixa o áudio com a API Key correta
             response = requests.get(url_download, headers=get_waha_headers(), timeout=45)
             
             if response.status_code == 200:
-                logging.info("✅ Áudio baixado com sucesso da API do WAHA!")
+                logging.info("✅ Áudio baixado com sucesso da API!")
                 transcricao = transcrever_audio_gemini(response.content)
-                logging.info(f"📝 Transcrição concluída: '{transcricao}'")
+                logging.info(f"📝 Transcrição perfeita: '{transcricao}'")
                 return True, transcricao
             else:
-                logging.error(f"❌ Erro na API do WAHA. Status: {response.status_code} - Resposta: {response.text}")
-                return False, "erro_download_api"
+                logging.error(f"❌ WAHA bloqueou o download. Status: {response.status_code} - {response.text}")
+                return False, "erro_download_waha"
+                
         except Exception as e:
-            logging.error(f"❌ Falha crítica ao conectar com a API de download: {e}", exc_info=True)
-            return False, "erro_processamento_api"
+            logging.error(f"❌ Falha crítica no processamento da API: {e}", exc_info=True)
+            return False, "erro_geral_api"
 
-    # 3. Extrator de Texto normal
+    # 3. Extrator de Texto Normal
     if isinstance(body_raw, dict):
         body = str(body_raw.get('text', body_raw.get('caption', '')))
     else:
@@ -86,7 +95,7 @@ def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
 
     body = body.strip()
 
-    # 4. Escudo Mensagens Vazias
+    # 4. Escudo de Mensagem Vazia
     if not body or body == "" or body.lower() == "none":
         return False, "mensagem_vazia_ou_midia_sem_legenda"
 
