@@ -51,36 +51,34 @@ def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
     # INTERCEPTADOR DE MÍDIA - ROTA CORRETA DO WAHA
     message_id = payload.get('id')
     
+    # 2. 🎙️ INTERCEPTADOR DE ÁUDIO (Busca no disco local do container)
     if (has_media or msg_type in ['ptt', 'audio', 'voice']) and session_id and message_id:
-        logging.info(f"🔊 Áudio detectado! ID: {message_id}")
+        logging.info(f"🔊 Áudio detectado! ID: {message_id}. Buscando no disco...")
         try:
-            # A ROTA PADRÃO DO WAHA PARA DOWNLOAD É ESTA:
-            # /api/{session}/messages/{messageId}/download
-            url_download = f"{WAHA_BASE_URL}/api/{session_id}/messages/{message_id}/download"
+            # Caminho padrão onde o WAHA salva as mídias
+            caminho_sessao = f"/app/.sessions/noweb/{session_id}/media"
             
-            logging.info(f"🔗 Chamando API de download: {url_download}")
-            response = requests.get(url_download, headers=get_waha_headers(), timeout=45)
+            # Se a pasta não existir, tentamos uma alternativa
+            if not os.path.exists(caminho_sessao):
+                caminho_sessao = f"/app/.sessions/noweb/{session_id}"
+
+            audio_encontrado = None
+            for arquivo in os.listdir(caminho_sessao):
+                # O WAHA geralmente salva o arquivo com o ID da mensagem no nome
+                if message_id in arquivo:
+                    caminho_completo = os.path.join(caminho_sessao, arquivo)
+                    with open(caminho_completo, "rb") as f:
+                        audio_encontrado = f.read()
+                    break
             
-            if response.status_code == 200:
-                logging.info("🔊 Áudio baixado! Iniciando transcrição com Gemini...")
-                transcricao = transcrever_audio_gemini(response.content)
-                logging.info(f"📝 Transcrição perfeita: '{transcricao}'")
+            if audio_encontrado:
+                logging.info("🔊 Áudio encontrado no disco! Transcrevendo...")
+                transcricao = transcrever_audio_gemini(audio_encontrado)
                 return True, transcricao
             else:
-                logging.error(f"❌ Erro ao baixar (Status {response.status_code}): {response.text}")
-                return False, "erro_download_audio"
+                logging.warning(f"⚠️ Áudio não encontrado na pasta {caminho_sessao}")
+                return False, "erro_arquivo_nao_encontrado"
         except Exception as e:
-            logging.error(f"❌ Falha grave ao processar: {e}", exc_info=True)
-            return False, "erro_processamento_audio"
-
-    # Extrator de Texto
-    if isinstance(body_raw, dict):
-        body = str(body_raw.get('text', body_raw.get('caption', '')))
-    else:
-        body = str(body_raw) if body_raw is not None else ""
-
-    body = body.strip()
-    if not body:
-        return False, "mensagem_vazia"
-
-    return True, body
+            logging.error(f"❌ Falha ao ler áudio do disco: {e}")
+            
+            return False, "erro_leitura_disco"
