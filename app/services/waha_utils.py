@@ -44,41 +44,50 @@ def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
     msg_type = str(payload.get('type', '')).lower()
     has_media = payload.get('hasMedia', False)
 
-    # Escudo Anti-Grupo
+    # 1. Escudo Anti-Grupo
     if from_number and '@g.us' in str(from_number):
+        logging.info(f"🚫 [ESCUDO-UTILS] Mensagem de grupo ignorada: {from_number}")
         return False, "mensagem_de_grupo"
 
-    # INTERCEPTADOR DE MÍDIA - ROTA CORRETA DO WAHA
     message_id = payload.get('id')
     
-    # 2. 🎙️ INTERCEPTADOR DE ÁUDIO (Busca no disco local do container)
+    # 2. 🎙️ INTERCEPTADOR DE ÁUDIO VIA API WAHA (Substitui a busca no disco)
     if (has_media or msg_type in ['ptt', 'audio', 'voice']) and session_id and message_id:
-        logging.info(f"🔊 Áudio detectado! ID: {message_id}. Buscando no disco...")
+        logging.info(f"🔊 Áudio detectado! ID: {message_id}. Consultando WAHA via API...")
         try:
-            # Caminho padrão onde o WAHA salva as mídias
-            caminho_sessao = f"/app/.sessions/noweb/{session_id}/media"
+            # Limpa o ID da mensagem para a URL (remove caracteres que quebram links)
+            safe_message_id = urllib.parse.quote(message_id, safe='')
             
-            # Se a pasta não existir, tentamos uma alternativa
-            if not os.path.exists(caminho_sessao):
-                caminho_sessao = f"/app/.sessions/noweb/{session_id}"
-
-            audio_encontrado = None
-            for arquivo in os.listdir(caminho_sessao):
-                # O WAHA geralmente salva o arquivo com o ID da mensagem no nome
-                if message_id in arquivo:
-                    caminho_completo = os.path.join(caminho_sessao, arquivo)
-                    with open(caminho_completo, "rb") as f:
-                        audio_encontrado = f.read()
-                    break
+            # URL Universal de Download do WAHA
+            url_download = f"{WAHA_BASE_URL}/api/{session_id}/messages/{safe_message_id}/download"
             
-            if audio_encontrado:
-                logging.info("🔊 Áudio encontrado no disco! Transcrevendo...")
-                transcricao = transcrever_audio_gemini(audio_encontrado)
+            logging.info(f"🔗 Chamando API de download: {url_download}")
+            
+            # Faz o download direto da API do WAHA
+            response = requests.get(url_download, headers=get_waha_headers(), timeout=45)
+            
+            if response.status_code == 200:
+                logging.info("✅ Áudio baixado com sucesso da API do WAHA!")
+                transcricao = transcrever_audio_gemini(response.content)
+                logging.info(f"📝 Transcrição concluída: '{transcricao}'")
                 return True, transcricao
             else:
-                logging.warning(f"⚠️ Áudio não encontrado na pasta {caminho_sessao}")
-                return False, "erro_arquivo_nao_encontrado"
+                logging.error(f"❌ Erro na API do WAHA. Status: {response.status_code} - Resposta: {response.text}")
+                return False, "erro_download_api"
         except Exception as e:
-            logging.error(f"❌ Falha ao ler áudio do disco: {e}")
-            
-            return False, "erro_leitura_disco"
+            logging.error(f"❌ Falha crítica ao conectar com a API de download: {e}", exc_info=True)
+            return False, "erro_processamento_api"
+
+    # 3. Extrator de Texto normal
+    if isinstance(body_raw, dict):
+        body = str(body_raw.get('text', body_raw.get('caption', '')))
+    else:
+        body = str(body_raw) if body_raw is not None else ""
+
+    body = body.strip()
+
+    # 4. Escudo Mensagens Vazias
+    if not body or body == "" or body.lower() == "none":
+        return False, "mensagem_vazia_ou_midia_sem_legenda"
+
+    return True, body
