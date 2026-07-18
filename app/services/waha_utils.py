@@ -27,8 +27,8 @@ def transcrever_audio_gemini(audio_bytes):
         try:
             genai.delete_file(audio_file.name)
             os.remove(temp_file_path)
-        except Exception as e:
-            logging.warning(f"Aviso ao limpar cache de áudio: {e}")
+        except Exception:
+            pass
             
         return transcricao
     except Exception as e:
@@ -36,52 +36,50 @@ def transcrever_audio_gemini(audio_bytes):
         return "[Áudio recebido, mas não foi possível compreender a voz do cliente]"
 
 def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
-    """Extrator Universal com Suporte a Áudio e Mídia (Com Raio-X)"""
+    """Extrator Universal (ESTILO META API - Baseado em Headers Reais)"""
     if not payload:
         return False, "Sem payload"
 
     from_number = payload.get('from')
     body_raw = payload.get('body')
-    msg_type = payload.get('type', '')
+    msg_type = str(payload.get('type', '')).lower()
     has_media = payload.get('hasMedia', False)
-
-    # 🕵️‍♂️ RAIO-X PARA MÍDIAS (Ver o que está chegando)
-    if has_media or msg_type in ['ptt', 'audio', 'voice', 'image', 'video']:
-        logging.info(f"📦 [WAHA UTILS] Mídia Recebida: type='{msg_type}', hasMedia={has_media}")
 
     # 1. 🛡️ ESCUDO ANTI-GRUPOS
     if from_number and '@g.us' in str(from_number):
-        logging.info(f"🚫 [ESCUDO-UTILS] Mensagem de grupo ignorada: {from_number}")
         return False, "mensagem_de_grupo"
 
-    # 2. 🎙️ INTERCEPTADOR E TRANSCRITOR DE ÁUDIO (PTT)
-    if msg_type in ['ptt', 'audio', 'voice']:
-        message_id = payload.get('id')
-        if session_id and message_id:
-            logging.info(f"🔊 Áudio detectado de {from_number}! Baixando do WAHA...")
-            try:
-                safe_message_id = urllib.parse.quote(message_id, safe='')
-                url_download = f"{WAHA_BASE_URL}/api/{session_id}/messages/{safe_message_id}/download"
+    # 2. 🎙️ INTERCEPTADOR ESTILO META API (Não confia no 'type' do WAHA)
+    message_id = payload.get('id')
+    
+    if (has_media or msg_type in ['ptt', 'audio', 'voice']) and session_id and message_id:
+        logging.info(f"📦 Mídia detectada de {from_number}! Fazendo download para descobrir o formato real...")
+        try:
+            safe_message_id = urllib.parse.quote(message_id, safe='')
+            url_download = f"{WAHA_BASE_URL}/api/{session_id}/messages/{safe_message_id}/download"
+            
+            # Baixa a mídia diretamente
+            response = requests.get(url_download, headers=get_waha_headers(), timeout=45)
+            
+            if response.status_code == 200:
+                # O CÉREBRO: Lê o tipo de arquivo verdadeiro devolvido pelo servidor
+                content_type = response.headers.get('Content-Type', '').lower()
+                logging.info(f"📊 Formato real do arquivo: {content_type}")
                 
-                logging.info(f"🔗 Fazendo download do áudio em: {url_download}")
-                response = requests.get(url_download, headers=get_waha_headers(), timeout=45) # 45s de tolerância
-                
-                if response.status_code == 200:
-                    logging.info("🔊 Áudio baixado! Iniciando transcrição com Gemini...")
+                # Se for qualquer tipo de áudio, ele transcreve!
+                if 'audio' in content_type or 'ogg' in content_type:
+                    logging.info("🔊 Áudio confirmado! Iniciando transcrição avançada...")
                     transcricao = transcrever_audio_gemini(response.content)
-                    logging.info(f"📝 Transcrição concluída: '{transcricao}'")
+                    logging.info(f"📝 Transcrição perfeita: '{transcricao}'")
                     return True, transcricao
                 else:
-                    logging.error(f"❌ Erro ao baixar áudio. Status: {response.status_code} - {response.text}")
-                    return False, "erro_download_audio"
-            except Exception as e:
-                logging.error(f"❌ Falha grave ao processar áudio: {e}", exc_info=True)
-                return False, "erro_processamento_audio"
-        else:
-            logging.warning(f"⚠️ Áudio ignorado: falta 'session_id' ({session_id}) ou 'message_id' ({message_id}).")
-            return False, "falta_dados_audio"
+                    logging.info("🖼️ É uma imagem/documento. Seguindo para ver se há legenda...")
+            else:
+                logging.error(f"❌ Erro ao baixar arquivo. Status: {response.status_code}")
+        except Exception as e:
+            logging.error(f"❌ Falha grave ao processar mídia: {e}")
 
-    # 3. 🛠️ EXTRATOR UNIVERSAL DE TEXTO
+    # 3. 🛠️ EXTRATOR UNIVERSAL DE TEXTO (Legendas e Texto Normal)
     if isinstance(body_raw, dict):
         body = str(body_raw.get('text', body_raw.get('caption', '')))
     else:
@@ -89,10 +87,8 @@ def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
 
     body = body.strip()
 
-    # 4. 🛡️ ESCUDO MENSAGENS VAZIAS / FIGURINHAS
+    # 4. 🛡️ ESCUDO MENSAGENS VAZIAS
     if not body or body == "" or body.lower() == "none":
-        if msg_type in ['image', 'video', 'document', 'sticker']:
-             return False, f"Mídia ({msg_type}) sem legenda ignorada"
-        return False, "mensagem_vazia"
+        return False, "mensagem_vazia_ou_midia_sem_legenda"
 
     return True, body
