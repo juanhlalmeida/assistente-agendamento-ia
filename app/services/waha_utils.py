@@ -36,7 +36,6 @@ def transcrever_audio_gemini(audio_bytes):
         return "[Áudio recebido, mas não foi possível compreender a voz do cliente]"
 
 def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
-    """Extrator Universal (CORRIGIDO PARA DOWNLOAD)"""
     if not payload:
         return False, "Sem payload"
 
@@ -49,34 +48,29 @@ def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
     if from_number and '@g.us' in str(from_number):
         return False, "mensagem_de_grupo"
 
-    # INTERCEPTADOR DE MÍDIA / ÁUDIO
+    # INTERCEPTADOR DE MÍDIA - ROTA CORRETA DO WAHA
     message_id = payload.get('id')
     
     if (has_media or msg_type in ['ptt', 'audio', 'voice']) and session_id and message_id:
         logging.info(f"🔊 Áudio detectado! ID: {message_id}")
         try:
-            # CORREÇÃO: A URL correta do WAHA para download é /api/download
-            # Precisamos passar o session_id e o messageId no JSON do POST, não na URL
-            url_download = f"{WAHA_BASE_URL}/api/download"
+            # A ROTA PADRÃO DO WAHA PARA DOWNLOAD É ESTA:
+            # /api/{session}/messages/{messageId}/download
+            url_download = f"{WAHA_BASE_URL}/api/{session_id}/messages/{message_id}/download"
             
-            payload_download = {
-                "session": session_id,
-                "messageId": message_id
-            }
-            
-            logging.info(f"🔗 Chamando API de download em: {url_download}")
-            response = requests.post(url_download, json=payload_download, headers=get_waha_headers(), timeout=45)
+            logging.info(f"🔗 Chamando API de download: {url_download}")
+            response = requests.get(url_download, headers=get_waha_headers(), timeout=45)
             
             if response.status_code == 200:
-                logging.info("🔊 Áudio baixado! Iniciando transcrição...")
+                logging.info("🔊 Áudio baixado! Iniciando transcrição com Gemini...")
                 transcricao = transcrever_audio_gemini(response.content)
-                logging.info(f"📝 Transcrição: '{transcricao}'")
+                logging.info(f"📝 Transcrição perfeita: '{transcricao}'")
                 return True, transcricao
             else:
-                logging.error(f"❌ Erro 404 ou outro. Status: {response.status_code} - Resposta: {response.text}")
+                logging.error(f"❌ Erro ao baixar (Status {response.status_code}): {response.text}")
                 return False, "erro_download_audio"
         except Exception as e:
-            logging.error(f"❌ Falha grave ao baixar: {e}", exc_info=True)
+            logging.error(f"❌ Falha grave ao processar: {e}", exc_info=True)
             return False, "erro_processamento_audio"
 
     # Extrator de Texto
