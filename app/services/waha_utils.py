@@ -16,7 +16,7 @@ def transcrever_audio_gemini(audio_bytes):
 
         audio_file = genai.upload_file(path=temp_file_path, mime_type="audio/ogg")
         
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = model.generate_content([
             "Você é um transcritor de áudio. Transcreva exatamente o que está sendo dito neste áudio. Retorne APENAS o texto da transcrição, sem explicações adicionais e sem aspas.",
             audio_file
