@@ -36,7 +36,7 @@ def transcrever_audio_gemini(audio_bytes):
         return "[Áudio recebido, mas não foi possível compreender a voz do cliente]"
 
 def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
-    """Extrator Universal (ESTILO META API - Baseado em Headers Reais)"""
+    """Extrator Universal (CORRIGIDO PARA DOWNLOAD)"""
     if not payload:
         return False, "Sem payload"
 
@@ -45,50 +45,48 @@ def extrair_e_filtrar_mensagem_waha(payload, session_id=None):
     msg_type = str(payload.get('type', '')).lower()
     has_media = payload.get('hasMedia', False)
 
-    # 1. 🛡️ ESCUDO ANTI-GRUPOS
+    # Escudo Anti-Grupo
     if from_number and '@g.us' in str(from_number):
         return False, "mensagem_de_grupo"
 
-    # 2. 🎙️ INTERCEPTADOR ESTILO META API (Não confia no 'type' do WAHA)
+    # INTERCEPTADOR DE MÍDIA / ÁUDIO
     message_id = payload.get('id')
     
     if (has_media or msg_type in ['ptt', 'audio', 'voice']) and session_id and message_id:
-        logging.info(f"📦 Mídia detectada de {from_number}! Fazendo download para descobrir o formato real...")
+        logging.info(f"🔊 Áudio detectado! ID: {message_id}")
         try:
-            safe_message_id = urllib.parse.quote(message_id, safe='')
-            url_download = f"{WAHA_BASE_URL}/api/{session_id}/messages/{safe_message_id}/download"
+            # CORREÇÃO: A URL correta do WAHA para download é /api/download
+            # Precisamos passar o session_id e o messageId no JSON do POST, não na URL
+            url_download = f"{WAHA_BASE_URL}/api/download"
             
-            # Baixa a mídia diretamente
-            response = requests.get(url_download, headers=get_waha_headers(), timeout=45)
+            payload_download = {
+                "session": session_id,
+                "messageId": message_id
+            }
+            
+            logging.info(f"🔗 Chamando API de download em: {url_download}")
+            response = requests.post(url_download, json=payload_download, headers=get_waha_headers(), timeout=45)
             
             if response.status_code == 200:
-                # O CÉREBRO: Lê o tipo de arquivo verdadeiro devolvido pelo servidor
-                content_type = response.headers.get('Content-Type', '').lower()
-                logging.info(f"📊 Formato real do arquivo: {content_type}")
-                
-                # Se for qualquer tipo de áudio, ele transcreve!
-                if 'audio' in content_type or 'ogg' in content_type:
-                    logging.info("🔊 Áudio confirmado! Iniciando transcrição avançada...")
-                    transcricao = transcrever_audio_gemini(response.content)
-                    logging.info(f"📝 Transcrição perfeita: '{transcricao}'")
-                    return True, transcricao
-                else:
-                    logging.info("🖼️ É uma imagem/documento. Seguindo para ver se há legenda...")
+                logging.info("🔊 Áudio baixado! Iniciando transcrição...")
+                transcricao = transcrever_audio_gemini(response.content)
+                logging.info(f"📝 Transcrição: '{transcricao}'")
+                return True, transcricao
             else:
-                logging.error(f"❌ Erro ao baixar arquivo. Status: {response.status_code}")
+                logging.error(f"❌ Erro 404 ou outro. Status: {response.status_code} - Resposta: {response.text}")
+                return False, "erro_download_audio"
         except Exception as e:
-            logging.error(f"❌ Falha grave ao processar mídia: {e}")
+            logging.error(f"❌ Falha grave ao baixar: {e}", exc_info=True)
+            return False, "erro_processamento_audio"
 
-    # 3. 🛠️ EXTRATOR UNIVERSAL DE TEXTO (Legendas e Texto Normal)
+    # Extrator de Texto
     if isinstance(body_raw, dict):
         body = str(body_raw.get('text', body_raw.get('caption', '')))
     else:
         body = str(body_raw) if body_raw is not None else ""
 
     body = body.strip()
-
-    # 4. 🛡️ ESCUDO MENSAGENS VAZIAS
-    if not body or body == "" or body.lower() == "none":
-        return False, "mensagem_vazia_ou_midia_sem_legenda"
+    if not body:
+        return False, "mensagem_vazia"
 
     return True, body
