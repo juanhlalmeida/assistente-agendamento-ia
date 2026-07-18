@@ -854,7 +854,7 @@ def webhook_waha():
     # 🚀 CHAMADA DO NOSSO PROTETOR ISOLADO (WAHA_UTILS)
     # ==============================================================================
     from app.services.waha_utils import extrair_e_filtrar_mensagem_waha
-    sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload, session_id)
+    sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload, data.get('session'))
     
     if not sucesso:
         return jsonify({"status": "ignorado", "motivo": resultado}), 200
