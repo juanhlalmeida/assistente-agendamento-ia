@@ -1009,11 +1009,10 @@ def configuracoes():
             # 1. Captura dados de texto
             barbearia.horario_abertura = request.form.get('horario_abertura')
             barbearia.horario_fechamento = request.form.get('horario_fechamento')
-            barbearia.horario_fechamento_sabado = request.form.get('horario_fechamento_sabado') # <--- NOVO
+            barbearia.horario_fechamento_sabado = request.form.get('horario_fechamento_sabado')
             barbearia.dias_funcionamento = request.form.get('dias_funcionamento')
             barbearia.cor_primaria = request.form.get('cor_primaria')
             barbearia.emojis_sistema = request.form.get('emojis_sistema')
-
             barbearia.regras_negocio = request.form.get('regras_negocio')
 
             # Limpa telefone
@@ -1038,7 +1037,6 @@ def configuracoes():
                 arquivo.save(caminho_completo)
                 
                 # Gera o Link Completo
-                # request.host_url retorna algo como "https://meuapp.onrender.com/"
                 url_base = request.host_url.rstrip('/') 
                 url_final = f"{url_base}/static/uploads/{nome_seguro}"
                 
@@ -1054,6 +1052,23 @@ def configuracoes():
             
         return redirect(url_for('main.configuracoes'))
 
+    # ========================================================
+    # 🔒 BLOCO DE SEGURANÇA NOVO: FORÇAR MIGRACAO WAHA (AQUI É O LOCAL CORRETO)
+    # ========================================================
+    if barbearia:
+        # Verifica se o provedor já está como 'waha' nas duas colunas possíveis do banco
+        mudou = False
+        if getattr(barbearia, 'provedor_whatsapp', None) != 'waha':
+            barbearia.provedor_whatsapp = 'waha'
+            mudou = True
+        if getattr(barbearia, 'provedor_mensageria', None) != 'waha':
+            barbearia.provedor_mensageria = 'waha'
+            mudou = True
+            
+        if mudou:
+            db.session.commit()
+    # ========================================================
+
     return render_template('configuracoes.html', barbearia=barbearia)
 
 # ============================================
@@ -1066,7 +1081,9 @@ def admin_barbearias():
     if current_user.role != 'super_admin':
         flash('Acesso restrito.', 'danger')
         return redirect(url_for('main.login'))
+        
     barbearias = Barbearia.query.order_by(Barbearia.id).all()
+
     return render_template('superadmin/barbearias.html', barbearias=barbearias)
 
 # ============================================
