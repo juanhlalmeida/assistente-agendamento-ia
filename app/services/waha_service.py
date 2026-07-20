@@ -3,6 +3,7 @@ import requests
 import time
 import logging
 import base64
+import re
 
 # Configurações do WAHA (Puxamos do ambiente, se não houver, usa o padrão local)
 WAHA_BASE_URL = os.environ.get('WAHA_BASE_URL', 'http://127.0.0.1:3000')
@@ -24,7 +25,6 @@ def formatar_numero_waha(numero):
         return numero_str
         
     # Se for um número puro vindo do banco de dados, limpa e coloca @c.us
-    import re
     numero_limpo = re.sub(r'\D', '', numero_str)
     return f"{numero_limpo}@c.us"
 
@@ -77,9 +77,20 @@ def enviar_mensagem_waha(session_id, to_number, text):
         logging.error(f"[WAHA] Erro crítico ao enviar mensagem: {e}")
         return False, str(e)
 
+
 def criar_sessao_waha(session_id):
-    """Aciona a criação de uma nova sessão, FORÇA o motor a ligar e AVISA O WEBHOOK."""
+    """Aciona a criação de uma nova sessão, DESTRUINDO fantasmas antes, e AVISA O WEBHOOK."""
     
+    # --- NOVIDADE: O CAÇADOR DE FANTASMAS ---
+    # Tenta parar e deletar qualquer resquício da sessão antiga para destravar a Render
+    try:
+        logging.info(f"🧹 Limpando possível sessão travada: {session_id}")
+        requests.post(f"{WAHA_BASE_URL}/api/sessions/{session_id}/stop", headers=get_waha_headers(), timeout=3)
+        time.sleep(1)
+        requests.delete(f"{WAHA_BASE_URL}/api/sessions/{session_id}", headers=get_waha_headers(), timeout=3)
+    except:
+        pass # Se não existir, segue o jogo sem dar erro
+
     # O link exato do "ouvido" do seu sistema na Render
     meu_webhook = "https://assistente-agendamento-ia.onrender.com/api/webhooks/waha"
     
@@ -123,42 +134,38 @@ def criar_sessao_waha(session_id):
         logging.error(f"[WAHA] Falha ao criar/iniciar sessão {session_id}: {e}")
         return False, str(e)    
 
+
 def obter_qr_code_waha(session_id):
-    """Puxa a imagem do QR Code com ALTA PACIÊNCIA para servidores gratuitos lentos."""
-    import time
-    import base64
-    import logging
-    import requests
+    """Puxa a imagem do QR Code RÁPIDO para não causar Timeout no Gunicorn/Render."""
     
-    # 1. Dá 10 segundos de vantagem para o motor do WAHA ligar na nuvem
-    time.sleep(10)
-    
-    # 2. Vai tentar buscar a imagem 6 vezes, esperando 5 segundos entre cada (Total 30s extras)
-    for tentativa in range(6):
+    # NOVIDADE: Sem o sleep de 10s que derrubava o servidor! 
+    # Tentamos apenas 4 vezes, com 3 segundos (Total 12s, bem abaixo do limite de 30s da Render).
+    for tentativa in range(4):
         try:
             response = requests.get(
                 f"{WAHA_BASE_URL}/api/{session_id}/auth/qr",
                 headers=get_waha_headers(),
-                timeout=15
+                timeout=5
             )
             
             if response.status_code == 200:
-                # SUCESSO! Transforma a imagem e entrega pra tela
+                # Transforma a imagem e entrega pra tela
                 encoded_img = base64.b64encode(response.content).decode('utf-8')
                 return True, f"data:image/png;base64,{encoded_img}"
                 
             elif response.status_code == 422:
                 # Ainda não está pronto. Espera e tenta de novo.
-                logging.warning(f"[WAHA] Servidor desenhando QR Code. Tentativa {tentativa+1} de 6...")
-                time.sleep(5)
+                logging.warning(f"[WAHA] Servidor desenhando QR Code. Tentativa {tentativa+1} de 4...")
+                time.sleep(3)
             else:
                 response.raise_for_status()
                 
         except Exception as e:
             logging.warning(f"[WAHA] Aguardando o motor iniciar... Erro: {e}")
-            time.sleep(5)
+            time.sleep(3)
             
-    return False, "O servidor demorou muito para gerar a imagem. Clique em 'Gerar QR Code' novamente!"
+    # Devolve o controle rápido para a tela da Carol sem deixar o servidor travar
+    return False, "O sistema está ligando. Clique em 'Atualizar QR Code' novamente para ver a imagem!"
     
 
 def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
@@ -171,7 +178,6 @@ def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
         "caption": caption
     }
     try:
-        # Trocamos sendFile por sendImage e aumentamos o timeout para 30 segundos
         response = requests.post(
             f"{WAHA_BASE_URL}/api/sendImage", 
             json=payload,
@@ -184,5 +190,3 @@ def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
     except Exception as e:
         logging.error(f"[WAHA] Erro ao enviar mídia: {e}")
         return False
-
-        
