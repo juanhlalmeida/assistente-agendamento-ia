@@ -816,7 +816,7 @@ def webhook_meta():
         return "Método não permitido", 405
     
 # ==============================================================================
-# 🚀 ROTA DO WEBHOOK DO WAHA (NOVO MOTOR - FASE 3)
+# 🚀 ROTA DO WEBHOOK DO WAHA (NOVO MOTOR - FASE 3 COM AUTO-PAUSA)
 # ==============================================================================
 @bp.route('/api/webhooks/waha', methods=['POST'])
 def webhook_waha():
@@ -836,11 +836,55 @@ def webhook_waha():
     if event != 'message':
         return jsonify({"status": "ignored_event"}), 200
 
+    # ==============================================================================
+    # 🕵️‍♂️ IDENTIFICADOR A LASER (Trazido para cima para usar na Auto-Pausa)
+    # ==============================================================================
+    barbearia_id = None
+    if session_id:
+        import re
+        match = re.search(r'loja[-_](\d+)', session_id)
+        if match:
+            barbearia_id = int(match.group(1))
+
+    # ==============================================================================
+    # 🤫 MODO INTERVENÇÃO HUMANA (AUTO-PAUSA DE 3 HORAS)
+    # ==============================================================================
+    import redis
+    import os
+    redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    try:
+        cliente_redis = redis.from_url(redis_url)
+    except Exception as e:
+        logging.error(f"Erro ao conectar no Redis para Pausa: {e}")
+        cliente_redis = None
+
     from_me = payload.get('fromMe', False)
     if from_me:
-        return jsonify({"status": "ignored_from_me"}), 200
+        to_number = payload.get('to') # Descobre para qual cliente a Carol mandou mensagem
+        if to_number and barbearia_id and cliente_redis:
+            chave_pausa = f"pausa_ia_{barbearia_id}_{to_number}"
+            try:
+                # setex salva no banco temporário por 10800 segundos (3 horas)
+                cliente_redis.setex(chave_pausa, 10800, "pausado")
+                logging.info(f"🤫 AUTO-PAUSA: A loja {barbearia_id} assumiu a conversa com o cliente {to_number}. IA silenciada por 3 horas.")
+            except Exception as e:
+                logging.error(f"Erro ao pausar IA no Redis: {e}")
+        return jsonify({"status": "ignored_from_me_and_paused"}), 200
 
     from_number = payload.get('from')
+
+    # ==============================================================================
+    # 🛑 VERIFICAÇÃO DA PAUSA (A IA deve ficar calada para este cliente?)
+    # ==============================================================================
+    if barbearia_id and from_number and cliente_redis:
+        chave_pausa = f"pausa_ia_{barbearia_id}_{from_number}"
+        try:
+            if cliente_redis.get(chave_pausa):
+                logging.info(f"🤐 SILÊNCIO: IA ignorou mensagem de {from_number} porque está no Modo Intervenção Humana.")
+                return jsonify({"status": "paused_by_human"}), 200
+        except Exception as e:
+            logging.error(f"Erro ao checar pausa no Redis: {e}")
+
     logging.info(f"🕵️‍♂️ DEBUG WAHA: Mensagem batendo na porta vinda de: {from_number}")
 
     # ==============================================================================
@@ -854,23 +898,13 @@ def webhook_waha():
     # 🚀 CHAMADA DO NOSSO PROTETOR ISOLADO (WAHA_UTILS)
     # ==============================================================================
     from app.services.waha_utils import extrair_e_filtrar_mensagem_waha
-    sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload, data.get('session'))
+    sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload, session_id)
     
     if not sucesso:
         return jsonify({"status": "ignorado", "motivo": resultado}), 200
         
     body = resultado
     logging.info(f"📝 DEBUG WAHA: Texto lido com sucesso: '{body}'")
-
-    # ==============================================================================
-    # 🕵️‍♂️ IDENTIFICADOR A LASER (À Prova de Falhas de Sessão)
-    # ==============================================================================
-    barbearia_id = None
-    if session_id:
-        import re
-        match = re.search(r'loja[-_](\d+)', session_id)
-        if match:
-            barbearia_id = int(match.group(1))
 
     if not barbearia_id:
         logging.error(f"❌ ERRO WAHA: Não foi possível extrair ID da sessão '{session_id}'")
@@ -884,62 +918,11 @@ def webhook_waha():
     logging.info(f"✅ WAHA: Mensagem de {from_number} conectada à loja {barbearia.nome_fantasia}")
 
     # ==============================================================================
-    # 🤖 PROCESSAMENTO DA IA E LOGS (Fluxo Limpo)
+    # 🤖 PROCESSAMENTO DA IA E LOGS (Fluxo Limpo Unificado)
     # ==============================================================================
-    
-    # --- ESPIÃO DO CLIENTE (Salva no Log do Painel) ---
-    try:
-        log_cliente = ChatLog(
-            barbearia_id=barbearia.id,
-            cliente_telefone=from_number,
-            mensagem=body,
-            tipo='cliente'
-        )
-        db.session.add(log_cliente)
-        db.session.commit()
-    except Exception as e:
-        logging.error(f"Erro ao salvar log WAHA cliente: {e}")
+    msg_type = payload.get('type', 'text')
 
-    # --- O CÉREBRO: CHAMA A INTELIGÊNCIA ARTIFICIAL ---
-    from app.services import ai_service
-    resposta_ia = ai_service.processar_ia_gemini(
-        user_message=body,
-        barbearia_id=barbearia.id,
-        cliente_whatsapp=from_number,
-        waha_session_id=session_id
-    )
-
-    if resposta_ia:
-        # --- ESPIÃO DA IA (Salva no Log do Painel) ---
-        try:
-            log_ia = ChatLog(
-                barbearia_id=barbearia.id,
-                cliente_telefone=from_number,
-                mensagem=resposta_ia,
-                tipo='ia'
-            )
-            db.session.add(log_ia)
-            db.session.commit()
-        except Exception as e:
-            logging.error(f"Erro ao salvar log WAHA IA: {e}")
-
-        # --- DISPARO: ENVIA A RESPOSTA USANDO O NOVO MOTOR WAHA ---
-        from app.services.waha_service import enviar_mensagem_waha
-        enviar_mensagem_waha(session_id, from_number, resposta_ia)
-
-    return jsonify({"status": "success"}), 200
-    # Daqui para baixo, o seu código continua intacto chamando a IA...
-        
-    # ==============================================================================
-    # 🛡️ ESCUDOS DE SEGURANÇA (ANTI-GRUPOS E ANTI-FANTASMAS)
-    # ==============================================================================
-    # ==============================================================================
-
-        # Cache do histórico / Conversa com a IA continua daqui para baixo...
-
-        # Processamos texto ou áudio nativo (ptt)
-    if msg_type in ['chat', 'text']:
-        
+    if msg_type in ['chat', 'text', 'image', 'video', 'document']:
         # --- ESPIÃO DO CLIENTE (Salva no Log do Painel) ---
         try:
             log_cliente = ChatLog(
@@ -958,7 +941,8 @@ def webhook_waha():
         resposta_ia = ai_service.processar_ia_gemini(
             user_message=body,
             barbearia_id=barbearia.id,
-            cliente_whatsapp=from_number
+            cliente_whatsapp=from_number,
+            waha_session_id=session_id
         )
 
         if resposta_ia:
@@ -979,7 +963,7 @@ def webhook_waha():
             from app.services.waha_service import enviar_mensagem_waha
             enviar_mensagem_waha(session_id, from_number, resposta_ia)
 
-    elif msg_type == 'ptt':
+    elif msg_type == 'ptt' or msg_type == 'audio':
         # Na próxima fase poderemos integrar a tradução de áudio do WAHA
         logging.info("🔊 Áudio recebido via WAHA (Ainda em implementação)")
         from app.services.waha_service import enviar_mensagem_waha
@@ -987,12 +971,8 @@ def webhook_waha():
 
     return jsonify({"status": "success"}), 200
 
-    # Se for qualquer outro evento desconhecido, ignora educadamente
-    return jsonify({"status": "ignored_event"}), 200
-
-
 # ============================================
-# ⚙️ ROTA DE CONFIGURAÇÕES (ATUALIZADA)
+# ⚙️ ROTA DE CONFIGURAÇÕES (INTACTA)
 # ============================================
 @bp.route('/configuracoes', methods=['GET', 'POST'])
 @login_required
