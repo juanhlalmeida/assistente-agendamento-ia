@@ -185,14 +185,14 @@ def criar_sessao_waha(session_id):
 
 
 def obter_qr_code_waha(session_id):
-    """Puxa a imagem do QR Code APÓS garantir que o status é SCAN_QR_CODE (Solução Definitiva)."""
+    """Puxa a imagem do QR Code APÓS garantir que o status é SCAN_QR_CODE (WEBJS)."""
     
-    # 1. LOOP DE ESPERA INTELIGENTE (Polling)
-    # Vamos checar o status a cada 3 segundos, no máximo 5 vezes (Total 15s, seguro para a Render)
+    # 1. LOOP DE ESPERA CURTO (Não trava a tela da Render!)
+    # Checamos 3 vezes, totalizando ~9 segundos. O suficiente para ver se o QR Code já existe.
     status_pronto = False
-    for tentativa in range(5):
+    for tentativa in range(3):
         status_atual = status_sessao_waha(session_id)
-        logging.info(f"⏳ [WAHA] Aguardando motor iniciar... Status atual: {status_atual} (Tentativa {tentativa+1}/5)")
+        logging.info(f"⏳ [WAHA] Motor WEBJS... Status atual: {status_atual} (Tentativa {tentativa+1}/3)")
         
         if status_atual == 'SCAN_QR_CODE':
             status_pronto = True
@@ -202,13 +202,13 @@ def obter_qr_code_waha(session_id):
         elif status_atual == 'FAILED':
             return False, "O motor do WhatsApp falhou ao iniciar. Clique em 'Atualizar QR Code' novamente."
             
-        time.sleep(3) # Pausa rápida antes de perguntar de novo
+        time.sleep(3)
         
     if not status_pronto:
-        # Se após 15s ainda estiver STARTING, devolvemos a tela pra Carol não travar o servidor
-        return False, "O sistema está ligando. Clique em 'Atualizar QR Code' em alguns segundos para ver a imagem!"
+        # Devolve o controlo RÁPIDO à tela da Carol. O WAHA continua ligando o Chrome em background.
+        return False, "⏳ O motor do WhatsApp (Chrome) está ligando. Aguarde 30 segundos e clique em 'Atualizar QR Code' novamente."
 
-    # 2. O BOTE CERTEIRO (O status já é SCAN_QR_CODE, o WAHA não vai mais dar Erro 422)
+    # 2. SE ESTIVER PRONTO (SCAN_QR_CODE), PUXA A FOTO
     try:
         logging.info(f"📸 [WAHA] Motor pronto! Baixando a imagem do QR Code...")
         response = requests.get(
@@ -218,11 +218,9 @@ def obter_qr_code_waha(session_id):
         )
         
         if response.status_code == 200:
-            # Transforma a imagem e entrega pra tela da Carol
             encoded_img = base64.b64encode(response.content).decode('utf-8')
             return True, f"data:image/png;base64,{encoded_img}"
         else:
-            logging.error(f"[WAHA] WAHA retornou status {response.status_code} ao pedir a imagem.")
             return False, "O QR Code ainda está sendo gerado. Tente novamente."
             
     except Exception as e:
