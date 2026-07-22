@@ -850,10 +850,18 @@ def webhook_waha():
     # 🤫 MODO INTERVENÇÃO HUMANA (AUTO-PAUSA DE 4 HORAS)
     # ==============================================================================
     import redis
-    from flask import current_app
-    redis_url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
+    import os
+    
+    # 🔥 CORREÇÃO SÊNIOR: Puxando direto da veia da Render!
+    redis_url = os.environ.get('REDIS_URL')
+    
     try:
-        cliente_redis = redis.from_url(redis_url)
+        # Só tenta conectar se a Render entregar a URL correta
+        if redis_url:
+            cliente_redis = redis.from_url(redis_url)
+        else:
+            logging.error("Aviso: Variável REDIS_URL não encontrada na Render!")
+            cliente_redis = None
     except Exception as e:
         logging.error(f"Erro ao conectar no Redis para Pausa: {e}")
         cliente_redis = None
@@ -864,7 +872,7 @@ def webhook_waha():
         if to_number and barbearia_id and cliente_redis:
             chave_pausa = f"pausa_ia_{barbearia_id}_{to_number}"
             try:
-                # 🔥 AJUSTADO: 14400 segundos = 4 horas exatas de silêncio
+                # 14400 segundos = 4 horas exatas de silêncio
                 cliente_redis.setex(chave_pausa, 14400, "pausado")
                 logging.info(f"🤫 AUTO-PAUSA: A loja {barbearia_id} assumiu a conversa com o cliente {to_number}. IA silenciada por 4 horas.")
             except Exception as e:
