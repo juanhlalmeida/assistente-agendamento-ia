@@ -850,8 +850,8 @@ def webhook_waha():
     # 🤫 MODO INTERVENÇÃO HUMANA (AUTO-PAUSA DE 4 HORAS)
     # ==============================================================================
     import redis
-    import os
-    redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    from flask import current_app
+    redis_url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
     try:
         cliente_redis = redis.from_url(redis_url)
     except Exception as e:

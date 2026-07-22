@@ -1374,10 +1374,10 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 is_lash_check = any(x in nome_loja_check for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
                 
                 if is_lash_check:
-                    # 👇 SAUDAÇÃO EXCLUSIVA E HUMANIZADA DA CAROL (SEM TABELA FORÇADA) 👇
+                    # 👇 SAUDAÇÃO CURTA E OBJETIVA DA CAROL 👇
                     msg_boas_vindas = (
-                        "Oii! ✨ Seja bem-vinda! Para agilizar, agora os agendamentos são feitos direto por aqui com a minha assistente virtual (não precisa mais de link!). 💅 Pode ir falando para ela qual serviço você quer e o melhor dia.\n\n"
-                        "Se for sobre um horário já marcado ou tiver outra dúvida, é só deixar a mensagem que eu mesma te respondo assim que pausar os atendimentos. Um beijo! 💖"
+                        f"Bem-vinda ao {barbearia.nome_fantasia}! ✨ Sou a assistente inteligente da Carol.\n\n"
+                        "Em que posso te ajudar? Quer agendar um horário ou consultar serviços e valores? 💖"
                     )
                 else:
                     msg_boas_vindas = (
@@ -1432,9 +1432,10 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 is_lash_check2 = any(x in nome_loja_check2 for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
                 
                 if is_lash_check2:
+                    # 👇 SAUDAÇÃO CURTA E OBJETIVA DA CAROL 👇
                     msg_texto = (
-                        "Oii! ✨ Seja bem-vinda! Para agilizar, agora os agendamentos são feitos direto por aqui com a minha assistente virtual (não precisa mais de link!). 💅 Pode ir falando para ela qual serviço você quer e o melhor dia.\n\n"
-                        "Se for sobre um horário já marcado ou tiver outra dúvida, é só deixar a mensagem que eu mesma te respondo assim que pausar os atendimentos. Um beijo! 💖"
+                        f"Bem-vinda ao {barbearia.nome_fantasia}! ✨ Sou a assistente inteligente da Carol.\n\n"
+                        "Em que posso te ajudar? Quer agendar um horário ou consultar serviços e valores? 💖"
                     )
                 else:
                     msg_texto = f"Fala, campeão! Seja bem-vindo ao *{barbearia.nome_fantasia}*! ✂️💈\n\nJá separei nossa tabela de valores para você conferir aqui abaixo! 👇👊\n\nQual serviço você quer agendar hoje?"
@@ -1474,7 +1475,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # ======================================================================
         # 🩹 CURATIVO DE IDENTIDADE (O SUSSURRO DINÂMICO MULTI-LOJAS)
         # ======================================================================
-        
+                
         msg_para_enviar = f"[Hoje é {data_hoje_str}]\nCliente diz: {user_message}"
 
         regras_da_loja = getattr(barbearia, 'regras_negocio', None)
