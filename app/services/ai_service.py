@@ -1369,15 +1369,15 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                     logging.error(f"Erro ao enviar boas-vindas pousada com flyer: {e}")
 
             else:
-                # ----- BARBEARIA / LASH / OUTROS: mensagem com tabela e foto -----
+                # ----- BARBEARIA / LASH / OUTROS -----
                 nome_loja_check = barbearia.nome_fantasia.lower()
                 is_lash_check = any(x in nome_loja_check for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
                 
                 if is_lash_check:
+                    # 👇 SAUDAÇÃO EXCLUSIVA E HUMANIZADA DA CAROL (SEM TABELA FORÇADA) 👇
                     msg_boas_vindas = (
-                        f"Olá! Seja muito bem-vinda ao *{barbearia.nome_fantasia}*! ✨\n\n"
-                        f"Para facilitar, estou enviando logo abaixo nossa tabela de serviços e valores atualizados. 👇💖\n\n"
-                        f"Qual procedimento você gostaria de agendar hoje? 😊"
+                        "Oii! ✨ Seja bem-vinda! Para agilizar, agora os agendamentos são feitos direto por aqui com a minha assistente virtual (não precisa mais de link!). 💅 Pode ir falando para ela qual serviço você quer e o melhor dia.\n\n"
+                        "Se for sobre um horário já marcado ou tiver outra dúvida, é só deixar a mensagem que eu mesma te respondo assim que pausar os atendimentos. Um beijo! 💖"
                     )
                 else:
                     msg_boas_vindas = (
@@ -1388,9 +1388,12 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
                 try:
                     enviar_texto_direto(msg_boas_vindas)
-                    if barbearia.url_tabela_precos:
+                    
+                    # 👇 A MÁGICA ACONTECE AQUI: SÓ ENVIA A IMAGEM SE NÃO FOR LASH/BEAUTY 👇
+                    if not is_lash_check and barbearia.url_tabela_precos:
                         logging.info(f"📸 Enviando Tabela de Preços inicial para {cliente_whatsapp}")
                         enviar_midia_direta(barbearia.url_tabela_precos)
+                        
                 except Exception as e:
                     logging.error(f"Erro ao enviar boas-vindas com tabela: {e}")
 
@@ -1415,7 +1418,8 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         chat_session = current_model.start_chat(history=history_to_load)
 
         # =========================================================================
-        # 👇 ATUALIZAÇÃO FINAL: ENVIO DE TABELA FORÇADO NO PRIMEIRO CONTATO (APENAS PARA NÃO‑POUSADA) 👇
+        # 👇 ATUALIZAÇÃO FINAL: ENVIO DE TABELA FORÇADO NO PRIMEIRO CONTATO 
+        # (GARANTINDO QUE A LASH NÃO RECEBE A TABELA AQUI TAMBÉM) 👇
         # =========================================================================
 
         # Só entra nessa lógica de tabela forçada SE NÃO FOR POUSADA
@@ -1423,11 +1427,15 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             eh_inicio_conversa = len(history_to_load) <= 2
 
             if eh_inicio_conversa:
-                # Mensagem gentil padrão para TODOS os casos (Barbearia/Lash)
-                # Mensagem gentil dinâmica
+                # Verificação dinâmica se é Studio Lash
                 nome_loja_check2 = barbearia.nome_fantasia.lower()
-                if any(x in nome_loja_check2 for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty']):
-                    msg_texto = f"Olá! Seja muito bem-vinda ao *{barbearia.nome_fantasia}*! ✨\n\nJá separei nossa tabela de valores para você dar uma olhadinha aqui abaixo! 👇💖\n\nQual desses serviços você gostaria de agendar? 😊"
+                is_lash_check2 = any(x in nome_loja_check2 for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
+                
+                if is_lash_check2:
+                    msg_texto = (
+                        "Oii! ✨ Seja bem-vinda! Para agilizar, agora os agendamentos são feitos direto por aqui com a minha assistente virtual (não precisa mais de link!). 💅 Pode ir falando para ela qual serviço você quer e o melhor dia.\n\n"
+                        "Se for sobre um horário já marcado ou tiver outra dúvida, é só deixar a mensagem que eu mesma te respondo assim que pausar os atendimentos. Um beijo! 💖"
+                    )
                 else:
                     msg_texto = f"Fala, campeão! Seja bem-vindo ao *{barbearia.nome_fantasia}*! ✂️💈\n\nJá separei nossa tabela de valores para você conferir aqui abaixo! 👇👊\n\nQual serviço você quer agendar hoje?"
                     
@@ -1448,9 +1456,10 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                         # 1. Envia Texto
                         enviar_texto_direto(msg_texto)
                         
-                        # 2. Envia Foto
-                        logging.info(f"📸 Enviando Tabela automática para {cliente_whatsapp}")
-                        enviar_midia_direta(barbearia.url_tabela_precos)
+                        # 2. Envia Foto (SÓ ENVIA SE NÃO FOR LASH)
+                        if not is_lash_check2:
+                            logging.info(f"📸 Enviando Tabela automática para {cliente_whatsapp}")
+                            enviar_midia_direta(barbearia.url_tabela_precos)
                         
                         return "" # Retorna vazio para encerrar aqui
                         
@@ -1465,6 +1474,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         # ======================================================================
         # 🩹 CURATIVO DE IDENTIDADE (O SUSSURRO DINÂMICO MULTI-LOJAS)
         # ======================================================================
+        
         msg_para_enviar = f"[Hoje é {data_hoje_str}]\nCliente diz: {user_message}"
 
         regras_da_loja = getattr(barbearia, 'regras_negocio', None)

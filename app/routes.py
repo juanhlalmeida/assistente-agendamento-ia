@@ -847,7 +847,7 @@ def webhook_waha():
             barbearia_id = int(match.group(1))
 
     # ==============================================================================
-    # 🤫 MODO INTERVENÇÃO HUMANA (AUTO-PAUSA DE 3 HORAS)
+    # 🤫 MODO INTERVENÇÃO HUMANA (AUTO-PAUSA DE 4 HORAS)
     # ==============================================================================
     import redis
     import os
@@ -864,9 +864,9 @@ def webhook_waha():
         if to_number and barbearia_id and cliente_redis:
             chave_pausa = f"pausa_ia_{barbearia_id}_{to_number}"
             try:
-                # setex salva no banco temporário por 10800 segundos (3 horas)
-                cliente_redis.setex(chave_pausa, 10800, "pausado")
-                logging.info(f"🤫 AUTO-PAUSA: A loja {barbearia_id} assumiu a conversa com o cliente {to_number}. IA silenciada por 3 horas.")
+                # 🔥 AJUSTADO: 14400 segundos = 4 horas exatas de silêncio
+                cliente_redis.setex(chave_pausa, 14400, "pausado")
+                logging.info(f"🤫 AUTO-PAUSA: A loja {barbearia_id} assumiu a conversa com o cliente {to_number}. IA silenciada por 4 horas.")
             except Exception as e:
                 logging.error(f"Erro ao pausar IA no Redis: {e}")
         return jsonify({"status": "ignored_from_me_and_paused"}), 200
