@@ -5,8 +5,8 @@ import logging
 import base64
 import re
 
-# Configurações do WAHA (Puxamos do ambiente, se não houver, usa o padrão local)
-WAHA_BASE_URL = os.environ.get('WAHA_BASE_URL', 'http://127.0.0.1:3000')
+# Configurações do WAHA (Puxamos do ambiente, se não houver, usa a porta 10000 confirmada na Render)
+WAHA_BASE_URL = os.environ.get('WAHA_BASE_URL', 'http://waha-agendamento-ia:10000')
 WAHA_API_KEY = os.environ.get('WAHA_API_KEY', 'sua_chave_secreta_super_segura_aqui_123!')
 
 def get_waha_headers():
@@ -78,96 +78,6 @@ def enviar_mensagem_waha(session_id, to_number, text):
         return False, str(e)
 
 
-def criar_sessao_waha(session_id):
-    """Aciona a criação de uma nova sessão, DESTRUINDO fantasmas antes, e AVISA O WEBHOOK."""
-    
-    # --- NOVIDADE: O CAÇADOR DE FANTASMAS ---
-    # Tenta parar e deletar qualquer resquício da sessão antiga para destravar a Render
-    try:
-        logging.info(f"🧹 Limpando possível sessão travada: {session_id}")
-        requests.post(f"{WAHA_BASE_URL}/api/sessions/{session_id}/stop", headers=get_waha_headers(), timeout=3)
-        time.sleep(1)
-        requests.delete(f"{WAHA_BASE_URL}/api/sessions/{session_id}", headers=get_waha_headers(), timeout=3)
-    except:
-        pass # Se não existir, segue o jogo sem dar erro
-
-    # O link exato do "ouvido" do seu sistema na Render
-    meu_webhook = "https://assistente-agendamento-ia.onrender.com/api/webhooks/waha"
-    
-    # Payload completo: Nome + Chave de Ignição + Webhook
-    payload = {
-        "name": session_id,
-        "start": True,
-        "config": {
-            "webhooks": [
-                {
-                    "url": meu_webhook,
-                    "events": ["message", "session.status"]
-                }
-            ]
-        }
-    }
-    
-    try:
-        # 1. Cria a sessão avisando para onde mandar as mensagens
-        response = requests.post(
-            f"{WAHA_BASE_URL}/api/sessions/",
-            json=payload,
-            headers=get_waha_headers(),
-            timeout=15
-        )
-        
-        # 2. Gira a Chave de Ignição
-        requests.post(
-            f"{WAHA_BASE_URL}/api/sessions/{session_id}/start",
-            headers=get_waha_headers(),
-            timeout=10
-        )
-        
-        if response.status_code == 422:
-            logging.info(f"[WAHA] Sessão já existe: {session_id}")
-            return True, {"status": "already_exists"}
-            
-        response.raise_for_status()
-        return True, response.json()
-    except Exception as e:
-        logging.error(f"[WAHA] Falha ao criar/iniciar sessão {session_id}: {e}")
-        return False, str(e)    
-
-
-def obter_qr_code_waha(session_id):
-    """Puxa a imagem do QR Code RÁPIDO para não causar Timeout no Gunicorn/Render."""
-    
-    # NOVIDADE: Sem o sleep de 10s que derrubava o servidor! 
-    # Tentamos apenas 4 vezes, com 3 segundos (Total 12s, bem abaixo do limite de 30s da Render).
-    for tentativa in range(4):
-        try:
-            response = requests.get(
-                f"{WAHA_BASE_URL}/api/{session_id}/auth/qr",
-                headers=get_waha_headers(),
-                timeout=5
-            )
-            
-            if response.status_code == 200:
-                # Transforma a imagem e entrega pra tela
-                encoded_img = base64.b64encode(response.content).decode('utf-8')
-                return True, f"data:image/png;base64,{encoded_img}"
-                
-            elif response.status_code == 422:
-                # Ainda não está pronto. Espera e tenta de novo.
-                logging.warning(f"[WAHA] Servidor desenhando QR Code. Tentativa {tentativa+1} de 4...")
-                time.sleep(3)
-            else:
-                response.raise_for_status()
-                
-        except Exception as e:
-            logging.warning(f"[WAHA] Aguardando o motor iniciar... Erro: {e}")
-            time.sleep(3)
-            
-    # Devolve o controle rápido para a tela da Carol sem deixar o servidor travar
-    return False, "O sistema está ligando. Clique em 'Atualizar QR Code' novamente para ver a imagem!"
-    
-
 def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
     """Envia imagem/mídia via WAHA forçando o formato de Imagem (Foto nativa)"""
     chat_id = formatar_numero_waha(to_number)
@@ -190,3 +100,118 @@ def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
     except Exception as e:
         logging.error(f"[WAHA] Erro ao enviar mídia: {e}")
         return False
+
+
+def status_sessao_waha(session_id):
+    """Verifica o status no WAHA antes de tomar qualquer atitude destrutiva."""
+    try:
+        response = requests.get(f"{WAHA_BASE_URL}/api/sessions", headers=get_waha_headers(), timeout=5)
+        if response.status_code == 200:
+            sessoes = response.json()
+            for s in sessoes:
+                if s.get('name') == session_id:
+                    return s.get('status', 'UNKNOWN')
+        return "NOT_FOUND"
+    except:
+        return "ERROR"
+
+
+def criar_sessao_waha(session_id):
+    """Inicia a sessão COM INTELIGÊNCIA DE ESTADO (Evita corromper o motor Chromium)"""
+    status_atual = status_sessao_waha(session_id)
+    logging.info(f"🔍 [WAHA] Status atual da sessão '{session_id}': {status_atual}")
+
+    # =====================================================================
+    # 🧠 REGRA DE OURO: Se já está a ligar ou a funcionar, NÃO FAZEMOS NADA!
+    # Isso impede o erro fatal "Navigating frame was detached" no WAHA.
+    # =====================================================================
+    if status_atual in ['STARTING', 'SCAN_QR_CODE', 'WORKING']:
+        logging.info(f"✅ [WAHA] A sessão já está operando ({status_atual}). Ignorando comando de recriação.")
+        return True, {"status": status_atual}
+
+    # Se a sessão existe mas está parada, manda apenas um comando de arranque suave
+    if status_atual == 'STOPPED':
+        logging.info(f"🚀 [WAHA] Sessão estava pausada. A dar a ignição...")
+        try:
+            requests.post(f"{WAHA_BASE_URL}/api/sessions/{session_id}/start", headers=get_waha_headers(), timeout=5)
+        except:
+            pass
+        return True, {"status": "starting"}
+
+    # =====================================================================
+    # 🧹 SÓ APAGA se falhou ('FAILED') ou não existe ('NOT_FOUND')
+    # =====================================================================
+    logging.info(f"🧹 [WAHA] Sessão morta ou inexistente. Limpando e recriando...")
+    try:
+        requests.post(f"{WAHA_BASE_URL}/api/sessions/{session_id}/stop", headers=get_waha_headers(), timeout=3)
+        requests.delete(f"{WAHA_BASE_URL}/api/sessions/{session_id}", headers=get_waha_headers(), timeout=3)
+    except:
+        pass # Ignora erros de limpeza se não havia nada para limpar
+
+    meu_webhook = "https://assistente-agendamento-ia.onrender.com/api/webhooks/waha"
+    payload = {
+        "name": session_id,
+        "start": True,
+        "config": {
+            "webhooks": [
+                {
+                    "url": meu_webhook,
+                    "events": ["message", "session.status"]
+                }
+            ]
+        }
+    }
+    
+    try:
+        # 1. Cria a sessão e avisa para onde mandar as mensagens
+        response = requests.post(
+            f"{WAHA_BASE_URL}/api/sessions/",
+            json=payload,
+            headers=get_waha_headers(),
+            timeout=15
+        )
+        
+        # 2. Gira a Chave de Ignição
+        requests.post(
+            f"{WAHA_BASE_URL}/api/sessions/{session_id}/start",
+            headers=get_waha_headers(),
+            timeout=10
+        )
+        
+        return True, {"status": "starting"}
+    except Exception as e:
+        logging.error(f"[WAHA] Falha ao criar/iniciar sessão {session_id}: {e}")
+        return False, str(e)
+
+
+def obter_qr_code_waha(session_id):
+    """Puxa a imagem do QR Code RÁPIDO para não causar Timeout no Gunicorn/Render."""
+    
+    # Tentamos 2 vezes com 12 segundos de paciência (Total 24s, seguro contra Timeout da Render).
+    for tentativa in range(2):
+        try:
+            # 🔥 AJUSTE CRÍTICO: Timeout aumentado de 5 para 12 segundos para dar tempo do Chrome (Puppeteer) abrir
+            response = requests.get(
+                f"{WAHA_BASE_URL}/api/{session_id}/auth/qr",
+                headers=get_waha_headers(),
+                timeout=12
+            )
+            
+            if response.status_code == 200:
+                # Transforma a imagem e entrega pra tela
+                encoded_img = base64.b64encode(response.content).decode('utf-8')
+                return True, f"data:image/png;base64,{encoded_img}"
+                
+            elif response.status_code == 422:
+                # Ainda não está pronto. Espera e tenta de novo.
+                logging.warning(f"[WAHA] Servidor desenhando QR Code. Tentativa {tentativa+1} de 2...")
+                time.sleep(2)
+            else:
+                response.raise_for_status()
+                
+        except Exception as e:
+            logging.warning(f"[WAHA] Aguardando o motor iniciar... Erro: {e}")
+            time.sleep(2)
+            
+    # Devolve o controle rápido para a tela da Carol sem deixar o servidor travar
+    return False, "O sistema de IA está a aquecer os motores. Por favor, clique em 'Atualizar QR Code' novamente!"
