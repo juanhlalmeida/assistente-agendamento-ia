@@ -156,7 +156,8 @@ def criar_sessao_waha(session_id):
             "webhooks": [
                 {
                     "url": meu_webhook,
-                    "events": ["message.any", "session.status"]
+                    # 👇 AQUI ESTÁ A CURA DA ARMADILHA 1: INJETAR O MESSAGE.ANY DIRETO NO CÉREBRO DO WAHA
+                    "events": ["message", "message.any", "session.status"] 
                 }
             ]
         }

@@ -816,7 +816,7 @@ def webhook_meta():
         return "Método não permitido", 405
     
 # ==============================================================================
-# 🚀 ROTA DO WEBHOOK DO WAHA (NOVO MOTOR - FASE 3 COM AUTO-PAUSA)
+# 🚀 ROTA DO WEBHOOK DO WAHA (NOVO MOTOR - FASE 3 COM AUTO-PAUSA BLINDADA)
 # ==============================================================================
 @bp.route('/api/webhooks/waha', methods=['POST'])
 def webhook_waha():
@@ -828,6 +828,11 @@ def webhook_waha():
     session_id = data.get('session')
     payload = data.get('payload', {})
 
+    # ==============================================================================
+    # 📡 RADAR ABSOLUTO (Rastreabilidade Total)
+    # ==============================================================================
+    logging.info(f"📡 RADAR WAHA - Evento: {event} | Session: {session_id} | fromMe: {payload.get('fromMe')} | source: {payload.get('source')}")
+
     if event == 'session.status':
         status = payload.get('status')
         logging.info(f"🔄 WAHA Status: A sessão '{session_id}' mudou para '{status}'")
@@ -837,7 +842,7 @@ def webhook_waha():
         return jsonify({"status": "ignored_event"}), 200
 
     # ==============================================================================
-    # 🕵️‍♂️ IDENTIFICADOR A LASER (Trazido para cima para usar na Auto-Pausa)
+    # 🕵️‍♂️ IDENTIFICADOR A LASER
     # ==============================================================================
     barbearia_id = None
     if session_id:
@@ -867,15 +872,17 @@ def webhook_waha():
     from_me = payload.get('fromMe', False)
     if from_me:
         # 👇 A MÁGICA SALVADORA: Evita que a IA pause a si mesma! 👇
-        # Verifica se a mensagem veio do celular da Carol (app/web) ou da IA (api)
+        # Captura segura da origem
         source = str(payload.get("source", "")).lower()
+        origens_humanas = ["app", "web", "ios", "android", "desktop", "smb"]
         
-        # Se a origem NÃO for a API, significa que a Carol digitou no celular/WhatsApp Web
-        if source != "api":
+        # Só ativa a pausa se vier de um dispositivo humano conhecido OU se não for a API (e não for vazio)
+        if source in origens_humanas or (source != "api" and source != ""):
             to_number = payload.get('to')
             if not to_number and 'to' in payload.get('message', {}):
                  to_number = payload['message']['to']
                  
+            # Evita pausar se o destino for um grupo
             if to_number and '@g.us' not in to_number and barbearia_id and cliente_redis:
                 import re
                 to_numero_limpo = re.sub(r'\D', '', to_number.split('@')[0])
@@ -884,7 +891,7 @@ def webhook_waha():
                 try:
                     # 14400 segundos = 4 horas exatas de silêncio
                     cliente_redis.setex(chave_pausa, 14400, "pausado")
-                    logging.info(f"🤫 AUTO-PAUSA ATIVADA! A Carol assumiu a conversa no celular (Source: {source}). IA silenciada por 4h para o cliente {to_numero_limpo}.")
+                    logging.info(f"🤫 AUTO-PAUSA ATIVADA! Intervenção humana (Source: {source}). IA silenciada por 4h para o cliente {to_numero_limpo}.")
                 except Exception as e:
                     logging.error(f"Erro ao pausar IA no Redis: {e}")
                     
@@ -896,10 +903,12 @@ def webhook_waha():
     # 🛑 VERIFICAÇÃO DA PAUSA (A IA deve ficar calada para este cliente?)
     # ==============================================================================
     if barbearia_id and from_number and cliente_redis:
-        chave_pausa = f"pausa_ia_{barbearia_id}_{from_number}"
+        import re
+        from_numero_limpo = re.sub(r'\D', '', str(from_number).split('@')[0])
+        chave_pausa = f"pausa_ia_{barbearia_id}_{from_numero_limpo}"
         try:
             if cliente_redis.get(chave_pausa):
-                logging.info(f"🤐 SILÊNCIO: IA ignorou mensagem de {from_number} porque está no Modo Intervenção Humana.")
+                logging.info(f"🤐 SILÊNCIO: IA ignorou mensagem de {from_numero_limpo} porque está no Modo Intervenção Humana.")
                 return jsonify({"status": "paused_by_human"}), 200
         except Exception as e:
             logging.error(f"Erro ao checar pausa no Redis: {e}")
@@ -909,7 +918,7 @@ def webhook_waha():
     # ==============================================================================
     # 🚫 ESCUDO ANTI-STATUS E ANTI-CANAIS (NEWSLETTER)
     # ==============================================================================
-    if from_number == 'status@broadcast' or '@newsletter' in str(from_number):
+    if str(from_number) == 'status@broadcast' or '@newsletter' in str(from_number):
         logging.info(f"🚫 Bloqueio Rápido: Ignorando Status/Canal vindo de {from_number}")
         return jsonify({"status": "ignored_system_message"}), 200    
 
@@ -989,6 +998,7 @@ def webhook_waha():
         enviar_mensagem_waha(session_id, from_number, "Desculpe, ainda estou aprendendo a ouvir áudios por este novo sistema! Poderia digitar? ✨")
 
     return jsonify({"status": "success"}), 200
+
 
 # ============================================
 # ⚙️ ROTA DE CONFIGURAÇÕES (INTACTA)
