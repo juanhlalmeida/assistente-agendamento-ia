@@ -833,7 +833,7 @@ def webhook_waha():
         logging.info(f"🔄 WAHA Status: A sessão '{session_id}' mudou para '{status}'")
         return jsonify({"status": "success"}), 200
 
-    if event != 'message':
+    if event not in ['message', 'message.any']:
         return jsonify({"status": "ignored_event"}), 200
 
     # ==============================================================================

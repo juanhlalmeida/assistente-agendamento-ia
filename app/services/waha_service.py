@@ -156,7 +156,7 @@ def criar_sessao_waha(session_id):
             "webhooks": [
                 {
                     "url": meu_webhook,
-                    "events": ["message", "session.status"]
+                    "events": ["message.any", "session.status"]
                 }
             ]
         }

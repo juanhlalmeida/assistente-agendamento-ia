@@ -1309,6 +1309,14 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 regra_profissional_dinamica=regra_profissional
             )
             
+        # 👇 MUDANÇA AQUI: O safety_settings deve ficar alinhado com o current_model (FORA do else)
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
+            
         current_model = genai.GenerativeModel(
             model_name=model_name_to_use,
             tools=[tools],
