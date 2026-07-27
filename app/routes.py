@@ -852,11 +852,9 @@ def webhook_waha():
     import redis
     import os
     
-    # 🔥 CORREÇÃO SÊNIOR: Puxando direto da veia da Render!
     redis_url = os.environ.get('REDIS_URL')
     
     try:
-        # Só tenta conectar se a Render entregar a URL correta
         if redis_url:
             cliente_redis = redis.from_url(redis_url)
         else:
@@ -868,16 +866,29 @@ def webhook_waha():
 
     from_me = payload.get('fromMe', False)
     if from_me:
-        to_number = payload.get('to') # Descobre para qual cliente a Carol mandou mensagem
-        if to_number and barbearia_id and cliente_redis:
-            chave_pausa = f"pausa_ia_{barbearia_id}_{to_number}"
-            try:
-                # 14400 segundos = 4 horas exatas de silêncio
-                cliente_redis.setex(chave_pausa, 14400, "pausado")
-                logging.info(f"🤫 AUTO-PAUSA: A loja {barbearia_id} assumiu a conversa com o cliente {to_number}. IA silenciada por 4 horas.")
-            except Exception as e:
-                logging.error(f"Erro ao pausar IA no Redis: {e}")
-        return jsonify({"status": "ignored_from_me_and_paused"}), 200
+        # 👇 A MÁGICA SALVADORA: Evita que a IA pause a si mesma! 👇
+        # Verifica se a mensagem veio do celular da Carol (app/web) ou da IA (api)
+        source = str(payload.get("source", "")).lower()
+        
+        # Se a origem NÃO for a API, significa que a Carol digitou no celular/WhatsApp Web
+        if source != "api":
+            to_number = payload.get('to')
+            if not to_number and 'to' in payload.get('message', {}):
+                 to_number = payload['message']['to']
+                 
+            if to_number and '@g.us' not in to_number and barbearia_id and cliente_redis:
+                import re
+                to_numero_limpo = re.sub(r'\D', '', to_number.split('@')[0])
+                chave_pausa = f"pausa_ia_{barbearia_id}_{to_numero_limpo}"
+                
+                try:
+                    # 14400 segundos = 4 horas exatas de silêncio
+                    cliente_redis.setex(chave_pausa, 14400, "pausado")
+                    logging.info(f"🤫 AUTO-PAUSA ATIVADA! A Carol assumiu a conversa no celular (Source: {source}). IA silenciada por 4h para o cliente {to_numero_limpo}.")
+                except Exception as e:
+                    logging.error(f"Erro ao pausar IA no Redis: {e}")
+                    
+        return jsonify({"status": "ignored_from_me"}), 200
 
     from_number = payload.get('from')
 
