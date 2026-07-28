@@ -816,7 +816,7 @@ def webhook_meta():
         return "Método não permitido", 405
     
 # ==============================================================================
-# 🚀 ROTA DO WEBHOOK DO WAHA (NOVO MOTOR - FASE 3 COM AUTO-PAUSA BLINDADA)
+# 🚀 ROTA DO WEBHOOK DO WAHA (VERSÃO DEFINITIVA - PRODUÇÃO SEM DUPLICIDADE)
 # ==============================================================================
 @bp.route('/api/webhooks/waha', methods=['POST'])
 def webhook_waha():
@@ -828,9 +828,7 @@ def webhook_waha():
     session_id = data.get('session')
     payload = data.get('payload', {})
 
-    # ==============================================================================
-    # 📡 RADAR ABSOLUTO (Rastreabilidade Total)
-    # ==============================================================================
+    # 📡 RADAR ABSOLUTO
     logging.info(f"📡 RADAR WAHA - Evento: {event} | Session: {session_id} | fromMe: {payload.get('fromMe')} | source: {payload.get('source')}")
 
     if event == 'session.status':
@@ -838,11 +836,12 @@ def webhook_waha():
         logging.info(f"🔄 WAHA Status: A sessão '{session_id}' mudou para '{status}'")
         return jsonify({"status": "success"}), 200
 
-    if event not in ['message', 'message.any']:
+    # 🛑 BLINDAGEM CONTRA ECO: Processa EXCLUSIVAMENTE 'message.any' para evitar disparos duplos
+    if event and event != 'message.any':
         return jsonify({"status": "ignored_event"}), 200
 
     # ==============================================================================
-    # 🕵️‍♂️ IDENTIFICADOR A LASER
+    # 🕵️‍♂️ IDENTIFICADOR A LASER DA LOJA
     # ==============================================================================
     barbearia_id = None
     if session_id:
@@ -852,55 +851,62 @@ def webhook_waha():
             barbearia_id = int(match.group(1))
 
     # ==============================================================================
-    # 🤫 MODO INTERVENÇÃO HUMANA (AUTO-PAUSA DE 4 HORAS)
+    # 🔗 CONEXÃO COM O REDIS
     # ==============================================================================
     import redis
     import os
-    
     redis_url = os.environ.get('REDIS_URL')
-    
     try:
-        if redis_url:
-            cliente_redis = redis.from_url(redis_url)
-        else:
-            logging.error("Aviso: Variável REDIS_URL não encontrada na Render!")
-            cliente_redis = None
+        cliente_redis = redis.from_url(redis_url) if redis_url else None
     except Exception as e:
-        logging.error(f"Erro ao conectar no Redis para Pausa: {e}")
+        logging.error(f"Erro ao conectar no Redis: {e}")
         cliente_redis = None
 
+    # Extração de campos essenciais do WAHA
+    message_id = payload.get('id')
     from_me = payload.get('fromMe', False)
-    if from_me:
-        # 👇 A MÁGICA SALVADORA: Evita que a IA pause a si mesma! 👇
-        # Captura segura da origem
-        source = str(payload.get("source", "")).lower()
-        origens_humanas = ["app", "web", "ios", "android", "desktop", "smb"]
-        
-        # Só ativa a pausa se vier de um dispositivo humano conhecido OU se não for a API (e não for vazio)
-        if source in origens_humanas or (source != "api" and source != ""):
-            to_number = payload.get('to')
-            if not to_number and 'to' in payload.get('message', {}):
-                 to_number = payload['message']['to']
-                 
-            # Evita pausar se o destino for um grupo
-            if to_number and '@g.us' not in to_number and barbearia_id and cliente_redis:
-                import re
-                to_numero_limpo = re.sub(r'\D', '', to_number.split('@')[0])
-                chave_pausa = f"pausa_ia_{barbearia_id}_{to_numero_limpo}"
-                
-                try:
-                    # 14400 segundos = 4 horas exatas de silêncio
-                    cliente_redis.setex(chave_pausa, 14400, "pausado")
-                    logging.info(f"🤫 AUTO-PAUSA ATIVADA! Intervenção humana (Source: {source}). IA silenciada por 4h para o cliente {to_numero_limpo}.")
-                except Exception as e:
-                    logging.error(f"Erro ao pausar IA no Redis: {e}")
-                    
-        return jsonify({"status": "ignored_from_me"}), 200
-
-    from_number = payload.get('from')
+    source = str(payload.get('source', 'app')).lower()
 
     # ==============================================================================
-    # 🛑 VERIFICAÇÃO DA PAUSA (A IA deve ficar calada para este cliente?)
+    # 1. 🛡️ TRAVA ANTI-DUPLICIDADE POR ID DE MENSAGEM (Garante 1 único processamento)
+    # ==============================================================================
+    if cliente_redis and message_id:
+        dedup_key = f"processed_msg:{message_id}"
+        try:
+            # Tenta guardar o ID por 15 segundos. Se já existir, rejeita imediatamente.
+            if not cliente_redis.set(dedup_key, "1", ex=15, nx=True):
+                logging.info(f"🛡️ Duplicidade evitada para a mensagem ID: {message_id}")
+                return jsonify({"status": "duplicate_ignored"}), 200
+        except Exception as e:
+            logging.error(f"Erro no Redis dedup: {e}")
+
+    # ==============================================================================
+    # 2. 🤫 MODO INTERVENÇÃO HUMANA (AUTO-PAUSA QUANDO A CAROL RESPONDE)
+    # ==============================================================================
+    if from_me and source in ["app", "web", "ios", "android", "desktop", "smb"]:
+        # Caçada agressiva ao número do cliente para o qual a Carol enviou a mensagem
+        to_number = payload.get('to') or payload.get('chatId')
+        if not to_number and 'to' in payload.get('message', {}):
+             to_number = payload['message']['to']
+             
+        if to_number and '@g.us' not in str(to_number) and barbearia_id and cliente_redis:
+            import re
+            to_numero_limpo = re.sub(r'\D', '', str(to_number).split('@')[0])
+            chave_pausa = f"pausa_ia_{barbearia_id}_{to_numero_limpo}"
+            
+            try:
+                # Silencia o bot por 4 horas exatas (14400 segundos) para este cliente
+                cliente_redis.setex(chave_pausa, 14400, "pausado")
+                logging.info(f"🤫 AUTO-PAUSA ATIVADA! A Carol assumiu o chat. Bot silenciado por 4h para o número {to_numero_limpo}.")
+            except Exception as e:
+                logging.error(f"Erro ao pausar IA no Redis: {e}")
+                
+        return jsonify({"status": "ignored_from_me"}), 200
+
+    from_number = payload.get('from') or payload.get('chatId')
+
+    # ==============================================================================
+    # 3. 🛑 VERIFICAÇÃO DE PAUSA (O bot deve ficar calado para este cliente?)
     # ==============================================================================
     if barbearia_id and from_number and cliente_redis:
         import re
@@ -908,7 +914,7 @@ def webhook_waha():
         chave_pausa = f"pausa_ia_{barbearia_id}_{from_numero_limpo}"
         try:
             if cliente_redis.get(chave_pausa):
-                logging.info(f"🤐 SILÊNCIO: IA ignorou mensagem de {from_numero_limpo} porque está no Modo Intervenção Humana.")
+                logging.info(f"🤐 SILÊNCIO: Bot ignorou mensagem de {from_numero_limpo} porque a loja está a atender.")
                 return jsonify({"status": "paused_by_human"}), 200
         except Exception as e:
             logging.error(f"Erro ao checar pausa no Redis: {e}")
@@ -916,14 +922,14 @@ def webhook_waha():
     logging.info(f"🕵️‍♂️ DEBUG WAHA: Mensagem batendo na porta vinda de: {from_number}")
 
     # ==============================================================================
-    # 🚫 ESCUDO ANTI-STATUS E ANTI-CANAIS (NEWSLETTER)
+    # 🚫 ESCUDO ANTI-STATUS E ANTI-CANAIS
     # ==============================================================================
-    if str(from_number) == 'status@broadcast' or '@newsletter' in str(from_number):
-        logging.info(f"🚫 Bloqueio Rápido: Ignorando Status/Canal vindo de {from_number}")
+    if str(from_number) == 'status@broadcast' or '@newsletter' in str(from_number) or '@g.us' in str(from_number):
+        logging.info(f"🚫 Bloqueio Rápido: Ignorando Status/Grupo/Canal vindo de {from_number}")
         return jsonify({"status": "ignored_system_message"}), 200    
 
     # ==============================================================================
-    # 🚀 CHAMADA DO NOSSO PROTETOR ISOLADO (WAHA_UTILS)
+    # 🚀 CHAMADA DO PROTETOR ISOLADO (WAHA_UTILS)
     # ==============================================================================
     from app.services.waha_utils import extrair_e_filtrar_mensagem_waha
     sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload, session_id)
@@ -946,12 +952,11 @@ def webhook_waha():
     logging.info(f"✅ WAHA: Mensagem de {from_number} conectada à loja {barbearia.nome_fantasia}")
 
     # ==============================================================================
-    # 🤖 PROCESSAMENTO DA IA E LOGS (Fluxo Limpo Unificado)
+    # 🤖 PROCESSAMENTO DA IA E LOGS
     # ==============================================================================
     msg_type = payload.get('type', 'text')
 
     if msg_type in ['chat', 'text', 'image', 'video', 'document']:
-        # --- ESPIÃO DO CLIENTE (Salva no Log do Painel) ---
         try:
             log_cliente = ChatLog(
                 barbearia_id=barbearia.id,
@@ -964,7 +969,6 @@ def webhook_waha():
         except Exception as e:
             logging.error(f"Erro ao salvar log WAHA cliente: {e}")
 
-        # --- O CÉREBRO: CHAMA A INTELIGÊNCIA ARTIFICIAL ---
         from app.services import ai_service
         resposta_ia = ai_service.processar_ia_gemini(
             user_message=body,
@@ -974,7 +978,6 @@ def webhook_waha():
         )
 
         if resposta_ia:
-            # --- ESPIÃO DA IA (Salva no Log do Painel) ---
             try:
                 log_ia = ChatLog(
                     barbearia_id=barbearia.id,
@@ -987,12 +990,10 @@ def webhook_waha():
             except Exception as e:
                 logging.error(f"Erro ao salvar log WAHA IA: {e}")
 
-            # --- DISPARO: ENVIA A RESPOSTA USANDO O NOVO MOTOR WAHA ---
             from app.services.waha_service import enviar_mensagem_waha
             enviar_mensagem_waha(session_id, from_number, resposta_ia)
 
     elif msg_type == 'ptt' or msg_type == 'audio':
-        # Na próxima fase poderemos integrar a tradução de áudio do WAHA
         logging.info("🔊 Áudio recebido via WAHA (Ainda em implementação)")
         from app.services.waha_service import enviar_mensagem_waha
         enviar_mensagem_waha(session_id, from_number, "Desculpe, ainda estou aprendendo a ouvir áudios por este novo sistema! Poderia digitar? ✨")
