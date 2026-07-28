@@ -862,7 +862,7 @@ def webhook_waha():
         logging.error(f"Erro ao conectar no Redis: {e}")
         cliente_redis = None
 
-    # Extração de campos essenciais do WAHA
+ # Extração de campos essenciais do WAHA
     message_id = payload.get('id')
     from_me = payload.get('fromMe', False)
     source = str(payload.get('source', 'app')).lower()
@@ -883,11 +883,19 @@ def webhook_waha():
     # ==============================================================================
     # 2. 🤫 MODO INTERVENÇÃO HUMANA (AUTO-PAUSA QUANDO A CAROL RESPONDE)
     # ==============================================================================
-    if from_me and source in ["app", "web", "ios", "android", "desktop", "smb"]:
+    if from_me:
+        # 👇 ALTERAÇÃO CIRÚRGICA: Verifica se a mensagem foi enviada pela IA através da Assinatura Invisível
+        message_obj = payload.get('message', {})
+        texto_enviado = str(payload.get('body') or message_obj.get('body') or '')
+
+        if texto_enviado.endswith('\u200B'):
+            logging.info("🤖 Mensagem enviada pela própria IA detectada. Ignorando auto-pausa.")
+            return jsonify({"status": "ignored_bot_message"}), 200
+
         # Caçada agressiva ao número do cliente para o qual a Carol enviou a mensagem
         to_number = payload.get('to') or payload.get('chatId')
-        if not to_number and 'to' in payload.get('message', {}):
-             to_number = payload['message']['to']
+        if not to_number and 'to' in message_obj:
+             to_number = message_obj['to']
              
         if to_number and '@g.us' not in str(to_number) and barbearia_id and cliente_redis:
             import re
@@ -931,6 +939,7 @@ def webhook_waha():
     # ==============================================================================
     # 🚀 CHAMADA DO PROTETOR ISOLADO (WAHA_UTILS)
     # ==============================================================================
+    
     from app.services.waha_utils import extrair_e_filtrar_mensagem_waha
     sucesso, resultado = extrair_e_filtrar_mensagem_waha(payload, session_id)
     

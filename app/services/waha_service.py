@@ -33,6 +33,10 @@ def enviar_mensagem_waha(session_id, to_number, text):
     """Envia uma mensagem de texto simulando o comportamento humano (Typing...)"""
     chat_id = formatar_numero_waha(to_number)
     
+    # 👇 ALTERAÇÃO CIRÚRGICA: Injeta a assinatura invisível da IA (Zero-Width Space)
+    if text and not text.endswith('\u200B'):
+        text = text + "\u200B"
+    
     # --- ESTRATÉGIA ANTI-BAN: Simular digitação humana ---
     try:
         requests.post(
