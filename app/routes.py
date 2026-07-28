@@ -893,15 +893,16 @@ def webhook_waha():
             logging.info("🤖 Mensagem enviada pela própria IA detectada. Ignorando auto-pausa.")
             return jsonify({"status": "ignored_bot_message"}), 200
 
-        # Caçada exaustiva ao número do cliente para o qual o dono respondeu
+        # Caçada exaustiva com o SEGREDO DO WAHA: O cliente vem no campo 'from' ou no 'remoteJid'
+        _data = payload.get('_data', {})
+        key = _data.get('key', {})
+        
         to_number = (
             payload.get('to') or 
+            payload.get('from') or      # 🎯 A PEÇA QUE FALTAVA!
             payload.get('chatId') or 
-            payload.get('recipient') or 
-            payload.get('remoteJid') or 
-            message_obj.get('to') or 
-            message_obj.get('chatId') or
-            message_obj.get('remoteJid')
+            key.get('remoteJid') or     # 🎯 GARANTIA ABSOLUTA DO WHATSAPP WEB
+            message_obj.get('to')
         )
         
         logging.info(f"🔍 Destinatário extraído da mensagem do dono: {to_number}")
