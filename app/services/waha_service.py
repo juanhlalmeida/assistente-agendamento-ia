@@ -43,7 +43,7 @@ def enviar_mensagem_waha(session_id, to_number, text):
             f"{WAHA_BASE_URL}/api/startTyping",
             json={"session": session_id, "chatId": chat_id},
             headers=get_waha_headers(),
-            timeout=5
+            timeout=10
         )
         # Calcula um tempo de pausa realista baseado no tamanho da frase (max 3 segundos)
         tempo_pausa = min(len(text) * 0.05, 3) 
@@ -54,7 +54,7 @@ def enviar_mensagem_waha(session_id, to_number, text):
             f"{WAHA_BASE_URL}/api/stopTyping",
             json={"session": session_id, "chatId": chat_id},
             headers=get_waha_headers(),
-            timeout=5
+            timeout=10
         )
     except Exception as e:
         logging.warning(f"Aviso WAHA (Ignorável): Falha ao simular digitação: {e}")
@@ -71,7 +71,7 @@ def enviar_mensagem_waha(session_id, to_number, text):
             f"{WAHA_BASE_URL}/api/sendText",
             json=payload,
             headers=get_waha_headers(),
-            timeout=10
+            timeout=20
         )
         response.raise_for_status() # Dispara erro se não for Status 200
         logging.info(f"[WAHA] Mensagem enviada com sucesso para {chat_id}")

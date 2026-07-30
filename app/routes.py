@@ -885,14 +885,23 @@ def webhook_waha():
         import json
         logging.info(f"🚨 JSON REAL DO WAHA (DONO): {json.dumps(payload, ensure_ascii=False)}")
 
+        # 🛡️ BLINDAGEM CAMADA 1: Verifica a FONTE do disparo (O segredo do WAHA)
+        # Se a mensagem saiu do nosso servidor Python, a source será 'api'
+        source = payload.get('source', '')
+        if source == 'api':
+            logging.info("🤖 Mensagem enviada pela NOSSA API (Bot). Ignorando auto-pausa.")
+            return jsonify({"status": "ignored_bot_message"}), 200
+
+        # 🛡️ BLINDAGEM CAMADA 2: O Caractere Invisível (Garantia para textos)
         message_obj = payload.get('message', {})
         texto_enviado = str(payload.get('body') or message_obj.get('body') or '')
 
-        # Se termina com o caractere invisível, foi a IA. Ignora a pausa.
         if texto_enviado.endswith('\u200B'):
-            logging.info("🤖 Mensagem enviada pela própria IA detectada. Ignorando auto-pausa.")
+            logging.info("🤖 Mensagem assinada pela IA detectada. Ignorando auto-pausa.")
             return jsonify({"status": "ignored_bot_message"}), 200
 
+        # 🧑‍🦰 SE PASSOU PELOS 2 ESCUDOS ACIMA, FOI UM HUMANO DIGITANDO NO CELULAR!
+        
         # Caçada exaustiva com o SEGREDO DO WAHA: O cliente vem no campo 'from' ou no 'remoteJid'
         _data = payload.get('_data', {})
         key = _data.get('key', {})
@@ -914,7 +923,7 @@ def webhook_waha():
             
             try:
                 cliente_redis.setex(chave_pausa, 14400, "pausado")
-                logging.info(f"🤫 AUTO-PAUSA ATIVADA COM SUCESSO! Chave criada: {chave_pausa}")
+                logging.info(f"🤫 AUTO-PAUSA ATIVADA COM SUCESSO! A IA vai calar-se para o número {to_numero_limpo}.")
             except Exception as e:
                 logging.error(f"Erro ao pausar IA no Redis: {e}")
         else:
