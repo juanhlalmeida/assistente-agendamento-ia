@@ -1,6 +1,5 @@
 # app/routes.py
 # (VERSÃO FINAL: BASEADO NO SEU ARQUIVO ORIGINAL + ATUALIZAÇÃO DE PLANOS)
-
 import os
 import logging
 import json
@@ -432,17 +431,14 @@ def agenda():
                 )
 
                 # =================================================================
-                # 📢 NOTIFICAÇÃO 1: PARA O CLIENTE (LINK CURTO 🔗)
+                # 📢 NOTIFICAÇÃO 1: PARA O CLIENTE E PARA O DONO (COM THREADS)
                 # =================================================================
                 try:
                     barbearia_atual = Barbearia.query.get(barbearia_id_logada)
                     
+                    # --- Preparar Mensagem do Cliente ---
                     if barbearia_atual.assinatura_ativa:
-                        
-                        # GERAR LINK CURTO (Aponta para a rota que criamos no Passo 1)
                         link_curto = url_for('main.redirect_gcal', agendamento_id=novo_agendamento.id, _external=True)
-                        
-                        # Mensagem mais limpa
                         msg_cliente = (
                             f"✅ *Agendamento Confirmado!*\n\n"
                             f"🗓 {novo_inicio.strftime('%d/%m')} às {novo_inicio.strftime('%H:%M')}\n"
@@ -453,31 +449,23 @@ def agenda():
                         tel_destino = telefone_cliente
                         if len(tel_destino) <= 11: tel_destino = "55" + tel_destino
                         
-                        enviar_mensagem_whatsapp_meta(tel_destino, msg_cliente, barbearia_atual)
+                        # 🧵 DISPARO ASSÍNCRONO PARA O CLIENTE (THREAD)
+                        t_cliente = threading.Thread(
+                            target=enviar_mensagem_whatsapp_meta, 
+                            args=(tel_destino, msg_cliente, barbearia_atual)
+                        )
+                        t_cliente.start()
 
-                except Exception as e_client:
-                    current_app.logger.error(f"Erro ao notificar cliente: {e_client}")
-                
-                # =================================================================
-                # 🔔 NOTIFICAÇÃO PARA O DONO (COM TEMA DINÂMICO LASH/BARBER)
-                # =================================================================
-                try:
+                    # --- Preparar Mensagem do Dono ---
                     barbearia_dono = profissional.barbearia
                     if barbearia_dono.telefone_admin and barbearia_dono.assinatura_ativa:
-                        
-                        # --- DETECÇÃO DE TEMA DINÂMICO ---
                         nome_loja = barbearia_dono.nome_fantasia.lower()
-                        # Lista de palavras-chave para o nicho de beleza
                         is_lash = any(x in nome_loja for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'beleza', 'estética'])
                         
                         if is_lash:
-                            emoji_titulo = "🦋✨"
-                            emoji_servico = "💅"
-                            emoji_prof = "👩‍⚕️"
+                            emoji_titulo, emoji_servico, emoji_prof = "🦋✨", "💅", "👩‍⚕️"
                         else:
-                            emoji_titulo = "💈✂️"
-                            emoji_servico = "🪒"
-                            emoji_prof = "👊"
+                            emoji_titulo, emoji_servico, emoji_prof = "💈✂️", "🪒", "👊"
 
                         msg_dono = (
                             f"🔔 *Novo Agendamento (Via Painel)* {emoji_titulo}\n\n"
@@ -487,10 +475,18 @@ def agenda():
                             f"🗓 Data: {novo_inicio.strftime('%d/%m às %H:%M')}\n"
                             f"{emoji_prof} Prof: {profissional.nome}"
                         )
-                        enviar_mensagem_whatsapp_meta(barbearia_dono.telefone_admin, msg_dono, barbearia_dono)
+                        
+                        # 🧵 DISPARO ASSÍNCRONO PARA O DONO (THREAD)
+                        t_dono = threading.Thread(
+                            target=enviar_mensagem_whatsapp_meta, 
+                            args=(barbearia_dono.telefone_admin, msg_dono, barbearia_dono)
+                        )
+                        t_dono.start()
+
                 except Exception as e_notify:
                     # Não bloqueia o agendamento se a notificação falhar
-                    logging.error(f"Erro ao notificar dono: {e_notify}")
+                    logging.error(f"Erro ao disparar threads de notificação: {e_notify}")
+                    
                 # =================================================================
 
                 flash('Agendamento criado com sucesso!', 'success')
