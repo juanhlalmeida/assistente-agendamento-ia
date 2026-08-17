@@ -1975,25 +1975,26 @@ def waha_gerar_qr():
         return jsonify({"success": False, "error": qr_b64}), 500
     
 # ==============================================================================
-# 📱 PASSO 2: GERAR CÓDIGO DE LIGAÇÃO SEM QR CODE (EMPARELHAMENTO WAHA)
+# 📱 PASSO 2: GERAR CÓDIGO DE LIGAÇÃO SEM QR CODE (AJAX / TEMPO REAL)
 # ==============================================================================
 import requests
 
 @bp.route('/conectar_numero', methods=['POST'])
 @login_required
 def conectar_numero():
-    telefone = request.form.get('telefone')
+    data = request.json or {}
+    telefone = data.get('telefone')
+    
+    logging.info(f"📱 Pedido de emparelhamento WAHA recebido para: {telefone}")
     
     if not telefone:
-        flash('Por favor, digite o seu número de WhatsApp.', 'danger')
-        return redirect(url_for('main.configuracoes'))
+        return jsonify({"success": False, "error": "Número não fornecido."}), 400
 
     barbearia_id = current_user.barbearia_id
     session_id = f"loja-{barbearia_id}"
     
     import re
     telefone_limpo = re.sub(r'\D', '', telefone)
-    
     if len(telefone_limpo) <= 11:
         telefone_limpo = f"55{telefone_limpo}"
 
@@ -2003,18 +2004,17 @@ def conectar_numero():
         payload = {"phoneNumber": telefone_limpo}
         headers = {"Content-Type": "application/json"}
 
-        response = requests.post(endpoint, json=payload, headers=headers, timeout=15)
+        logging.info(f"👉 Pedindo código à Meta. Payload: {payload}")
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=20)
+        logging.info(f"👉 Resposta WAHA: {response.status_code} - {response.text}")
         
         if response.status_code in [200, 201]:
-            dados = response.json()
-            codigo = dados.get('code')
-            flash(f'TUDO PRONTO! O SEU CÓDIGO É: {codigo} - Abra o WhatsApp no telemóvel, vá em "Aparelhos Conectados" > "Conectar com Número" e digite este código!', 'success')
+            codigo = response.json().get('code')
+            return jsonify({"success": True, "code": codigo})
         else:
-            erro_msg = response.json().get('message', 'Erro desconhecido')
-            flash(f'O WAHA recusou o número: {erro_msg}', 'danger')
+            erro_msg = response.json().get('message', response.text)
+            return jsonify({"success": False, "error": erro_msg})
             
     except Exception as e:
         logging.error(f"Erro ao pedir código WAHA: {e}")
-        flash('Erro de conexão com o servidor do WhatsApp.', 'danger')
-
-    return redirect(url_for('main.configuracoes'))
+        return jsonify({"success": False, "error": str(e)})

@@ -107,6 +107,7 @@
                     <span id="btn-waha-text">Gerar QR Code</span>
                 </button>
             </div>
+
             <!-- ========================================================== -->
             <!-- 📱 PASSO 2: CONEXÃO VIA NÚMERO DE TELEFONE (SEM QR CODE) -->
             <!-- ========================================================== -->
@@ -116,18 +117,79 @@
                     Não consegue ler o QR Code?
                 </h3>
                 <p class="text-sm text-gray-400 mb-4">
-                    Se você está usando o próprio celular, digite seu número abaixo para gerar um <b>Código de Emparelhamento</b> e conectar sem precisar da câmera.
+                    Digite seu número abaixo para gerar um <b>Código de Emparelhamento</b> e conectar sem precisar da câmera.
                 </p>
                 
-                <form action="{{ url_for('main.conectar_numero') }}" method="POST" class="flex flex-col md:flex-row gap-3">
-                    <input type="text" name="telefone" placeholder="Seu WhatsApp (Ex: 13991234567)" required
+                <div class="flex flex-col md:flex-row gap-3">
+                    <input type="text" id="input-telefone-waha" placeholder="Seu WhatsApp (Ex: 13991234567)" 
                            class="flex-1 bg-background-dark border border-gray-700 rounded-xl p-3 text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-colors">
-                    <button type="submit" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl transition-all border border-gray-600 hover:border-gray-500 flex items-center justify-center gap-2">
-                        <span class="material-symbols-outlined">key</span>
-                        Gerar Código
+                    <button type="button" id="btn-gerar-codigo-waha" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl transition-all border border-gray-600 hover:border-gray-500 flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined" id="icon-gerar-codigo">key</span>
+                        <span id="text-gerar-codigo">Gerar Código</span>
                     </button>
-                </form>
+                </div>
+
+                <!-- 🤩 A CAIXINHA ONDE O CÓDIGO VAI APARECER MAGICA MENTE -->
+                <div id="area-codigo-waha" class="hidden mt-6 bg-green-500/10 border border-green-500/30 rounded-xl p-6 text-center shadow-lg">
+                    <p class="text-green-400 text-sm font-bold mb-2 uppercase tracking-wider">O seu código de emparelhamento é:</p>
+                    <h1 class="text-5xl font-mono font-black text-white tracking-[0.2em]" id="display-codigo-waha">----</h1>
+                    <p class="text-gray-400 text-sm mt-3">No seu WhatsApp, vá a <b>Aparelhos Conectados</b> > <b>Conectar com número de telefone</b> e digite o código acima.</p>
+                </div>
             </div>
+
+            <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const btnGerarCodigo = document.getElementById('btn-gerar-codigo-waha');
+                if (btnGerarCodigo) {
+                    btnGerarCodigo.addEventListener('click', function() {
+                        const telefone = document.getElementById('input-telefone-waha').value;
+                        if (!telefone) {
+                            alert('Por favor, digite o seu número do WhatsApp!');
+                            return;
+                        }
+                        
+                        const btnIcon = document.getElementById('icon-gerar-codigo');
+                        const btnText = document.getElementById('text-gerar-codigo');
+                        const areaCodigo = document.getElementById('area-codigo-waha');
+                        const displayCodigo = document.getElementById('display-codigo-waha');
+                        
+                        // Estado de loading
+                        btnIcon.innerText = 'sync';
+                        btnIcon.classList.add('animate-spin');
+                        btnText.innerText = 'Gerando...';
+                        btnGerarCodigo.disabled = true;
+                        
+                        fetch("{{ url_for('main.conectar_numero') }}", {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ telefone: telefone })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            btnIcon.classList.remove('animate-spin');
+                            btnIcon.innerText = 'key';
+                            btnText.innerText = 'Gerar Código';
+                            btnGerarCodigo.disabled = false;
+                            
+                            if(data.success) {
+                                displayCodigo.innerText = data.code;
+                                areaCodigo.classList.remove('hidden'); // Mostra a caixa gigante!
+                            } else {
+                                alert('O servidor recusou: ' + data.error);
+                            }
+                        })
+                        .catch(err => {
+                            btnIcon.classList.remove('animate-spin');
+                            btnIcon.innerText = 'key';
+                            btnText.innerText = 'Gerar Código';
+                            btnGerarCodigo.disabled = false;
+                            alert('Erro ao comunicar com o servidor.');
+                        });
+                    });
+                }
+            });
+            </script>
+            <!-- ========================================================== -->
             <!-- ========================================================== -->
         </div>
         {% endif %}
