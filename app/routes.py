@@ -2000,7 +2000,7 @@ def conectar_numero():
 
     try:
         WAHA_URL = "http://waha-agendamento-ia:10000" 
-        endpoint = f"{WAHA_URL}/api/sessions/{session_id}/auth/request-code"
+        endpoint = f"{WAHA_URL}/api/{session_id}/auth/request-code"
         payload = {"phoneNumber": telefone_limpo}
         
         # 👇 A CORREÇÃO ESTÁ AQUI: Importar a sua função de segurança que já tem a Chave da API
