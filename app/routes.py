@@ -2002,7 +2002,10 @@ def conectar_numero():
         WAHA_URL = "http://waha-agendamento-ia:10000" 
         endpoint = f"{WAHA_URL}/api/sessions/{session_id}/auth/request-code"
         payload = {"phoneNumber": telefone_limpo}
-        headers = {"Content-Type": "application/json"}
+        
+        # 👇 A CORREÇÃO ESTÁ AQUI: Importar a sua função de segurança que já tem a Chave da API
+        from app.services.waha_service import get_waha_headers
+        headers = get_waha_headers()
 
         logging.info(f"👉 Pedindo código à Meta. Payload: {payload}")
         response = requests.post(endpoint, json=payload, headers=headers, timeout=20)
