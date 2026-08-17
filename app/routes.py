@@ -827,9 +827,18 @@ def webhook_waha():
     # 📡 RADAR ABSOLUTO
     logging.info(f"📡 RADAR WAHA - Evento: {event} | Session: {session_id} | fromMe: {payload.get('fromMe')} | source: {payload.get('source')}")
 
+    # ==============================================================================
+    # 🚨 PASSO 1: DETETOR DE QUEDA DA SESSÃO DO WAHA (CORRIGIDO)
+    # ==============================================================================
     if event == 'session.status':
         status = payload.get('status')
         logging.info(f"🔄 WAHA Status: A sessão '{session_id}' mudou para '{status}'")
+        
+        # Se o WhatsApp desconectar (telemóvel sem bateria, sem net ou sessão encerrada)
+        if status in ['FAILED', 'STOPPED']:
+            logging.error(f"🚨 ALERTA CRÍTICO: O WhatsApp da {session_id} foi DESCONECTADO!")
+            logging.error("👉 AVISAR A CAROL: Peça para ela acessar o painel e reconectar o WhatsApp!")
+            
         return jsonify({"status": "success"}), 200
 
     # 🛑 BLINDAGEM CONTRA ECO: Processa EXCLUSIVAMENTE 'message.any' para evitar disparos duplos
@@ -1964,3 +1973,48 @@ def waha_gerar_qr():
         return jsonify({"success": True, "qr_code": qr_b64})
     else:
         return jsonify({"success": False, "error": qr_b64}), 500
+    
+# ==============================================================================
+# 📱 PASSO 2: GERAR CÓDIGO DE LIGAÇÃO SEM QR CODE (EMPARELHAMENTO WAHA)
+# ==============================================================================
+import requests
+
+@bp.route('/conectar_numero', methods=['POST'])
+@login_required
+def conectar_numero():
+    telefone = request.form.get('telefone')
+    
+    if not telefone:
+        flash('Por favor, digite o seu número de WhatsApp.', 'danger')
+        return redirect(url_for('main.configuracoes'))
+
+    barbearia_id = current_user.barbearia_id
+    session_id = f"loja-{barbearia_id}"
+    
+    import re
+    telefone_limpo = re.sub(r'\D', '', telefone)
+    
+    if len(telefone_limpo) <= 11:
+        telefone_limpo = f"55{telefone_limpo}"
+
+    try:
+        WAHA_URL = "http://waha-agendamento-ia:10000" 
+        endpoint = f"{WAHA_URL}/api/sessions/{session_id}/auth/request-code"
+        payload = {"phoneNumber": telefone_limpo}
+        headers = {"Content-Type": "application/json"}
+
+        response = requests.post(endpoint, json=payload, headers=headers, timeout=15)
+        
+        if response.status_code in [200, 201]:
+            dados = response.json()
+            codigo = dados.get('code')
+            flash(f'TUDO PRONTO! O SEU CÓDIGO É: {codigo} - Abra o WhatsApp no telemóvel, vá em "Aparelhos Conectados" > "Conectar com Número" e digite este código!', 'success')
+        else:
+            erro_msg = response.json().get('message', 'Erro desconhecido')
+            flash(f'O WAHA recusou o número: {erro_msg}', 'danger')
+            
+    except Exception as e:
+        logging.error(f"Erro ao pedir código WAHA: {e}")
+        flash('Erro de conexão com o servidor do WhatsApp.', 'danger')
+
+    return redirect(url_for('main.configuracoes'))

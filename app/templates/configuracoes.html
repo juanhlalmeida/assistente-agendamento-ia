@@ -107,6 +107,28 @@
                     <span id="btn-waha-text">Gerar QR Code</span>
                 </button>
             </div>
+            <!-- ========================================================== -->
+            <!-- 📱 PASSO 2: CONEXÃO VIA NÚMERO DE TELEFONE (SEM QR CODE) -->
+            <!-- ========================================================== -->
+            <div class="mt-8 pt-6 border-t border-gray-700/50 relative z-10 text-left w-full">
+                <h3 class="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-green-400">dialpad</span>
+                    Não consegue ler o QR Code?
+                </h3>
+                <p class="text-sm text-gray-400 mb-4">
+                    Se você está usando o próprio celular, digite seu número abaixo para gerar um <b>Código de Emparelhamento</b> e conectar sem precisar da câmera.
+                </p>
+                
+                <form action="{{ url_for('main.conectar_numero') }}" method="POST" class="flex flex-col md:flex-row gap-3">
+                    <input type="text" name="telefone" placeholder="Seu WhatsApp (Ex: 13991234567)" required
+                           class="flex-1 bg-background-dark border border-gray-700 rounded-xl p-3 text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition-colors">
+                    <button type="submit" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-xl transition-all border border-gray-600 hover:border-gray-500 flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined">key</span>
+                        Gerar Código
+                    </button>
+                </form>
+            </div>
+            <!-- ========================================================== -->
         </div>
         {% endif %}
 
