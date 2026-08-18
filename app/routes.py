@@ -2047,7 +2047,7 @@ def conectar_numero():
         return jsonify({"success": False, "error": str(e)})
     
 
-@app.route('/api/waha/desconectar', methods=['POST'])
+@bp.route('/api/waha/desconectar', methods=['POST'])
 def desconectar_waha():
     try:
         import os
