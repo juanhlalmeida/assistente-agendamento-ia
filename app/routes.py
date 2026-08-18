@@ -2004,22 +2004,22 @@ def conectar_numero():
         headers = get_waha_headers()
 
         # 1. COMANDO MESTRE: Criar e Iniciar a sessão do zero
-        # Usamos a rota /api/sessions/start passando o nome no body (Cria se não existir)
         start_endpoint = f"{WAHA_URL}/api/sessions/start"
         payload_start = {"name": session_id}
         
         logging.info(f"🔄 CRIANDO e Iniciando a sessão no WAHA...")
         resp_start = requests.post(start_endpoint, json=payload_start, headers=headers, timeout=15)
+        
+        # O WAHA pode responder 422 se a sessão já estiver rodando, isso não é um problema.
         logging.info(f"👉 Resposta START: {resp_start.status_code} - {resp_start.text}")
 
-        # 2. ESPERAR O MOTOR AQUECER (CRUCIAL)
-        # O WAHA precisa de tempo para abrir o Chrome interno. Se pedirmos o código
-        # no mesmo milissegundo, ele recusa. Vamos aguardar 6 segundos.
+        # 2. ESPERAR O MOTOR AQUECER
         import time
-        time.sleep(6)
+        time.sleep(3) # 3 segundos são suficientes para o WAHA
 
-        # 3. PASSO REAL: Pedir o código de segurança (Rota Oficial Restaurada)
-        endpoint = f"{WAHA_URL}/api/sessions/{session_id}/auth/request-code"
+        # 3. PASSO REAL: Pedir o código de segurança (ROTA OFICIAL ATUALIZADA)
+        # Atenção ao '/qr/' adicionado na URL abaixo!
+        endpoint = f"{WAHA_URL}/api/sessions/{session_id}/auth/qr/request-code"
         payload = {"phoneNumber": telefone_limpo}
 
         logging.info(f"👉 Pedindo código à Meta. Payload: {payload}")
