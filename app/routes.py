@@ -2010,7 +2010,7 @@ def conectar_numero():
         # ---------------------------------------------------------
         # 1. INICIAR A SESSÃO NO WAHA
         # ---------------------------------------------------------
-        start_endpoint = f"{WAHA_URL}/api/sessions/start"
+        start_endpoint = f"{WAHA_URL}/api/sessions/{session_id}/start"
         payload_start = {"name": session_id}
         
         logging.info(f"🔄 Iniciando a sessão no WAHA: {start_endpoint}")
@@ -2028,7 +2028,7 @@ def conectar_numero():
         # 3. PEDIR O CÓDIGO (A URL OFICIAL E DEFINITIVA)
         # ---------------------------------------------------------
         # AQUI ESTAVA O MEU ERRO. ESTA É A ROTA EXATA:
-        endpoint = f"{WAHA_URL}/api/sessions/{session_id}/auth/request-code"
+        endpoint = f"{WAHA_URL}/api/{session_id}/auth/request-code"
         payload = {"phoneNumber": telefone_limpo}
 
         logging.info(f"👉 Pedindo código à Meta. Endpoint: {endpoint}")
