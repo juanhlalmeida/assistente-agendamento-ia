@@ -2003,22 +2003,28 @@ def conectar_numero():
         from app.services.waha_service import get_waha_headers
         headers = get_waha_headers()
 
-        # 1. PASSO DE CURA AUTOMÁTICA: Garantir que a sessão existe e está iniciada
-        start_endpoint = f"{WAHA_URL}/api/sessions/{session_id}/start"
-        logging.info(f"🔄 Iniciando a sessão no WAHA (Auto-cura): {start_endpoint}")
-        requests.post(start_endpoint, headers=headers, timeout=10) # Ignoramos a resposta, apenas damos o comando de start
+        # 1. COMANDO MESTRE: Criar e Iniciar a sessão do zero
+        # Usamos a rota /api/sessions/start passando o nome no body (Cria se não existir)
+        start_endpoint = f"{WAHA_URL}/api/sessions/start"
+        payload_start = {"name": session_id}
+        
+        logging.info(f"🔄 CRIANDO e Iniciando a sessão no WAHA...")
+        resp_start = requests.post(start_endpoint, json=payload_start, headers=headers, timeout=15)
+        logging.info(f"👉 Resposta START: {resp_start.status_code} - {resp_start.text}")
 
-        # 2. Aguardar 1 segundinho para o WAHA "respirar" e subir o motor WEBJS
+        # 2. ESPERAR O MOTOR AQUECER (CRUCIAL)
+        # O WAHA precisa de tempo para abrir o Chrome interno. Se pedirmos o código
+        # no mesmo milissegundo, ele recusa. Vamos aguardar 6 segundos.
         import time
-        time.sleep(1)
+        time.sleep(6)
 
-        # 3. PASSO REAL: Pedir o código de segurança
-        endpoint = f"{WAHA_URL}/api/{session_id}/auth/request-code"
+        # 3. PASSO REAL: Pedir o código de segurança (Rota Oficial Restaurada)
+        endpoint = f"{WAHA_URL}/api/sessions/{session_id}/auth/request-code"
         payload = {"phoneNumber": telefone_limpo}
 
         logging.info(f"👉 Pedindo código à Meta. Payload: {payload}")
         response = requests.post(endpoint, json=payload, headers=headers, timeout=20)
-        logging.info(f"👉 Resposta WAHA: {response.status_code} - {response.text}")
+        logging.info(f"👉 Resposta Código: {response.status_code} - {response.text}")
         
         if response.status_code in [200, 201]:
             codigo = response.json().get('code')
