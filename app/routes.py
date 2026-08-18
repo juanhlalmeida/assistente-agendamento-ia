@@ -2007,27 +2007,46 @@ def conectar_numero():
         WAHA_URL = os.environ.get('WAHA_BASE_URL', 'http://waha-agendamento-ia:10000').rstrip('/')
         headers = get_waha_headers()
 
-        # ---------------------------------------------------------
-        # 1. INICIAR A SESSÃO NO WAHA
-        # ---------------------------------------------------------
+        # -------------------------------------------------------------------------
+        # 1. INICIAR A SESSÃO JÁ CONFIGURANDO O WEBHOOK (O Segredo para o log funcionar)
+        # -------------------------------------------------------------------------
         start_endpoint = f"{WAHA_URL}/api/sessions/start"
-        payload_start = {"name": session_id}
         
-        logging.info(f"🔄 Iniciando a sessão no WAHA: {start_endpoint}")
+        # URL pública do seu app na Render que recebe os eventos
+        # (Certifique-se de que o domínio está correto para o seu ambiente)
+        webhook_url = f"{request.host_url.rstrip('/')}/api/webhooks/waha"
+        
+        payload_start = {
+            "name": session_id,
+            "config": {
+                "webhooks": [
+                    {
+                        "url": webhook_url,
+                        "events": [
+                            "session.status",
+                            "message",
+                            "message.any"
+                        ]
+                    }
+                ]
+            }
+        }
+        
+        logging.info(f"🔄 Iniciando a sessão e injetando webhook: {start_endpoint}")
         try:
-            requests.post(start_endpoint, json=payload_start, headers=headers, timeout=10)
+            resp_start = requests.post(start_endpoint, json=payload_start, headers=headers, timeout=15)
+            logging.info(f"👉 Resposta START: {resp_start.status_code} - {resp_start.text}")
         except requests.exceptions.RequestException as e:
             logging.error(f"⚠️ Erro de Rede ao iniciar: {e}")
 
-        # ---------------------------------------------------------
-        # 2. TEMPO PARA O MOTOR AQUECER (NOWEB é super rápido)
+        # -------------------------------------------------------------------------
+        # 2. TEMPO PARA O MOTOR ESTABILIZAR
         # ---------------------------------------------------------
         time.sleep(4) 
 
+        # -------------------------------------------------------------------------
+        # 3. PEDIR O CÓDIGO DE EMPARELHAMENTO
         # ---------------------------------------------------------
-        # 3. PEDIR O CÓDIGO (A URL OFICIAL E DEFINITIVA)
-        # ---------------------------------------------------------
-        # AQUI ESTAVA O MEU ERRO. ESTA É A ROTA EXATA:
         endpoint = f"{WAHA_URL}/api/{session_id}/auth/request-code"
         payload = {"phoneNumber": telefone_limpo}
 
