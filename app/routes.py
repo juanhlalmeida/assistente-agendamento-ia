@@ -2000,12 +2000,21 @@ def conectar_numero():
 
     try:
         WAHA_URL = "http://waha-agendamento-ia:10000" 
-        endpoint = f"{WAHA_URL}/api/{session_id}/auth/request-code"
-        payload = {"phoneNumber": telefone_limpo}
-        
-        # 👇 A CORREÇÃO ESTÁ AQUI: Importar a sua função de segurança que já tem a Chave da API
         from app.services.waha_service import get_waha_headers
         headers = get_waha_headers()
+
+        # 1. PASSO DE CURA AUTOMÁTICA: Garantir que a sessão existe e está iniciada
+        start_endpoint = f"{WAHA_URL}/api/sessions/{session_id}/start"
+        logging.info(f"🔄 Iniciando a sessão no WAHA (Auto-cura): {start_endpoint}")
+        requests.post(start_endpoint, headers=headers, timeout=10) # Ignoramos a resposta, apenas damos o comando de start
+
+        # 2. Aguardar 1 segundinho para o WAHA "respirar" e subir o motor WEBJS
+        import time
+        time.sleep(1)
+
+        # 3. PASSO REAL: Pedir o código de segurança
+        endpoint = f"{WAHA_URL}/api/{session_id}/auth/request-code"
+        payload = {"phoneNumber": telefone_limpo}
 
         logging.info(f"👉 Pedindo código à Meta. Payload: {payload}")
         response = requests.post(endpoint, json=payload, headers=headers, timeout=20)
