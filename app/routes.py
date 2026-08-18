@@ -1999,30 +1999,39 @@ def conectar_numero():
         telefone_limpo = f"55{telefone_limpo}"
 
     try:
-        WAHA_URL = "http://waha-agendamento-ia:10000" 
+        import os
+        import requests
+        import time
         from app.services.waha_service import get_waha_headers
+        
+        WAHA_URL = os.environ.get('WAHA_BASE_URL', 'http://waha-agendamento-ia:10000').rstrip('/')
         headers = get_waha_headers()
 
-        # 1. COMANDO MESTRE: Criar e Iniciar a sessão do zero
+        # ---------------------------------------------------------
+        # 1. INICIAR A SESSÃO NO WAHA
+        # ---------------------------------------------------------
         start_endpoint = f"{WAHA_URL}/api/sessions/start"
         payload_start = {"name": session_id}
         
-        logging.info(f"🔄 CRIANDO e Iniciando a sessão no WAHA...")
-        resp_start = requests.post(start_endpoint, json=payload_start, headers=headers, timeout=15)
-        
-        # O WAHA pode responder 422 se a sessão já estiver rodando, isso não é um problema.
-        logging.info(f"👉 Resposta START: {resp_start.status_code} - {resp_start.text}")
+        logging.info(f"🔄 Iniciando a sessão no WAHA: {start_endpoint}")
+        try:
+            requests.post(start_endpoint, json=payload_start, headers=headers, timeout=10)
+        except requests.exceptions.RequestException as e:
+            logging.error(f"⚠️ Erro de Rede ao iniciar: {e}")
 
-        # 2. ESPERAR O MOTOR AQUECER
-        import time
-        time.sleep(3) # 3 segundos são suficientes para o WAHA
+        # ---------------------------------------------------------
+        # 2. TEMPO PARA O MOTOR AQUECER (NOWEB é super rápido)
+        # ---------------------------------------------------------
+        time.sleep(4) 
 
-        # 3. PASSO REAL: Pedir o código de segurança (ROTA OFICIAL ATUALIZADA)
-        # Atenção ao '/qr/' adicionado na URL abaixo!
-        endpoint = f"{WAHA_URL}/api/sessions/{session_id}/auth/qr/request-code"
+        # ---------------------------------------------------------
+        # 3. PEDIR O CÓDIGO (A URL OFICIAL E DEFINITIVA)
+        # ---------------------------------------------------------
+        # AQUI ESTAVA O MEU ERRO. ESTA É A ROTA EXATA:
+        endpoint = f"{WAHA_URL}/api/sessions/{session_id}/auth/request-code"
         payload = {"phoneNumber": telefone_limpo}
 
-        logging.info(f"👉 Pedindo código à Meta. Payload: {payload}")
+        logging.info(f"👉 Pedindo código à Meta. Endpoint: {endpoint}")
         response = requests.post(endpoint, json=payload, headers=headers, timeout=20)
         logging.info(f"👉 Resposta Código: {response.status_code} - {response.text}")
         
@@ -2034,5 +2043,5 @@ def conectar_numero():
             return jsonify({"success": False, "error": erro_msg})
             
     except Exception as e:
-        logging.error(f"Erro ao pedir código WAHA: {e}")
+        logging.error(f"Erro Crítico no Emparelhamento: {e}")
         return jsonify({"success": False, "error": str(e)})
