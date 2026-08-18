@@ -106,6 +106,13 @@
                     <span class="material-symbols-outlined animate-none" id="btn-waha-icon">qr_code</span>
                     <span id="btn-waha-text">Gerar QR Code</span>
                 </button>
+                <!-- BOTÃO DE DESCONECTAR (VISUAL ADAPTADO AO SEU TEMA) -->
+                <button type="button" id="btn-desconectar" onclick="desconectarAssistente()" class="mt-4 bg-gray-800 hover:bg-red-600 text-red-400 hover:text-white font-bold py-2.5 px-6 rounded-xl transition-all duration-300 border border-red-900 hover:border-red-500 flex items-center justify-center gap-2 text-sm w-full md:w-auto mx-auto">
+                    <span class="material-symbols-outlined text-lg">link_off</span>
+                    <span>Desconectar Assistente</span>
+                </button>
+
+
             </div>
 
             <!-- ========================================================== -->
@@ -386,6 +393,47 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 });
+</script>
+
+<!-- ========================================== -->
+<!-- SCRIPT DO BOTÃO DE DESCONECTAR             -->
+<!-- ========================================== -->
+<script>
+function desconectarAssistente() {
+    // Alerta de confirmação simples
+    if(!confirm("Tem certeza que deseja desconectar o WhatsApp e limpar a sessão da Inteligência Artificial?")) return;
+    
+    const btnDesconectar = document.getElementById("btn-desconectar");
+    const originalText = btnDesconectar.innerHTML;
+    
+    // Mostra que está carregando com ícone girando
+    btnDesconectar.innerHTML = '<span class="material-symbols-outlined animate-spin text-lg">sync</span><span>Desconectando...</span>';
+    btnDesconectar.disabled = true;
+
+    // Chama a rota Python que criamos
+    fetch('/api/waha/desconectar', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(data.success) {
+            alert("Sucesso: " + data.message);
+            window.location.reload(); 
+        } else {
+            alert("Erro: " + data.error);
+            btnDesconectar.innerHTML = originalText;
+            btnDesconectar.disabled = false;
+        }
+    })
+    .catch(error => {
+        alert("Erro na requisição: " + error);
+        btnDesconectar.innerHTML = originalText;
+        btnDesconectar.disabled = false;
+    });
+}
 </script>
 
 {% endblock %}

@@ -2010,7 +2010,7 @@ def conectar_numero():
         # ---------------------------------------------------------
         # 1. INICIAR A SESSÃO NO WAHA
         # ---------------------------------------------------------
-        start_endpoint = f"{WAHA_URL}/api/sessions/{session_id}/start"
+        start_endpoint = f"{WAHA_URL}/api/sessions/start"
         payload_start = {"name": session_id}
         
         logging.info(f"🔄 Iniciando a sessão no WAHA: {start_endpoint}")
@@ -2044,4 +2044,34 @@ def conectar_numero():
             
     except Exception as e:
         logging.error(f"Erro Crítico no Emparelhamento: {e}")
+        return jsonify({"success": False, "error": str(e)})
+    
+
+@app.route('/api/waha/desconectar', methods=['POST'])
+def desconectar_waha():
+    try:
+        import os
+        import requests
+        from app.services.waha_service import get_waha_headers
+        
+        # Pega a sessão atual do usuário logado (ex: loja-1)
+        # Substitua essa variável pela forma como você já captura a sessão no seu código
+        session_id = "loja-1" 
+        
+        WAHA_URL = os.environ.get('WAHA_BASE_URL', 'http://waha-agendamento-ia:10000').rstrip('/')
+        headers = get_waha_headers()
+
+        # Rota oficial do WAHA para forçar o Logout e Limpeza
+        endpoint_logout = f"{WAHA_URL}/api/sessions/{session_id}/logout"
+        
+        logging.info(f"🧹 Solicitando limpeza da sessão: {endpoint_logout}")
+        resposta = requests.post(endpoint_logout, headers=headers, timeout=15)
+        
+        if resposta.status_code in [200, 201]:
+            return jsonify({"success": True, "message": "Sessão desconectada e limpa com sucesso!"})
+        else:
+            return jsonify({"success": False, "error": f"Falha ao limpar: {resposta.text}"})
+
+    except Exception as e:
+        logging.error(f"Erro ao desconectar: {e}")
         return jsonify({"success": False, "error": str(e)})
