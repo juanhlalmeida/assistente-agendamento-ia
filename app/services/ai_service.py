@@ -1384,7 +1384,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 if is_lash_check:
                     # 👇 SAUDAÇÃO CURTA E OBJETIVA DA CAROL 👇
                     msg_boas_vindas = (
-                        f"Bem-vinda ao {barbearia.nome_fantasia}! ✨ Sou a assistente inteligente da Carol.\n\n"
+                        f"Bem-vinda ao {barbearia.nome_fantasia}! ✨ Sou a assistente inteligente.\n\n"
                         "Em que posso te ajudar? Quer agendar um horário ou consultar serviços e valores? 💖"
                     )
                 else:
@@ -1442,7 +1442,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 if is_lash_check2:
                     # 👇 SAUDAÇÃO CURTA E OBJETIVA DA CAROL 👇
                     msg_texto = (
-                        f"Bem-vinda ao {barbearia.nome_fantasia}! ✨ Sou a assistente inteligente da Carol.\n\n"
+                        f"Bem-vinda ao {barbearia.nome_fantasia}! ✨ Sou a assistente inteligente.\n\n"
                         "Em que posso te ajudar? Quer agendar um horário ou consultar serviços e valores? 💖"
                     )
                 else:
@@ -1540,17 +1540,28 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
         try:
             response = chat_session.send_message(msg_para_enviar)
             
-            # Verifica se a IA respondeu VAZIO (O problema do Output 0 - Bloqueio de Segurança)
+            # Verifica se a IA respondeu VAZIO 
             if not response.candidates or not response.candidates[0].content.parts:
                 travou = True
-                logging.warning("⚠️ ALERTA: IA retornou Output 0 (Bloqueio de Segurança). Iniciando Resgate.")
+                
+                # 👇 O DETETIVE DE ERROS (NOVO) 👇
+                motivo = "Desconhecido"
+                if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
+                    motivo = f"Prompt Feedback: {response.prompt_feedback}"
+                elif response.candidates and hasattr(response.candidates[0], 'finish_reason'):
+                    motivo = f"Finish Reason: {response.candidates[0].finish_reason}"
+                
+                logging.error(f"🚨 ERRO REAL DO GOOGLE GEMINI: Resposta bloqueada! Motivo: {motivo}")
+                logging.error(f"🔍 DUMP COMPLETO DA RESPOSTA: {response}")
+                logging.warning("⚠️ Iniciando Resgate (Fallback).")
 
         except generation_types.StopCandidateException as e:
             logging.error(f"Erro Malformed Call: {e}")
             travou = True
             erro_malformed = True
         except Exception as e:
-            logging.error(f"Erro ao enviar mensagem para a IA: {e}")
+            # 👇 Agora vamos ver se a API caiu ou deu erro de cota (Limit Exceeded)
+            logging.error(f"🚨 ERRO CRÍTICO NA COMUNICAÇÃO COM O GOOGLE: {e}", exc_info=True) 
             travou = True
 
         # ======================================================================
