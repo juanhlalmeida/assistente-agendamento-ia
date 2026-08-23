@@ -24,7 +24,8 @@ class BarbershopPlugin(BaseBusinessPlugin):
 
     def calcular_disponibilidade(self, data_ref: datetime, **kwargs):
         # 👇 1. IMPORTAÇÕES MUDARAM PARA CÁ (PRIMEIRA COISA DA FUNÇÃO!)
-        from app.models import Profissional, Agendamento
+        from app.models.profissional import Profissional
+        from app.models.agendamento import Agendamento
         import pytz
         from datetime import datetime, time, timedelta
         from sqlalchemy.orm import joinedload
