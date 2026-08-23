@@ -1067,6 +1067,7 @@ def configuracoes():
             # 1. Captura dados de texto
             barbearia.horario_abertura = request.form.get('horario_abertura')
             barbearia.horario_fechamento = request.form.get('horario_fechamento')
+            barbearia.horario_abertura_sabado = request.form.get('horario_abertura_sabado')
             barbearia.horario_fechamento_sabado = request.form.get('horario_fechamento_sabado')
             barbearia.dias_funcionamento = request.form.get('dias_funcionamento')
             barbearia.cor_primaria = request.form.get('cor_primaria')
@@ -1178,6 +1179,7 @@ def admin_nova_barbearia():
         
         h_abre = request.form.get('horario_abertura', '09:00')
         h_fecha = request.form.get('horario_fechamento', '19:00')
+        h_abre_sabado = request.form.get('horario_abertura_sabado', '09:00')
         h_sabado = request.form.get('horario_fechamento_sabado', '14:00')
         dias_func = request.form.get('dias_funcionamento', 'Terça a Sábado')
         cor = request.form.get('cor_primaria', '#EC4899')

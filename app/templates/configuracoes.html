@@ -19,14 +19,18 @@
                 Horários de Atendimento
             </h2>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <div>
-                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Abertura</label>
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Abertura (Semana)</label>
                     <input type="time" name="horario_abertura" value="{{ barbearia.horario_abertura or '09:00' }}" class="w-full bg-background-dark border border-gray-700 rounded-lg p-2.5 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-text-secondary-dark mb-1">Fechamento (Semana)</label>
                     <input type="time" name="horario_fechamento" value="{{ barbearia.horario_fechamento or '19:00' }}" class="w-full bg-background-dark border border-gray-700 rounded-lg p-2.5 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-text-secondary-dark mb-1">Abertura (Sábado)</label>
+                    <input type="time" name="horario_abertura_sabado" value="{{ barbearia.horario_abertura_sabado or '09:00' }}" class="w-full bg-background-dark border border-gray-700 rounded-lg p-2.5 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-colors">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-text-secondary-dark mb-1">Fechamento (Sábado)</label>

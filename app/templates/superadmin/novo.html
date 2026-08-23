@@ -321,22 +321,29 @@
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="horario_abertura">Horário de Abertura</label>
+                    <label for="horario_abertura">Abertura (Semana)</label>
                     <input type="text" id="horario_abertura" name="horario_abertura" placeholder="Ex: 09:00" value="{{ barbearia.horario_abertura if barbearia else '09:00' }}">
                 </div>
 
                 <div class="form-group">
-                    <label for="horario_fechamento">Horário de Fechamento</label>
+                    <label for="horario_fechamento">Fechamento (Semana)</label>
                     <input type="text" id="horario_fechamento" name="horario_fechamento" placeholder="Ex: 19:00" value="{{ barbearia.horario_fechamento if barbearia else '19:00' }}">
                 </div>
             </div>
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="horario_fechamento_sabado">Fechamento Sábado</label>
-                    <input type="text" id="horario_fechamento_sabado" name="horario_fechamento_sabado" placeholder="Ex: 14:00" value="{{ barbearia.horario_fechamento_sabado if barbearia else '14:00' }}">
+                    <label for="horario_abertura_sabado">Abertura (Sábado)</label>
+                    <input type="text" id="horario_abertura_sabado" name="horario_abertura_sabado" placeholder="Ex: 09:00" value="{{ barbearia.horario_abertura_sabado if barbearia else '09:00' }}">
                 </div>
 
+                <div class="form-group">
+                    <label for="horario_fechamento_sabado">Fechamento (Sábado)</label>
+                    <input type="text" id="horario_fechamento_sabado" name="horario_fechamento_sabado" placeholder="Ex: 14:00" value="{{ barbearia.horario_fechamento_sabado if barbearia else '14:00' }}">
+                </div>
+            </div>
+            
+            <div class="form-row">
                 <div class="form-group">
                     <label for="dias_funcionamento">Dias de Funcionamento</label>
                     <input type="text" id="dias_funcionamento" name="dias_funcionamento" placeholder="Ex: Terça a Sábado" value="{{ barbearia.dias_funcionamento if barbearia else 'Terça a Sábado' }}">
