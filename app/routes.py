@@ -1052,7 +1052,7 @@ def webhook_waha():
 # ============================================
 # ⚙️ ROTA DE CONFIGURAÇÕES (INTACTA)
 # ============================================
-        )
+
 @login_required
 def configuracoes():
     # Segurança: Apenas quem tem barbearia pode acessar
