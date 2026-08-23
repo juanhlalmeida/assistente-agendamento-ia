@@ -34,12 +34,18 @@ class BarbershopPlugin(BaseBusinessPlugin):
         if isinstance(profissional_id, Profissional):
             profissional = profissional_id
         else:
-            profissional = Profissional.query.get(profissional_id)
+            import app.models # Evita circular import
+            profissional = app.models.Profissional.query.get(profissional_id)
             
         if not profissional:
             return []
 
         # --- AQUI COMEÇA A LÓGICA QUE CONSERTAMOS HOJE ---
+        import pytz
+        from datetime import datetime, time, timedelta
+        from sqlalchemy.orm import joinedload
+        from app.models import Agendamento
+
         sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
         agora = datetime.now(sao_paulo_tz)
         
@@ -49,14 +55,19 @@ class BarbershopPlugin(BaseBusinessPlugin):
 
         barbearia = self.business
         
-        # Configurações
-        h_abre_str = getattr(barbearia, 'horario_abertura', '09:00') or '09:00'
+        # 👇 NOVAS CONFIGURAÇÕES BASE & SÁBADO
+        h_abre_padrao = getattr(barbearia, 'horario_abertura', '09:00') or '09:00'
         h_fecha_padrao = getattr(barbearia, 'horario_fechamento', '19:00') or '19:00'
+        
+        h_abre_sabado = getattr(barbearia, 'horario_abertura_sabado', h_abre_padrao) or h_abre_padrao
         h_fecha_sabado = getattr(barbearia, 'horario_fechamento_sabado', '14:00') or '14:00'
+        
         dias_func_str = getattr(barbearia, 'dias_funcionamento', 'Terça a Sábado')
 
         dia_semana_int = data_ref.weekday()
         dia_aberto = False
+        
+        h_abre_str = h_abre_padrao
         h_fecha_str = h_fecha_padrao 
 
         # --- LÓGICA ESPECIAL CAROL LASH ---
@@ -66,9 +77,11 @@ class BarbershopPlugin(BaseBusinessPlugin):
         if dias_func_str == 'Carol: Terça a Sábado (Misto)':
             if dia_semana_int in [1, 2, 3, 4, 5]: 
                 dia_aberto = True
-                if dia_semana_int == 5: h_fecha_str = h_fecha_sabado
-                elif dia_semana_int in [1, 3]: h_fecha_str = '22:00' # Ter/Qui até 22h (pra caber 20:30)
-                elif dia_semana_int in [2, 4]: h_fecha_str = '19:00' # Qua/Sex até 19h (pra caber 17:30)
+                if dia_semana_int == 5: 
+                    h_abre_str = h_abre_sabado # 👇 Aplica Sábado
+                    h_fecha_str = h_fecha_sabado
+                elif dia_semana_int in [1, 3]: h_fecha_str = '22:00'
+                elif dia_semana_int in [2, 4]: h_fecha_str = '19:00'
 
         # CENÁRIO 2: CAROL SEMANA CURSO
         elif dias_func_str == 'Carol: Segunda a Sexta (Misto)':
@@ -77,17 +90,23 @@ class BarbershopPlugin(BaseBusinessPlugin):
                 if dia_semana_int in [1, 3]: h_fecha_str = '22:00'
                 else: h_fecha_str = '19:00'
 
-        # CENÁRIO 3: PADRÃO
+        # CENÁRIO 3: PADRÃO (Monique e outras)
         else:
             dias_lower = dias_func_str.lower()
-            if 'segunda a sexta' in dias_lower and dia_semana_int < 5: dia_aberto = True
+            if 'segunda a sexta' in dias_lower and dia_semana_int < 5: 
+                dia_aberto = True
             elif 'segunda a sábado' in dias_lower and dia_semana_int < 6:
                 dia_aberto = True
-                if dia_semana_int == 5: h_fecha_str = h_fecha_sabado
+                if dia_semana_int == 5: 
+                    h_abre_str = h_abre_sabado # 👇 Aplica Sábado
+                    h_fecha_str = h_fecha_sabado
             elif 'terça a sábado' in dias_lower and 0 < dia_semana_int < 6:
                 dia_aberto = True
-                if dia_semana_int == 5: h_fecha_str = h_fecha_sabado
-            elif 'terça a sexta' in dias_lower and 0 < dia_semana_int < 5: dia_aberto = True
+                if dia_semana_int == 5: 
+                    h_abre_str = h_abre_sabado # 👇 Aplica Sábado
+                    h_fecha_str = h_fecha_sabado
+            elif 'terça a sexta' in dias_lower and 0 < dia_semana_int < 5: 
+                dia_aberto = True
             
             # Travas extras
             if dia_semana_int == 5 and 'sábado' not in dias_lower and 'sabado' not in dias_lower: dia_aberto = False
@@ -105,7 +124,7 @@ class BarbershopPlugin(BaseBusinessPlugin):
             h_inicio, m_inicio = 9, 0
             h_fim, m_fim = 19, 0
 
-        INTERVALO_MINUTOS = 30 
+        INTERVALO_MINUTOS = 30 # Garante os pulos de 30 minutos!
         horarios_disponiveis = []
 
         dia_base = datetime.combine(data_ref.date(), time.min) 
@@ -139,7 +158,8 @@ class BarbershopPlugin(BaseBusinessPlugin):
             
             intervalos_ocupados = []
             for ag in agendamentos_do_dia:
-                duracao_ag = ag.servico.duracao if ag.servico else 30
+                # 👇 Proteção blindada se o serviço não tiver duração
+                duracao_ag = ag.servico.duracao if (ag.servico and getattr(ag.servico, 'duracao', None)) else 30
                 inicio_ocupado = sao_paulo_tz.localize(ag.data_hora, is_dst=None)
                 fim_ocupado = inicio_ocupado + timedelta(minutes=duracao_ag)
                 intervalos_ocupados.append((inicio_ocupado, fim_ocupado))

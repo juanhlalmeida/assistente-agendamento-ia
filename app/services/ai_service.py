@@ -492,7 +492,7 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
                 except: return "Data inválida. Use 'hoje', 'amanhã' ou AAAA-MM-DD."
 
             # 5. Tratamento de Serviço/Duração
-            duracao_calculo = 60
+            duracao_calculo = 30
             msg_extra = ""
             
             if servico_nome:
