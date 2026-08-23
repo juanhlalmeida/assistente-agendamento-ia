@@ -44,7 +44,7 @@ class BarbershopPlugin(BaseBusinessPlugin):
         import pytz
         from datetime import datetime, time, timedelta
         from sqlalchemy.orm import joinedload
-        from app.models import Agendamento
+        from app.models import Profissional, Agendamento
 
         sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
         agora = datetime.now(sao_paulo_tz)
