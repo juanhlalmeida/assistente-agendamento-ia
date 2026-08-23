@@ -23,6 +23,12 @@ class BarbershopPlugin(BaseBusinessPlugin):
         return Servico.query.filter_by(barbearia_id=self.business.id).all()
 
     def calcular_disponibilidade(self, data_ref: datetime, **kwargs):
+        # 👇 1. IMPORTAÇÕES MUDARAM PARA CÁ (PRIMEIRA COISA DA FUNÇÃO!)
+        from app.models import Profissional, Agendamento
+        import pytz
+        from datetime import datetime, time, timedelta
+        from sqlalchemy.orm import joinedload
+
         """
         Lógica de cálculo de horários (Migrada do utils.py).
         Esperamos kwargs: 'profissional_id' e 'duracao'
@@ -31,15 +37,16 @@ class BarbershopPlugin(BaseBusinessPlugin):
         duracao = kwargs.get('duracao', 30)
 
         # Se não passar o profissional (ex: busca geral), pegamos o primeiro (fallback)
-        if isinstance(profissional_id, Profissional):
+        if isinstance(profissional_id, Profissional): # 👈 Agora ele já sabe o que é!
             profissional = profissional_id
         else:
-            import app.models # Evita circular import
-            profissional = app.models.Profissional.query.get(profissional_id)
+            profissional = Profissional.query.get(profissional_id)
             
         if not profissional:
+            
             return []
 
+        
         # --- AQUI COMEÇA A LÓGICA QUE CONSERTAMOS HOJE ---
         import pytz
         from datetime import datetime, time, timedelta
