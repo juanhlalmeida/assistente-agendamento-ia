@@ -46,7 +46,9 @@ class Barbearia(db.Model):
     horario_fechamento = db.Column(db.String(5), default="19:00")    # Ex: "19:00"
     
     # --- NOVO: Horário de Sábado (Funcionalidade criada hoje) ---
+    horario_abertura_sabado = db.Column(db.String(5), default='09:00')
     horario_fechamento_sabado = db.Column(db.String(5), default="14:00")
+
     
     dias_funcionamento = db.Column(db.String(50), default="Terça a Sábado") # Ex: "Segunda a Sexta"
 
