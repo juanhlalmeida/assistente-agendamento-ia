@@ -1053,8 +1053,10 @@ def webhook_waha():
 # ⚙️ ROTA DE CONFIGURAÇÕES (INTACTA)
 # ============================================
 
+@bp.route('/configuracoes', methods=['GET', 'POST']) # 👈 ESTA É A LINHA QUE SUMIU! COLOQUE-A DE VOLTA!
 @login_required
 def configuracoes():
+
     # Segurança: Apenas quem tem barbearia pode acessar
     if not current_user.barbearia:
         flash('Você precisa estar vinculado a uma loja para acessar as configurações.', 'warning')
