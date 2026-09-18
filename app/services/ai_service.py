@@ -460,9 +460,12 @@ def listar_servicos(barbearia_id: int) -> str:
                 preco_str = f"R$ {s.preco:.2f}"
                 if s.nome in servicos_a_partir_de:
                     preco_str += " (a partir de)"
-                lista_formatada.append(f"{s.nome} ({s.duracao} min, {preco_str})")
+                # Agora adicionamos o quadradinho e a quebra de linha direto na base!
+                lista_formatada.append(f"▫️ {s.nome} ({s.duracao} min, {preco_str})")
 
-            return f"Serviços disponíveis: {'; '.join(lista_formatada)}."
+            # Em vez de '; '.join, usamos quebras de linha reais
+            return f"Serviços disponíveis:\n" + "\n".join(lista_formatada)
+        
     except Exception as e:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_servicos': {e}", exc_info=True)
         return f"Erro ao listar serviços: Ocorreu um erro interno."
@@ -724,19 +727,17 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
             # 📢 NOTIFICAÇÃO 1: PARA O CLIENTE (LINK CURTO E LIMPO)
             # =================================================================
             try:
-                # Usando o motor WAHA para evitar o erro 422
                 from app.services.waha_service import enviar_mensagem_waha 
                 
                 barbearia_atual = profissional.barbearia
                 if barbearia_atual.assinatura_ativa:
                     
-                    # Gera Link Curto (Mantendo o padrão bonito e limpo)
+                    # Gera Link Curto
                     link_curto = url_for('main.redirect_gcal', agendamento_id=novo_agendamento.id, _external=True)
                     
-                    # MENSAGEM LIMPA (Sem asteriscos e com o link isolado na linha para evitar erro 404)
-                    msg_cliente = f"📅 Toque no link abaixo para salvar na sua agenda:\n{link_curto}"
+                    # MENSAGEM LIMPA: Sem asteriscos e com uma frase NO FINAL para o WAHA não quebrar a URL
+                    msg_cliente = f"📅 Toque no link abaixo para salvar na sua agenda:\n{link_curto}\n\nTe esperamos! ✨"
                     
-                    # Formatação obrigatória do WAHA (@c.us)
                     numero_cliente_waha = telefone_cliente if '@' in telefone_cliente else f"{telefone_cliente}@c.us"
                     session_id = f"loja-{barbearia_atual.id}"
                     
