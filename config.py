@@ -33,7 +33,7 @@ class Config:
     # [cite: 63-72]
     
     # Define o tipo de cache para 'redis'.
-    CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'redis')
+    CACHE_TYPE: str = os.environ.get('CACHE_TYPE', 'RedisCache')
     
     # Host do servidor Redis.
     CACHE_REDIS_HOST: str = os.environ.get('REDIS_HOST', 'localhost')
