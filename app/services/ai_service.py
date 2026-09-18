@@ -262,17 +262,25 @@ IMPORTANTE: Ao verificar horários, SE O CLIENTE JÁ FALOU O NOME DO SERVIÇO, e
 5. Datas: Hoje={data_de_hoje}, Amanhã={data_de_amanha}. Use AAAA-MM-DD
 6. NUNCA mencione telefone
 7. Nome do cliente: perguntar antes de criar_agendamento
-8. Confirmação: Use quebras de linha e negrito para destacar os dados. Siga EXATAMENTE este formato visual:
+8. Confirmação: Use quebras de linha e texto limpo (SEM NEGRITO E SEM ASTERISCOS). Siga EXATAMENTE este formato visual:
 
-"Perfeito, *{{nome}}*! ✅
-*Agendamento Confirmado:*
-🗓 *Data:* {{Data}}
-⏰ *Horário:* {{Hora}}
-👤 *Profissional:* {{Profissional}}
-✨ *Serviço:* {{Serviço}}
-Aguardamos você!"
+"Prontinho, {{nome}}! 💖
+Seu momento de beleza está confirmado:
+🗓 Data: {{Data}}
+⏰ Horário: {{Hora}}
+🌸 Profissional: {{Profissional}}
+✨ Serviço: {{Serviço}}
+Te esperamos com muito carinho! 🦋"
 
 9. Preços variáveis: repetir "(a partir de)" se retornado
+
+10. Listagem de Opções (Serviços ou Horários): NUNCA use asteriscos (*), negrito ou pontos de lista (bullets) do Markdown. Quando for listar opções para o cliente, use uma quebra de linha limpa com um emoji minimalista na frente. 
+Siga EXATAMENTE este modelo:
+▫️ [Nome do Serviço]
+▫️ [Nome do Serviço]
+
+11. SEJA BREVE E OBJETIVA, USE POUCAS PALAVRAS.
+
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 
 """
@@ -712,39 +720,45 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
             db.session.add(novo_agendamento)
             db.session.commit()
 
-          # =================================================================
-            # 📢 NOTIFICAÇÃO 1: PARA O CLIENTE (LINK CURTO E DISCRETO 🤫)
+            # =================================================================
+            # 📢 NOTIFICAÇÃO 1: PARA O CLIENTE (LINK CURTO E LIMPO)
             # =================================================================
             try:
-                from app.routes import enviar_mensagem_whatsapp_meta 
+                # Usando o motor WAHA para evitar o erro 422
+                from app.services.waha_service import enviar_mensagem_waha 
                 
                 barbearia_atual = profissional.barbearia
                 if barbearia_atual.assinatura_ativa:
                     
-                    # Gera Link Curto
+                    # Gera Link Curto (Mantendo o padrão bonito e limpo)
                     link_curto = url_for('main.redirect_gcal', agendamento_id=novo_agendamento.id, _external=True)
                     
-                    # MENSAGEM MINIMALISTA (Para não brigar com a resposta da IA)
-                    msg_cliente = f"📅 *Toque para salvar na agenda:* \n{link_curto}"
+                    # MENSAGEM LIMPA (Sem asteriscos e com o link isolado na linha para evitar erro 404)
+                    msg_cliente = f"📅 Toque no link abaixo para salvar na sua agenda:\n{link_curto}"
                     
-                    enviar_mensagem_whatsapp_meta(telefone_cliente, msg_cliente, barbearia_atual)
-                    logging.info(f"✅ Link Curto enviado via IA: {telefone_cliente}")
+                    # Formatação obrigatória do WAHA (@c.us)
+                    numero_cliente_waha = telefone_cliente if '@' in telefone_cliente else f"{telefone_cliente}@c.us"
+                    session_id = f"loja-{barbearia_atual.id}"
+                    
+                    enviar_mensagem_waha(session_id, numero_cliente_waha, msg_cliente)
+                    logging.info(f"✅ Link Curto enviado via WAHA para: {numero_cliente_waha}")
 
             except Exception as e_client:
                 logging.error(f"Erro ao notificar cliente na tool: {e_client}")
 
             
             # 🔥 GATILHO GOOGLE CALENDAR (Blindado)
-            # Rota ajustada para app.google
             try:
                 logging.info(f"📅 Disparando sincronização Google para Agendamento {novo_agendamento.id}")
                 trigger_google_calendar_sync(novo_agendamento.id, CalendarAction.CREATE)
             except Exception as e:
                 logging.error(f"⚠️ Erro ao disparar sync Google: {e}")
 
-            # 🔔 NOTIFICAÇÃO AUTOMÁTICA PRO DONO
+            # =================================================================
+            # 🔔 NOTIFICAÇÃO 2: PARA O DONO (LIMPA E VIA WAHA)
+            # =================================================================
             try:
-                from app.routes import enviar_mensagem_whatsapp_meta
+                from app.services.waha_service import enviar_mensagem_waha
                 barbearia_dono = profissional.barbearia
 
                 if barbearia_dono.telefone_admin and barbearia_dono.assinatura_ativa:
@@ -758,16 +772,22 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
                         emoji_titulo = "💈✂️"
                         emoji_servico = "🪒"
 
+                    # MENSAGEM LIMPA (Sem asteriscos)
                     msg_dono = (
-                        f"🔔 *Novo Agendamento (Via IA)* {emoji_titulo}\n\n"
+                        f"🔔 Novo Agendamento (Via IA) {emoji_titulo}\n\n"
                         f"👤 {nome_cliente}\n"
                         f"📅 {data_hora_dt.strftime('%d/%m às %H:%M')}\n"
                         f"{emoji_servico} {servico.nome}\n"
                         f"👋 Prof: {profissional.nome}"
                     )
 
-                    enviar_mensagem_whatsapp_meta(barbearia_dono.telefone_admin, msg_dono, barbearia_dono)
-                    logging.info(f"🔔 Notificação enviada para o dono {barbearia_dono.telefone_admin}")
+                    # Formatação obrigatória do WAHA (@c.us)
+                    numero_admin = barbearia_dono.telefone_admin
+                    numero_admin_waha = numero_admin if '@' in numero_admin else f"{numero_admin}@c.us"
+                    session_id_dono = f"loja-{barbearia_dono.id}"
+
+                    enviar_mensagem_waha(session_id_dono, numero_admin_waha, msg_dono)
+                    logging.info(f"🔔 Notificação enviada para o dono {numero_admin_waha}")
 
             except Exception as e:
                 logging.error(f"Erro ao notificar dono: {e}")
@@ -1223,11 +1243,13 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         eh_o_dono = (tel_admin_limpo and tel_admin_limpo in tel_cliente_limpo) or (tel_cliente_limpo in tel_admin_limpo)
 
         if eh_o_dono:
-            logging.info(f"👑 MODO SECRETÁRIA ATIVADO para {cliente_whatsapp}")
-
-            system_prompt = SYSTEM_INSTRUCTION_SECRETARIA.format(
-                data_de_hoje=agora_br.strftime('%d/%m/%Y')
-            )
+            msg_para_enviar = f"""
+            [LEMBRETE DE SISTEMA]
+            Você é a Secretária Pessoal da loja. A DONA DA LOJA está falando com você agora.
+            Obedeça as ordens de bloqueio ou consulta de agenda imediatamente usando as ferramentas.
+            
+            DONA DIZ: {user_message}
+            """
 
         # 👇 [NOVO] VERIFICAÇÃO DE POUSADA (ANTES DE CAIR NO PADRÃO) 👇
         elif barbearia.business_type == 'pousada':
@@ -1488,8 +1510,18 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         regras_da_loja = getattr(barbearia, 'regras_negocio', None)
 
+        # 0. SE FOR A DONA FALANDO (MODO SECRETÁRIA - BYPASS DE REGRAS)
+        if eh_o_dono:
+            msg_para_enviar = f"""
+            [LEMBRETE DE SISTEMA]
+            Você é a Secretária Pessoal da loja. A DONA DA LOJA está falando com você agora.
+            Obedeça as ordens de bloqueio ou consulta de agenda imediatamente usando as ferramentas.
+            
+            DONA DIZ: {user_message}
+            """
+
         # 1. Tenta usar as regras que a dona da loja digitou no painel
-        if regras_da_loja and regras_da_loja.strip() != "":
+        elif regras_da_loja and regras_da_loja.strip() != "":
             msg_para_enviar = f"""
             [LEMBRETE DE SISTEMA - BASE DE CONHECIMENTO OBRIGATÓRIA]
             Você é a Assistente Virtual de {barbearia.nome_fantasia}.
