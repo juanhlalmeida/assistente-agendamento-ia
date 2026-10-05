@@ -52,7 +52,7 @@ def calcular_disponibilidade(self, data_ref: datetime, **kwargs):
 
         # Se não passar o profissional (ex: busca geral), pegamos o primeiro (fallback)
         if isinstance(profissional_id, Profissional):
-            
+            profissional = profissional_id  # 👇 ESTA É A LINHA QUE FALTAVA!
         else:
             profissional = Profissional.query.get(profissional_id)
             
