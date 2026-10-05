@@ -30,9 +30,9 @@ def calcular_disponibilidade(self, data_ref: datetime, **kwargs):
         profissional_id = kwargs.get('profissional_id')
         
         # ================================================================
-        # 🧠 LÓGICA INTELIGENTE (Pega a duração baseada na loja atual)
+        # 🧠 LÓGICA INTELIGENTE BLINDADA (Bloqueia ordens erradas do HTML)
         # ================================================================
-        duracao_padrao = 30  # Fallback de segurança
+        duracao_minima_loja = 30  # Fallback de segurança
         if self.business:
             from app.models.tables import Servico
             # Busca o serviço mais rápido (com menor duração) da loja atual
@@ -42,14 +42,17 @@ def calcular_disponibilidade(self, data_ref: datetime, **kwargs):
             ).order_by(Servico.duracao.asc()).first()
             
             if menor_servico:
-                duracao_padrao = menor_servico.duracao
+                duracao_minima_loja = menor_servico.duracao
                 
-        duracao = kwargs.get('duracao', duracao_padrao)
+        # Captura o que o HTML pediu (ex: 30) e compara com a loja (ex: 60)
+        # A função max() garante que sempre usaremos o MAIOR valor entre os dois.
+        duracao_solicitada = int(kwargs.get('duracao') or 30)
+        duracao = max(duracao_solicitada, duracao_minima_loja)
         # ================================================================
 
         # Se não passar o profissional (ex: busca geral), pegamos o primeiro (fallback)
         if isinstance(profissional_id, Profissional):
-            profissional = profissional_id
+            
         else:
             profissional = Profissional.query.get(profissional_id)
             
