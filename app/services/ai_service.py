@@ -503,7 +503,7 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
                 except: return "Data inválida. Use 'hoje', 'amanhã' ou AAAA-MM-DD."
 
             # 5. Tratamento de Serviço/Duração
-            duracao_calculo = 30
+            duracao_calculo = 60
             msg_extra = ""
             
             if servico_nome:
@@ -904,7 +904,7 @@ def bloquear_agenda_dono(barbearia_id: int, data: str, hora_inicio: str, hora_fi
                 logging.info(f"✅ Serviço '{nome_servico_bloqueio}' criado automaticamente.")
 
             # 4. Loop para preencher os horários
-            intervalo = servico.duracao if servico.duracao > 0 else 30
+            intervalo = servico.duracao if servico.duracao > 0 else 60
             cursor = inicio_dt
             bloqueios = 0
             

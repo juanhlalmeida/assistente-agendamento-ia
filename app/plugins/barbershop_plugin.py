@@ -22,13 +22,30 @@ class BarbershopPlugin(BaseBusinessPlugin):
         """Retorna os Serviços da loja"""
         return Servico.query.filter_by(barbearia_id=self.business.id).all()
 
-    def calcular_disponibilidade(self, data_ref: datetime, **kwargs):
+def calcular_disponibilidade(self, data_ref: datetime, **kwargs):
         """
         Lógica de cálculo de horários (Migrada do utils.py).
         Esperamos kwargs: 'profissional_id' e 'duracao'
         """
         profissional_id = kwargs.get('profissional_id')
-        duracao = kwargs.get('duracao', 30)
+        
+        # ================================================================
+        # 🧠 LÓGICA INTELIGENTE (Pega a duração baseada na loja atual)
+        # ================================================================
+        duracao_padrao = 30  # Fallback de segurança
+        if self.business:
+            from app.models.tables import Servico
+            # Busca o serviço mais rápido (com menor duração) da loja atual
+            menor_servico = Servico.query.filter(
+                Servico.barbearia_id == self.business.id,
+                Servico.duracao > 0
+            ).order_by(Servico.duracao.asc()).first()
+            
+            if menor_servico:
+                duracao_padrao = menor_servico.duracao
+                
+        duracao = kwargs.get('duracao', duracao_padrao)
+        # ================================================================
 
         # Se não passar o profissional (ex: busca geral), pegamos o primeiro (fallback)
         if isinstance(profissional_id, Profissional):
