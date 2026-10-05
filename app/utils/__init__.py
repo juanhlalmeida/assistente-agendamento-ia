@@ -8,8 +8,31 @@ from app.models.tables import Profissional, Agendamento, Servico, Barbearia
 # --- FUNÇÃO UNIFICADA PARA CÁLCULO DE HORÁRIOS (DINÂMICA & BLINDADA) ---
 # --- FUNÇÃO UNIFICADA PARA CÁLCULO DE HORÁRIOS (DINÂMICA & BLINDADA) ---
 
-def calcular_horarios_disponiveis(profissional, dia_selecionado, duracao=30): # 👇 MUDAMOS O PADRÃO PARA 30 MINUTOS
+# --- FUNÇÃO UNIFICADA PARA CÁLCULO DE HORÁRIOS (DINÂMICA & BLINDADA) ---
+
+def calcular_horarios_disponiveis(profissional, dia_selecionado, duracao=30): 
     
+    # ================================================================
+    # 🧠 LÓGICA INTELIGENTE BLINDADA (Sincronizada com o Painel Web)
+    # ================================================================
+    duracao_solicitada = int(duracao)
+    duracao_minima_loja = 30  # Fallback de segurança
+    
+    if profissional and hasattr(profissional, 'barbearia'):
+        from app.models.tables import Servico
+        # Busca o serviço mais rápido (com menor duração) da loja atual
+        menor_servico = Servico.query.filter(
+            Servico.barbearia_id == profissional.barbearia.id,
+            Servico.duracao > 0
+        ).order_by(Servico.duracao.asc()).first()
+        
+        if menor_servico:
+            duracao_minima_loja = menor_servico.duracao
+            
+    # Força a duração a ser no mínimo o tempo do menor serviço da loja!
+    duracao = max(duracao_solicitada, duracao_minima_loja)
+    # ================================================================
+
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
     agora = datetime.now(sao_paulo_tz)
     
