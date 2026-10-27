@@ -2,6 +2,7 @@
 # (CÓDIGO CORRIGIDO: USA A CHAVE 'GEMINI_API_KEY' CORRETA)
 
 import os
+import time
 import requests
 import tempfile
 import logging
@@ -20,6 +21,7 @@ from google.generativeai import protos
 from google.generativeai.types import FunctionDeclaration, Tool, GenerationConfig
 from thefuzz import process 
 from app.utils import calcular_horarios_disponiveis as calcular_horarios_disponiveis_util
+from app.utils.plugin_loader import carregar_plugin_negocio
 
 # Configuração de Logger
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +39,11 @@ HOJE: {data_de_hoje} | AMANHÃ: {data_de_amanha}
 🚨 REGRA DE OURO:
 VOCÊ É PROIBIDA DE DIZER "AGENDADO" SE NÃO TIVER CHAMADO A FERRAMENTA `criar_agendamento` COM SUCESSO.
 Se você apenas falar "Ok, marquei" sem chamar a tool, o agendamento falha.
+
+🚨 REGRA ESTRITA DE MENSAGENS CURTAS E ATENDIMENTO:
+- Responda SEMPRE em no máximo 2 a 3 frases curtas.
+- NUNCA envie a lista completa de 12 serviços de uma vez quando a cliente pedir para agendar: pergunte primeiro se é colocação ou manutenção e qual modelo ela prefere.
+- Ofereça no máximo 2 a 3 opções de horário por vez.
 
 🧠 TRADUÇÃO DE SERVIÇOS:
 - Cliente disse "Barba"? -> Use o nome oficial (ex: "Barba Terapia").
@@ -68,15 +75,92 @@ def listar_servicos(barbearia_id: int) -> str:
     lista = [f"{s.nome} (R$ {s.preco})" for s in servs]
     return f"Serviços: {'; '.join(lista)}."
 
-def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str) -> str:
-    profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
+def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str, servico_nome: str = None) -> str:
+    barbearia = Barbearia.query.get(barbearia_id)
+    try:
+        plugin = carregar_plugin_negocio(barbearia) if barbearia else None
+        profs = plugin.buscar_recursos() if plugin else Profissional.query.filter_by(barbearia_id=barbearia_id).all()
+    except Exception as e_plug:
+        logger.warning(f"⚠️ Falha ao carregar plugin (áudio), usando busca direta: {e_plug}")
+        plugin = None
+        profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
     match = encontrar_melhor_match(profissional_nome, [p.nome for p in profs])
     if not match: return "Profissional não encontrado."
     profissional = next(p for p in profs if p.nome == match)
     
-    dia_dt = datetime.now(BR_TZ) if dia == 'hoje' else (datetime.now(BR_TZ) + timedelta(days=1) if dia == 'amanhã' else BR_TZ.localize(datetime.strptime(dia, '%Y-%m-%d')))
-    
-    horarios = calcular_horarios_disponiveis_util(profissional, dia_dt)
+    agora_br = datetime.now(BR_TZ)
+    if dia.lower() == 'hoje':
+        dia_dt = agora_br
+    elif dia.lower() == 'amanhã':
+        dia_dt = agora_br + timedelta(days=1)
+    else:
+        try:
+            dia_dt = BR_TZ.localize(datetime.strptime(dia, '%Y-%m-%d'))
+        except Exception:
+            return "Data inválida. Use 'hoje', 'amanhã' ou AAAA-MM-DD."
+
+    duracao_calculo = 60
+    if servico_nome:
+        servs = plugin.buscar_servicos() if plugin else Servico.query.filter_by(barbearia_id=barbearia_id).all()
+        serv_match = encontrar_melhor_match(servico_nome, [s.nome for s in servs])
+        if serv_match:
+            servico = next(s for s in servs if s.nome == serv_match)
+            duracao_calculo = servico.duracao
+
+    horarios = None
+    for tentativa in range(2):
+        try:
+            horarios = plugin.calcular_disponibilidade(
+                data_ref=dia_dt,
+                profissional_id=profissional.id,
+                duracao=duracao_calculo
+            )
+            break
+        except Exception as e_tentativa:
+            logger.warning(f"⚠️ Tentativa {tentativa + 1}/2 falhou em plugin.calcular_disponibilidade (áudio): {e_tentativa}")
+            if tentativa < 1:
+                time.sleep(0.5)
+            else:
+                logger.warning("🔄 Acionando fallback calcular_horarios_disponiveis de app.utils (áudio)")
+                horarios = calcular_horarios_disponiveis_util(
+                    profissional=profissional,
+                    dia_selecionado=dia_dt,
+                    duracao=duracao_calculo
+                )
+
+    if not horarios:
+        sugestoes = []
+        for offset in range(1, 4):
+            prox_dia = dia_dt + timedelta(days=offset)
+            h_prox = None
+            for tentativa in range(2):
+                try:
+                    h_prox = plugin.calcular_disponibilidade(
+                        data_ref=prox_dia,
+                        profissional_id=profissional.id,
+                        duracao=duracao_calculo
+                    )
+                    break
+                except Exception:
+                    if tentativa < 1:
+                        time.sleep(0.5)
+                    else:
+                        h_prox = calcular_horarios_disponiveis_util(
+                            profissional=profissional,
+                            dia_selecionado=prox_dia,
+                            duracao=duracao_calculo
+                        )
+            if h_prox:
+                lista_p = [h.strftime('%H:%M') for h in h_prox[:3]]
+                sugestoes.append(f"Dia {prox_dia.strftime('%d/%m')}: {', '.join(lista_p)}")
+                if len(sugestoes) >= 2:
+                    break
+
+        msg_retorno = f"❌ Sem horários livres para {match} em {dia_dt.strftime('%d/%m')}."
+        if sugestoes:
+            msg_retorno += f" Mas encontrei estas vagas próximas: {'; '.join(sugestoes)}."
+        return msg_retorno
+
     return f"Vagas para {match} em {dia_dt.strftime('%d/%m')}: {', '.join([h.strftime('%H:%M') for h in horarios])}."
 
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:

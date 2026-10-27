@@ -281,6 +281,11 @@ Siga EXATAMENTE este modelo:
 
 11. SEJA BREVE E OBJETIVA, USE POUCAS PALAVRAS.
 
+🚨 REGRA ESTRITA DE MENSAGENS CURTAS E ATENDIMENTO:
+- Responda SEMPRE em no máximo 2 a 3 frases curtas.
+- NUNCA envie a lista completa de 12 serviços de uma vez quando a cliente pedir para agendar: pergunte primeiro se é colocação ou manutenção e qual modelo ela prefere.
+- Ofereça no máximo 2 a 3 opções de horário por vez.
+
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 
 """
@@ -479,10 +484,14 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
                 return "Erro: Barbearia não encontrada."
 
             # 2. CARREGA O PLUGIN (O Cérebro Correto: Barbearia ou Pousada) 🧠
-            plugin = carregar_plugin_negocio(barbearia)
+            try:
+                plugin = carregar_plugin_negocio(barbearia)
+                todos_profs = plugin.buscar_recursos()
+            except Exception as e_plug:
+                logging.warning(f"⚠️ Falha ao carregar plugin, usando busca direta: {e_plug}")
+                plugin = None
+                todos_profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
 
-            # 3. Busca Profissionais (Usando o Plugin)
-            todos_profs = plugin.buscar_recursos() # Retorna profissionais ou quartos
             # Extrai os nomes para o Fuzzy Match
             lista_nomes = [p.nome for p in todos_profs]
             
@@ -508,7 +517,7 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
             
             if servico_nome:
                 # Busca serviços usando o Plugin também (pra manter padrão)
-                todos_servicos = plugin.buscar_servicos()
+                todos_servicos = plugin.buscar_servicos() if plugin else Servico.query.filter_by(barbearia_id=barbearia_id).all()
                 nome_serv_match = encontrar_melhor_match(servico_nome, [s.nome for s in todos_servicos])
 
                 if nome_serv_match:
@@ -521,14 +530,29 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
                 msg_extra = " (Obs: Calculado com base em 60min)."
 
             # =========================================================
-            # 🔥 O GRANDE MOMENTO: CÁLCULO VIA PLUGIN
+            # 🔥 O GRANDE MOMENTO: CÁLCULO VIA PLUGIN (COM RETRY + FALLBACK)
             # =========================================================
             # O plugin sabe se tem que bloquear almoço, se é pousada, etc.
-            horarios = plugin.calcular_disponibilidade(
-                data_ref=dia_dt,
-                profissional_id=profissional.id, # Passamos o ID
-                duracao=duracao_calculo
-            )
+            horarios = None
+            for tentativa in range(2):
+                try:
+                    horarios = plugin.calcular_disponibilidade(
+                        data_ref=dia_dt,
+                        profissional_id=profissional.id, # Passamos o ID
+                        duracao=duracao_calculo
+                    )
+                    break
+                except Exception as e_tentativa:
+                    logging.warning(f"⚠️ Tentativa {tentativa + 1}/2 falhou em plugin.calcular_disponibilidade: {e_tentativa}")
+                    if tentativa < 1:
+                        time.sleep(0.5)
+                    else:
+                        logging.warning("🔄 Acionando fallback calcular_horarios_disponiveis de app.utils")
+                        horarios = calcular_horarios_disponiveis_util(
+                            profissional=profissional,
+                            dia_selecionado=dia_dt,
+                            duracao=duracao_calculo
+                        )
 
             # =========================================================
             # 🛡️ REGRA ANTI-SURPRESA (EXCLUSIVA DA CAROL / LASH)
@@ -558,23 +582,36 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
 
             # Formatação da Resposta
             if not horarios:
-                # 👇 IMPLEMENTAÇÃO DA BUSCA PROATIVA DE VAGAS 👇
+                # 👇 IMPLEMENTAÇÃO DA BUSCA PROATIVA DE VAGAS (PRÓXIMOS 3 DIAS) 👇
                 sugestoes = []
-                # Procura nos próximos 2 dias
-                for i in range(1, 3):
-                    prox_dia = dia_dt + timedelta(days=i)
+                for offset in range(1, 4):
+                    prox_dia = dia_dt + timedelta(days=offset)
                     
-                    # Chama o plugin novamente para o próximo dia
-                    h_prox = plugin.calcular_disponibilidade(
-                        data_ref=prox_dia,
-                        profissional_id=profissional.id,
-                        duracao=duracao_calculo
-                    )
+                    h_prox = None
+                    for tentativa in range(2):
+                        try:
+                            h_prox = plugin.calcular_disponibilidade(
+                                data_ref=prox_dia,
+                                profissional_id=profissional.id,
+                                duracao=duracao_calculo
+                            )
+                            break
+                        except Exception:
+                            if tentativa < 1:
+                                time.sleep(0.5)
+                            else:
+                                h_prox = calcular_horarios_disponiveis_util(
+                                    profissional=profissional,
+                                    dia_selecionado=prox_dia,
+                                    duracao=duracao_calculo
+                                )
                     
                     if h_prox:
-                        # Pega até 4 horários para não poluir
-                        lista_p = [h.strftime('%H:%M') for h in h_prox[:4]] 
+                        # Coleta até 3 horários dos primeiros 2 dias que tiverem vaga
+                        lista_p = [h.strftime('%H:%M') for h in h_prox[:3]]
                         sugestoes.append(f"Dia {prox_dia.strftime('%d/%m')}: {', '.join(lista_p)}")
+                        if len(sugestoes) >= 2:
+                            break
                 
                 msg_retorno = f"❌ Sem horários livres para {nome_correto} em {dia_dt.strftime('%d/%m')}."
                 

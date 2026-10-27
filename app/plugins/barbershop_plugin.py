@@ -22,7 +22,7 @@ class BarbershopPlugin(BaseBusinessPlugin):
         """Retorna os Serviços da loja"""
         return Servico.query.filter_by(barbearia_id=self.business.id).all()
 
-def calcular_disponibilidade(self, data_ref: datetime, **kwargs):
+    def calcular_disponibilidade(self, data_ref: datetime, **kwargs):
         """
         Lógica de cálculo de horários (Migrada do utils.py).
         Esperamos kwargs: 'profissional_id' e 'duracao'
