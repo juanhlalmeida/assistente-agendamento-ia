@@ -155,6 +155,38 @@ def detectar_ghost_call(resposta_final: str, historico_chat) -> tuple:
         )
         
         return True, mensagem_auto_cura
+
+    # --- 3. DETECÇÃO DE ALUCINAÇÃO DE SERVIÇOS SEM CONSULTA AO BANCO (NOVO) ---
+    alucinacoes_servicos = [
+        r'limpeza\s+de\s+pele',
+        r'drenagem\s+linf[aá]tica',
+        r'massagem\s+relaxante',
+        r'peeling',
+        r'microagulhamento',
+        r'depila[çc][aã]o',
+        r'▫️'
+    ]
+    ia_citou_servico = any(re.search(p, resposta_final.lower()) for p in alucinacoes_servicos)
+    if ia_citou_servico:
+        listar_servicos_executada = False
+        try:
+            for content in historico_chat:
+                for part in content.parts:
+                    if hasattr(part, 'function_response') and part.function_response:
+                        if part.function_response.name == 'listar_servicos':
+                            listar_servicos_executada = True
+                            break
+        except Exception as e:
+            logging.error(f"Erro ao verificar listar_servicos no ghost call: {e}")
+
+        if not listar_servicos_executada:
+            logging.error("🚨 ALUCINAÇÃO DE SERVIÇOS DETECTADA: IA listou serviços sem chamar `listar_servicos`!")
+            mensagem_auto_cura_servicos = (
+                "[ALERTA CRÍTICO DE SISTEMA]: Você tentou listar ou sugerir serviços sem consultar o banco de dados! "
+                "REGRA DE OURO ESTRITA: VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INVENTAR OU LISTAR QUALQUER SERVIÇO, PREÇO OU DURAÇÃO QUE NÃO TENHA SIDO EXPRESSAMENTE RETORNADO PELA FERRAMENTA/FUNÇÃO DE CONSULTA AO BANCO DE DADOS. "
+                "CHAME A FERRAMENTA `listar_servicos` IMEDIATAMENTE antes de responder ao cliente."
+            )
+            return True, mensagem_auto_cura_servicos
     
     return False, resposta_final
 
@@ -285,6 +317,9 @@ Siga EXATAMENTE este modelo:
 - Responda SEMPRE em no máximo 2 a 3 frases curtas.
 - NUNCA envie a lista completa de 12 serviços de uma vez quando a cliente pedir para agendar: pergunte primeiro se é colocação ou manutenção e qual modelo ela prefere.
 - Ofereça no máximo 2 a 3 opções de horário por vez.
+
+🚨 REGRA DE OURO ESTRITA: VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INVENTAR OU LISTAR QUALQUER SERVIÇO, PREÇO OU DURAÇÃO QUE NÃO TENHA SIDO EXPRESSAMENTE RETORNADO PELA FERRAMENTA/FUNÇÃO DE CONSULTA AO BANCO DE DADOS. SE A FUNÇÃO FALHAR, DIGA APENAS QUE ESTÁ VERIFICANDO O SISTEMA. NUNCA USE SEU CONHECIMENTO GERAL PARA COMPLETAR LISTAS DE ESTÉTICA OU BARBEARIA.
+- Sempre que o cliente mencionar "serviço", "serviços", "valor", "preço" ou enviar continuações curtas de contexto (como "?", "??", "quais?"), VOCÊ DEVE OBRIGATORIAMENTE CHAMAR A FERRAMENTA `listar_servicos` ANTES de responder.
 
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 
@@ -469,11 +504,14 @@ def listar_servicos(barbearia_id: int) -> str:
                 lista_formatada.append(f"▫️ {s.nome} ({s.duracao} min, {preco_str})")
 
             # Em vez de '; '.join, usamos quebras de linha reais
-            return f"Serviços disponíveis:\n" + "\n".join(lista_formatada)
+            return (
+                "Serviços disponíveis (USE EXCLUSIVAMENTE ESTES SERVIÇOS DO BANCO DE DADOS - PROIBIDO INVENTAR OUTROS):\n"
+                + "\n".join(lista_formatada)
+            )
         
     except Exception as e:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_servicos': {e}", exc_info=True)
-        return f"Erro ao listar serviços: Ocorreu um erro interno."
+        return f"Erro ao listar serviços: Estou verificando o sistema no momento. (PROIBIDO INVENTAR SERVIÇOS)."
 
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str, servico_nome: str = None) -> str:
     try:
@@ -989,7 +1027,7 @@ listar_profissionais_func = FunctionDeclaration(
 
 listar_servicos_func = FunctionDeclaration(
     name="listar_servicos",
-    description="Lista todos os serviços disponíveis, incluindo duração e preço.",
+    description="Lista todos os serviços disponíveis, incluindo duração e preço. OBRIGATÓRIO chamar esta ferramenta SEMPRE que o cliente mencionar 'serviço', 'serviços', 'procedimento', 'valor', 'preço' ou enviar continuações de contexto (como '?', '??', 'quais?'). NUNCA cite serviços sem chamar esta ferramenta antes.",
     parameters={"type": "object", "properties": {}, "required": []}
 )
 
@@ -1601,6 +1639,17 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             
             CLIENTE DIZ: {user_message}
             """
+
+        # 3. TRAVA FORÇADA PARA 'listar_servicos' EM SERVIÇO/VALOR/CONTINUAÇÃO ('?')
+        if not eh_o_dono and barbearia.business_type != 'pousada' and user_message:
+            msg_limpa_check = str(user_message).strip().lower()
+            gatilhos_servico = ['serviço', 'servico', 'serviços', 'servicos', 'valor', 'valores', 'preço', 'preco', 'quais', 'opções', 'opcoes', 'procedimento', 'procedimentos', '?']
+            if msg_limpa_check in ['?', '??', '???', 'oi?', 'e ai?', 'e aí?'] or any(g in msg_limpa_check for g in gatilhos_servico):
+                msg_para_enviar += (
+                    "\n\n[ORDEM OBRIGATÓRIA DE SISTEMA]: O cliente mencionou serviço/valor ou enviou continuação de contexto ('?'). "
+                    "VOCÊ É OBRIGADA A CHAMAR A FERRAMENTA `listar_servicos` AGORA ANTES DE RESPONDER. "
+                    "REGRA DE OURO ESTRITA: VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INVENTAR OU LISTAR QUALQUER SERVIÇO, PREÇO OU DURAÇÃO QUE NÃO TENHA SIDO EXPRESSAMENTE RETORNADO PELA FERRAMENTA/FUNÇÃO DE CONSULTA AO BANCO DE DADOS. SE A FUNÇÃO FALHAR, DIGA APENAS QUE ESTÁ VERIFICANDO O SISTEMA. NUNCA USE SEU CONHECIMENTO GERAL PARA COMPLETAR LISTAS DE ESTÉTICA OU BARBEARIA."
+                )
 
         # --- TENTATIVA DE COMUNICAÇÃO ---
         travou = False

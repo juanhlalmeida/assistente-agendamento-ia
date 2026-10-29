@@ -12,7 +12,10 @@ class BarbershopPlugin(BaseBusinessPlugin):
 
     def gerar_system_prompt(self) -> str:
         # Retornaremos o prompt específico no próximo passo (integrando com ai_service)
-        return "PROMPT_BARBEARIA"
+        return (
+            "PROMPT_BARBEARIA\n"
+            "REGRA DE OURO ESTRITA: VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INVENTAR OU LISTAR QUALQUER SERVIÇO, PREÇO OU DURAÇÃO QUE NÃO TENHA SIDO EXPRESSAMENTE RETORNADO PELA FERRAMENTA/FUNÇÃO DE CONSULTA AO BANCO DE DADOS. SE A FUNÇÃO FALHAR, DIGA APENAS QUE ESTÁ VERIFICANDO O SISTEMA. NUNCA USE SEU CONHECIMENTO GERAL PARA COMPLETAR LISTAS DE ESTÉTICA OU BARBEARIA."
+        )
 
     def buscar_recursos(self):
         """Retorna os Profissionais da loja"""

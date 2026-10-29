@@ -45,6 +45,9 @@ Se você apenas falar "Ok, marquei" sem chamar a tool, o agendamento falha.
 - NUNCA envie a lista completa de 12 serviços de uma vez quando a cliente pedir para agendar: pergunte primeiro se é colocação ou manutenção e qual modelo ela prefere.
 - Ofereça no máximo 2 a 3 opções de horário por vez.
 
+🚨 REGRA DE OURO ESTRITA: VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INVENTAR OU LISTAR QUALQUER SERVIÇO, PREÇO OU DURAÇÃO QUE NÃO TENHA SIDO EXPRESSAMENTE RETORNADO PELA FERRAMENTA/FUNÇÃO DE CONSULTA AO BANCO DE DADOS. SE A FUNÇÃO FALHAR, DIGA APENAS QUE ESTÁ VERIFICANDO O SISTEMA. NUNCA USE SEU CONHECIMENTO GERAL PARA COMPLETAR LISTAS DE ESTÉTICA OU BARBEARIA.
+- Sempre que o cliente mencionar "serviço", "valor" ou enviar continuações de contexto (como "?"), CHAME OBRIGATORIAMENTE a ferramenta `listar_servicos`.
+
 🧠 TRADUÇÃO DE SERVIÇOS:
 - Cliente disse "Barba"? -> Use o nome oficial (ex: "Barba Terapia").
 - Cliente disse "Corte"? -> Use o nome oficial (ex: "Corte Social").
@@ -70,10 +73,13 @@ def listar_profissionais(barbearia_id: int) -> str:
     return f"Profissionais: {', '.join([p.nome for p in profs])}."
 
 def listar_servicos(barbearia_id: int) -> str:
-    servs = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+    servs = Servico.query.filter(
+        Servico.barbearia_id == barbearia_id,
+        Servico.nome != "Bloqueio Administrativo"
+    ).all()
     if not servs: return "Nenhum serviço."
     lista = [f"{s.nome} (R$ {s.preco})" for s in servs]
-    return f"Serviços: {'; '.join(lista)}."
+    return f"Serviços (USE EXCLUSIVAMENTE ESTES DO BANCO DE DADOS - PROIBIDO INVENTAR OUTROS): {'; '.join(lista)}."
 
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str, servico_nome: str = None) -> str:
     barbearia = Barbearia.query.get(barbearia_id)
@@ -195,7 +201,7 @@ def cancelar_agendamento_por_telefone(barbearia_id: int, telefone_cliente: str, 
 # Definição das Tools
 tools_list = Tool(function_declarations=[
     FunctionDeclaration(name="listar_profissionais", description="Lista equipe", parameters={"type": "object", "properties": {}}),
-    FunctionDeclaration(name="listar_servicos", description="Lista serviços", parameters={"type": "object", "properties": {}}),
+    FunctionDeclaration(name="listar_servicos", description="Lista todos os serviços e valores reais do banco de dados. OBRIGATÓRIO chamar sempre que o cliente falar 'serviço', 'valor', 'preço' ou enviar continuações de contexto como '?'.", parameters={"type": "object", "properties": {}}),
     FunctionDeclaration(name="calcular_horarios_disponiveis", description="Vê vagas", parameters={"type": "object", "properties": {"profissional_nome": {"type": "string"}, "dia": {"type": "string"}}, "required": ["profissional_nome", "dia"]}),
     FunctionDeclaration(name="criar_agendamento", description="Cria agendamento", parameters={"type": "object", "properties": {"nome_cliente": {"type": "string"}, "data_hora": {"type": "string"}, "profissional_nome": {"type": "string"}, "servico_nome": {"type": "string"}}, "required": ["nome_cliente", "data_hora", "profissional_nome", "servico_nome"]}),
     FunctionDeclaration(name="cancelar_agendamento_por_telefone", description="Cancela", parameters={"type": "object", "properties": {"dia": {"type": "string"}}, "required": ["dia"]})
