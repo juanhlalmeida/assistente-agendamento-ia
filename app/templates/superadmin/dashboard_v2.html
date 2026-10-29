@@ -17,6 +17,13 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-2.5">
+      <a href="{{ url_for('main.monitor_chat') }}" class="saas-btn-secondary">
+        <svg class="w-4 h-4 text-[#0F172A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span>Monitoramento IA</span>
+      </a>
+
       <a href="{{ url_for('main.admin_barbearias') }}" class="saas-btn-secondary">
         <svg class="w-4 h-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/>
@@ -95,10 +102,10 @@
       </div>
     </div>
 
-    {# Card 4: Custo Operacional IA #}
+    {# Card 4: Custo Operacional IA & Telemetria de Tokens #}
     <div class="saas-kpi-card">
       <div class="flex items-center justify-between">
-        <span class="saas-kpi-label">Consumo IA (USD)</span>
+        <span class="saas-kpi-label">Consumo IA (Tokens &amp; USD)</span>
         <div class="saas-kpi-icon">
           <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/>
@@ -107,8 +114,13 @@
         </div>
       </div>
       <div>
-        <div class="saas-kpi-value tabular-nums">US$ {{ "%.2f"|format(custo_ia_brl / 6.10) }}</div>
-        <p class="text-xs text-[#64748B] mt-1 tabular-nums">Equivalente a R$ {{ "%.2f"|format(custo_ia_brl) }}</p>
+        <div class="flex items-baseline gap-2">
+          <span class="saas-kpi-value tabular-nums">US$ {{ "%.2f"|format(custo_ia_brl / 6.10) }}</span>
+          <span class="text-xs font-medium text-[#64748B] tabular-nums">(R$ {{ "%.2f"|format(custo_ia_brl) }})</span>
+        </div>
+        <p class="text-[11px] text-[#64748B] mt-1 tabular-nums">
+          {{ "{:,}".format(total_tokens|default(0)).replace(',', '.') }} tokens (In: {{ "{:,}".format(tokens_input|default(0)).replace(',', '.') }} · Out: {{ "{:,}".format(tokens_output|default(0)).replace(',', '.') }})
+        </p>
       </div>
     </div>
 
@@ -147,7 +159,7 @@
                 </div>
                 <div class="min-w-0">
                   <div class="text-sm font-semibold text-[#0F172A] truncate">{{ loja.nome_fantasia }}</div>
-                  <div class="text-xs text-[#64748B] tabular-nums">{{ loja.telefone_whatsapp or 'Sem WhatsApp' }}</div>
+                  <div class="text-xs text-[#64748B] tabular-nums">{{ (loja.telefone_whatsapp | formatar_telefone) if loja.telefone_whatsapp else 'Sem WhatsApp' }}</div>
                 </div>
               </div>
             </td>
@@ -185,7 +197,7 @@
             </td>
 
             <td class="py-3.5 px-4 text-center">
-              {% if loja.meta_access_token %}
+              {% if loja.meta_access_token or loja.provedor_mensageria == 'waha' %}
                 <span class="inline-flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-md bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0] text-xs font-medium">
                   <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
@@ -206,14 +218,24 @@
             </td>
 
             <td class="py-3.5 px-5 text-right">
-              <a href="{{ url_for('main.admin_editar_barbearia', barbearia_id=loja.id) }}"
-                 class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#EAEAEA] bg-white text-xs font-semibold text-[#0F172A] hover:bg-[#F8F9FA] hover:border-[#CBD5E1] transition-colors"
-                 title="Editar Configurações">
-                <svg class="w-3.5 h-3.5 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
-                </svg>
-                <span>Configurar</span>
-              </a>
+              <div class="inline-flex items-center justify-end gap-2">
+                <a href="{{ url_for('main.monitor_chat', loja_id=loja.id) }}"
+                   class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#EAEAEA] bg-white text-xs font-semibold text-[#0F172A] hover:bg-[#F8F9FA] hover:border-[#CBD5E1] transition-colors"
+                   title="Monitorar Conversas IA desta Loja">
+                  <svg class="w-3.5 h-3.5 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  <span>Monitor IA</span>
+                </a>
+                <a href="{{ url_for('main.admin_editar_barbearia', barbearia_id=loja.id) }}"
+                   class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#EAEAEA] bg-white text-xs font-semibold text-[#0F172A] hover:bg-[#F8F9FA] hover:border-[#CBD5E1] transition-colors"
+                   title="Editar Configurações">
+                  <svg class="w-3.5 h-3.5 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+                  </svg>
+                  <span>Configurar</span>
+                </a>
+              </div>
             </td>
           </tr>
           {% else %}

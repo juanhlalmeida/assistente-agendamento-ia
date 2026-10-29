@@ -137,6 +137,11 @@
               <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
               <span>Clientes / Lojas</span>
             </a>
+            <a href="{{ url_for('main.monitor_chat') }}"
+               class="desktop-nav-item {% if request.endpoint == 'main.monitor_chat' %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>Monitoramento IA</span>
+            </a>
             <a href="{{ url_for('main.admin_planos') }}"
                class="desktop-nav-item {% if request.endpoint == 'main.admin_planos' %}active{% endif %}">
               <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
@@ -284,7 +289,7 @@
     {# ===================================================================== #}
     {% if current_user.is_authenticated %}
       {% if current_user.role == 'super_admin' %}
-      <nav class="mobile-bottom-nav select-none !grid-cols-3" aria-label="Navegação Super Admin Mobile">
+      <nav class="mobile-bottom-nav select-none !grid-cols-4" aria-label="Navegação Super Admin Mobile">
         <a href="{{ url_for('main.admin_painel_novo') }}"
            class="mobile-nav-item {% if request.endpoint == 'main.admin_painel_novo' %}active{% endif %}">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
@@ -294,6 +299,11 @@
            class="mobile-nav-item {% if request.endpoint == 'main.admin_barbearias' %}active{% endif %}">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           <span>Lojas</span>
+        </a>
+        <a href="{{ url_for('main.monitor_chat') }}"
+           class="mobile-nav-item {% if request.endpoint == 'main.monitor_chat' %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Monitor IA</span>
         </a>
         <a href="{{ url_for('main.admin_planos') }}"
            class="mobile-nav-item {% if request.endpoint == 'main.admin_planos' %}active{% endif %}">

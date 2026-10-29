@@ -100,6 +100,58 @@ def create_app(config_class=Config) -> Flask:
     cache.init_app(app)
 
     # ============================================
+    # 📞 FILTROS GLOBAIS JINJA2 (LIMPEZA DE TELEFONE / WAHA JID & LID)
+    # ============================================
+    import re as _re
+
+    @app.template_filter('formatar_telefone')
+    def formatar_telefone_filter(valor):
+        if not valor:
+            return "Sem telefone"
+        texto = str(valor).strip()
+        is_lid = '@lid' in texto.lower()
+        base = texto.replace('whatsapp:', '').split('@')[0]
+        digitos = _re.sub(r'\D', '', base)
+
+        if not digitos:
+            return base or "Sem telefone"
+
+        # Padrão Brasil com DDI 55 + DDD + 9 dígitos (13 dígitos)
+        if len(digitos) == 13 and digitos.startswith('55'):
+            return f"({digitos[2:4]}) {digitos[4:9]}-{digitos[9:]}"
+        # Padrão Brasil com DDI 55 + DDD + 8 dígitos (12 dígitos)
+        if len(digitos) == 12 and digitos.startswith('55'):
+            return f"({digitos[2:4]}) {digitos[4:8]}-{digitos[8:]}"
+        # Padrão Brasil sem DDI: DDD + 9 dígitos (11 dígitos)
+        if len(digitos) == 11:
+            return f"({digitos[:2]}) {digitos[2:7]}-{digitos[7:]}"
+        # Padrão Brasil sem DDI: DDD + 8 dígitos (10 dígitos)
+        if len(digitos) == 10:
+            return f"({digitos[:2]}) {digitos[2:6]}-{digitos[6:]}"
+
+        # Caso seja um identificador interno de privacidade da Meta (@lid com 14+ dígitos)
+        if is_lid or len(digitos) > 13:
+            return f"WhatsApp (#{digitos[-4:]})"
+
+        return f"+{digitos}"
+
+    @app.template_filter('wa_me_link')
+    def wa_me_link_filter(valor):
+        if not valor:
+            return ""
+        texto = str(valor).strip()
+        base = texto.replace('whatsapp:', '').split('@')[0]
+        digitos = _re.sub(r'\D', '', base)
+        if not digitos:
+            return ""
+        if len(digitos) in (10, 11):
+            return f"55{digitos}"
+        if len(digitos) in (12, 13) and digitos.startswith('55'):
+            return digitos
+        # Para IDs @lid puros (>13 dígitos), retorna os dígitos limpos sem sufixo @lid
+        return digitos
+
+    # ============================================
     # 🔍 REGISTRO DE BLUEPRINTS COM LOGS DETALHADOS
     # ============================================
     

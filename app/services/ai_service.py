@@ -1871,13 +1871,31 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
         try:
 
-            if hasattr(response, 'usage_metadata'):
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
 
-                input_tokens = response.usage_metadata.prompt_token_count
+                input_tokens = getattr(response.usage_metadata, 'prompt_token_count', 0) or 0
 
-                output_tokens = response.usage_metadata.candidates_token_count
+                output_tokens = getattr(response.usage_metadata, 'candidates_token_count', 0) or 0
 
-                logging.info(f"💰 Tokens usados - Input: {input_tokens}, Output: {output_tokens}")
+                cached_tokens = getattr(response.usage_metadata, 'cached_content_token_count', 0) or 0
+
+                logging.info(f"💰 Tokens usados - Input: {input_tokens}, Output: {output_tokens}, Cached: {cached_tokens}")
+
+                # Telemetria Real Multi-Tenant no Cache/Redis (Ciclo Mensal)
+                mes_ref = datetime.now(BR_TZ).strftime('%Y-%m')
+                for escopo in (f"loja_{barbearia_id}", "global"):
+                    chave_telemetria = f"telemetry_tokens:{mes_ref}:{escopo}"
+                    dados_atuais = cache.get(chave_telemetria) or {
+                        "input_tokens": 0,
+                        "output_tokens": 0,
+                        "cached_tokens": 0,
+                        "requests": 0
+                    }
+                    dados_atuais["input_tokens"] = int(dados_atuais.get("input_tokens", 0)) + int(input_tokens)
+                    dados_atuais["output_tokens"] = int(dados_atuais.get("output_tokens", 0)) + int(output_tokens)
+                    dados_atuais["cached_tokens"] = int(dados_atuais.get("cached_tokens", 0)) + int(cached_tokens)
+                    dados_atuais["requests"] = int(dados_atuais.get("requests", 0)) + 1
+                    cache.set(chave_telemetria, dados_atuais, timeout=5184000)
 
         except Exception:
 

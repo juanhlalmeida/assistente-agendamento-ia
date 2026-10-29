@@ -3,18 +3,72 @@
 {% block content %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
 
-<div class="h-[100dvh] md:h-[calc(100vh-100px)] flex flex-col md:flex-row bg-white md:rounded-xl md:shadow-2xl overflow-hidden md:border border-gray-200 relative">
+{% if current_user.is_authenticated and current_user.role == 'super_admin' %}
+<div class="saas-card p-4 mb-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-lg bg-[#0F172A] text-white flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h2 class="text-sm font-bold text-[#0F172A] heading-tight">Monitoramento IA Multi-Tenant</h2>
+                    <span class="saas-badge">Super Admin</span>
+                </div>
+                <p class="text-xs text-[#64748B]">Selecione a unidade para auditar conversas ao vivo e consumo de tokens.</p>
+            </div>
+        </div>
+
+        <form method="GET" action="{{ url_for('main.monitor_chat') }}" class="sm:ml-2">
+            <select name="loja_id" onchange="this.form.submit()" class="saas-input !h-10 !py-1.5 !px-3 text-xs font-semibold min-w-[220px]">
+                {% for loja in todas_lojas %}
+                    <option value="{{ loja.id }}" {% if loja_selecionada and loja.id == loja_selecionada.id %}selected{% endif %}>
+                        #{{ loja.id }} — {{ loja.nome_fantasia }}
+                    </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
+    {% if telemetria_loja %}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 lg:pt-0 border-t lg:border-t-0 border-[#EAEAEA]">
+        <div class="px-3 py-1.5 rounded-lg bg-[#F8F9FA] border border-[#EAEAEA]">
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Respostas IA (Mês)</span>
+            <span class="text-xs font-bold text-[#0F172A] tabular-nums">{{ telemetria_loja.interacoes_ia }} turnos</span>
+        </div>
+        <div class="px-3 py-1.5 rounded-lg bg-[#F8F9FA] border border-[#EAEAEA]">
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Tokens Input</span>
+            <span class="text-xs font-bold text-[#0F172A] tabular-nums">{{ "{:,}".format(telemetria_loja.tokens_input).replace(',', '.') }}</span>
+        </div>
+        <div class="px-3 py-1.5 rounded-lg bg-[#F8F9FA] border border-[#EAEAEA]">
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Tokens Output</span>
+            <span class="text-xs font-bold text-[#0F172A] tabular-nums">{{ "{:,}".format(telemetria_loja.tokens_output).replace(',', '.') }}</span>
+        </div>
+        <div class="px-3 py-1.5 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0]">
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#047857]">Custo IA Loja</span>
+            <span class="text-xs font-bold text-[#047857] tabular-nums">R$ {{ "%.2f"|format(telemetria_loja.custo_brl)|replace('.', ',') }} <span class="text-[10px] font-normal opacity-80">(US$ {{ "%.3f"|format(telemetria_loja.custo_usd) }})</span></span>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="h-[100dvh] md:h-[calc(100vh-140px)] flex flex-col md:flex-row bg-white md:rounded-xl md:shadow-2xl overflow-hidden md:border border-gray-200 relative">
     
     <div id="lista-contatos" class="{{ 'hidden md:flex' if selecionado else 'flex' }} w-full md:w-1/3 bg-white border-r border-gray-200 flex-col h-full z-10">
         
         <div class="p-4 bg-gray-100 border-b border-gray-200 flex justify-between items-center shrink-0">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 rounded-full bg-gray-300 overflow-hidden">
+            <div class="flex items-center gap-2 min-w-0">
+                <div class="w-8 h-8 rounded-full bg-gray-300 overflow-hidden shrink-0">
                     <span class="material-symbols-outlined text-gray-500 p-1">person</span>
                 </div>
-                <h3 class="font-bold text-gray-700 text-lg">Conversas</h3>
+                <div class="min-w-0">
+                    <h3 class="font-bold text-gray-700 text-base truncate">
+                        {{ loja_selecionada.nome_fantasia if loja_selecionada else 'Conversas' }}
+                    </h3>
+                </div>
             </div>
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 shrink-0">
                  <div class="flex items-center gap-1 bg-green-100 px-2 py-1 rounded-full border border-green-200">
                     <span class="relative flex h-2 w-2">
                       <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
@@ -34,24 +88,24 @@
             {% endif %}
 
             {% for contato in contatos %}
-                <a href="{{ url_for('main.monitor_chat', telefone=contato.telefone) }}" 
+                <a href="{{ url_for('main.monitor_chat', telefone=contato.telefone, loja_id=loja_selecionada.id if loja_selecionada else None) }}" 
                    class="block group relative p-3 border-b border-gray-50 hover:bg-gray-50 transition-all cursor-pointer select-none
                           {% if selecionado == contato.telefone %}bg-[#f0f2f5] border-l-4 border-l-green-500{% endif %}">
                     
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-3 overflow-hidden">
                             <div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-lg shrink-0 group-hover:scale-105 transition-transform">
-                                {{ contato.nome_exibicao[0] }}
+                                {{ contato.nome_exibicao[0] if contato.nome_exibicao else 'C' }}
                             </div>
                             <div class="min-w-0">
                                 <p class="font-bold text-gray-800 text-base truncate">{{ contato.nome_exibicao }}</p>
-                                <p class="text-sm text-gray-500 truncate w-40 group-hover:text-green-600 transition-colors">
-                                    {{ contato.telefone }}
+                                <p class="text-sm text-gray-500 truncate w-44 tabular-nums group-hover:text-green-600 transition-colors">
+                                    {{ contato.telefone_formatado or (contato.telefone | formatar_telefone) }}
                                 </p>
                             </div>
                         </div>
-                        <div class="text-[10px] text-gray-400 font-medium whitespace-nowrap">
-                            {{ contato.hora.strftime('%H:%M') }}
+                        <div class="text-[10px] text-gray-400 font-medium whitespace-nowrap tabular-nums">
+                            {{ contato.hora.strftime('%H:%M') if contato.hora else '' }}
                         </div>
                     </div>
                 </a>
@@ -67,17 +121,17 @@
         {% if selecionado %}
             <div class="relative shrink-0 p-2 px-3 bg-[#f0f2f5] border-b border-gray-300 flex items-center gap-3 shadow-sm z-30">
                 
-                <a href="{{ url_for('main.monitor_chat') }}" class="md:hidden text-[#00a884] p-1 -ml-1">
+                <a href="{{ url_for('main.monitor_chat', loja_id=loja_selecionada.id if loja_selecionada else None) }}" class="md:hidden text-[#00a884] p-1 -ml-1">
                     <span class="material-symbols-outlined text-2xl">arrow_back</span>
                 </a>
 
                 <div class="w-9 h-9 rounded-full bg-gray-400 flex items-center justify-center text-white font-bold shrink-0">
-                    {{ nome_selecionado[0] }}
+                    {{ nome_selecionado[0] if nome_selecionado else 'C' }}
                 </div>
                 <div class="flex-1 overflow-hidden cursor-default">
                     <h4 class="font-bold text-gray-800 text-sm md:text-base truncate">{{ nome_selecionado }}</h4>
-                    <p class="text-xs text-gray-500 truncate">
-                        online via <span class="font-semibold text-green-600">Assistente IA</span>
+                    <p class="text-xs text-gray-500 truncate tabular-nums">
+                        {{ selecionado | formatar_telefone }} · online via <span class="font-semibold text-green-600">Assistente IA</span>
                     </p>
                 </div>
                 <div class="flex gap-4 text-[#54656f]">

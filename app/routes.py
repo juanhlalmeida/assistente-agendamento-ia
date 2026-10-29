@@ -159,7 +159,7 @@ def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: B
         "text": {"body": mensagem}
     }
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
         response.raise_for_status()
         return True
     except requests.exceptions.RequestException as e:
@@ -196,41 +196,9 @@ def enviar_midia_whatsapp_meta(destinatario: str, url_arquivo: str, barbearia: B
         "image": {"link": url_arquivo}
     }
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
         if response.status_code == 200:
             logging.info(f"✅ Mídia enviada com sucesso para {destinatario} via Meta")
-            return True
-        else:
-            logging.error(f"❌ Erro Meta Media: {response.text}")
-            return False
-    except Exception as e:
-        logging.error(f"❌ Erro ao enviar mídia: {e}")
-        return False
-
-# --- NOVO: FUNÇÃO PARA ENVIAR MÍDIA (FOTO/PDF) ---
-def enviar_midia_whatsapp_meta(destinatario: str, url_arquivo: str, barbearia: Barbearia):
-    """
-    Envia imagem para o WhatsApp do cliente via Meta API.
-    """
-    if not url_arquivo: return False
-    
-    # Remove prefixo whatsapp: se existir
-    if destinatario.startswith('whatsapp:'):
-        destinatario = destinatario.replace('whatsapp:', '')
-
-    url = f"https://graph.facebook.com/v19.0/{barbearia.meta_phone_number_id}/messages"
-    headers = {"Authorization": f"Bearer {barbearia.meta_access_token}", "Content-Type": "application/json"}
-    
-    payload = {
-        "messaging_product": "whatsapp",
-        "to": destinatario,
-        "type": "image", 
-        "image": {"link": url_arquivo}
-    }
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            logging.info(f"✅ Mídia enviada com sucesso para {destinatario}")
             return True
         else:
             logging.error(f"❌ Erro Meta Media: {response.text}")
@@ -257,7 +225,7 @@ def marcar_como_lido(message_id: str, barbearia: Barbearia):
         "message_id": message_id
     }
     try:
-        requests.post(url, headers=headers, json=payload)
+        requests.post(url, headers=headers, json=payload, timeout=10)
     except Exception:
         pass
 
@@ -283,7 +251,7 @@ def processar_audio_background(audio_id, wa_id, access_token, phone_number_id, b
                     "type": "text",
                     "text": {"body": resposta_texto}
                 }
-                requests.post(url, headers=headers, json=payload)
+                requests.post(url, headers=headers, json=payload, timeout=10)
                 logging.info(f"✅ 🧵 Resposta do áudio enviada com sucesso para {wa_id}")
                 
         except Exception as e:
@@ -812,6 +780,26 @@ def webhook_meta():
         return "Método não permitido", 405
     
 # ==============================================================================
+# 🔗 POOL GLOBAL DE CONEXÃO REDIS (ALTA PERFORMANCE PARA O WEBHOOK WAHA)
+# ==============================================================================
+_REDIS_CLIENT_GLOBAL = None
+
+def _obter_cliente_redis():
+    global _REDIS_CLIENT_GLOBAL
+    if _REDIS_CLIENT_GLOBAL is not None:
+        return _REDIS_CLIENT_GLOBAL
+    import redis
+    redis_url = os.environ.get('REDIS_URL') or os.environ.get('CACHE_REDIS_URL')
+    if not redis_url:
+        return None
+    try:
+        _REDIS_CLIENT_GLOBAL = redis.from_url(redis_url, socket_timeout=5, socket_connect_timeout=5)
+        return _REDIS_CLIENT_GLOBAL
+    except Exception as e:
+        logging.error(f"Erro ao conectar no Redis (Pool): {e}")
+        return None
+
+# ==============================================================================
 # 🚀 ROTA DO WEBHOOK DO WAHA (VERSÃO DEFINITIVA - PRODUÇÃO SEM DUPLICIDADE)
 # ==============================================================================
 @bp.route('/api/webhooks/waha', methods=['POST'])
@@ -856,16 +844,9 @@ def webhook_waha():
             barbearia_id = int(match.group(1))
 
     # ==============================================================================
-    # 🔗 CONEXÃO COM O REDIS
+    # 🔗 CONEXÃO COM O REDIS (REUTILIZA POOL GLOBAL)
     # ==============================================================================
-    import redis
-    import os
-    redis_url = os.environ.get('REDIS_URL')
-    try:
-        cliente_redis = redis.from_url(redis_url) if redis_url else None
-    except Exception as e:
-        logging.error(f"Erro ao conectar no Redis: {e}")
-        cliente_redis = None
+    cliente_redis = _obter_cliente_redis()
 
     # Extração de campos essenciais do WAHA
     message_id = payload.get('id')
@@ -976,6 +957,18 @@ def webhook_waha():
                 time.sleep(3) # Aguarda 3s para o outro processo criar o histórico primeiro
         except Exception as e:
             logging.error(f"Erro no Redis Anti-Spam: {e}")
+
+        # 🛡️ ESCUDO RATE-LIMIT ANTI-DDOS / EXAUSTÃO DE TOKENS (Máx 15 msgs/minuto por remetente)
+        rate_key = f"rate_limit_waha:{barbearia_id}:{from_numero_limpo}"
+        try:
+            qtd_msgs = cliente_redis.incr(rate_key)
+            if qtd_msgs == 1:
+                cliente_redis.expire(rate_key, 60)
+            if qtd_msgs > 15:
+                logging.warning(f"🚨 Rate Limit atingido para {from_numero_limpo} na loja {barbearia_id} ({qtd_msgs} msgs/min).")
+                return jsonify({"status": "rate_limited"}), 200
+        except Exception as e:
+            logging.error(f"Erro no Redis Rate-Limit: {e}")
 
     # ==============================================================================
     # 🚀 CHAMADA DO PROTETOR ISOLADO (WAHA_UTILS)
@@ -1583,19 +1576,52 @@ def atualizar_planos_db():
 @bp.route('/dashboard/monitor')
 @login_required
 def monitor_chat():
-    if not current_user.barbearia_id:
+    is_super_admin = getattr(current_user, 'role', '') == 'super_admin'
+    todas_lojas = []
+    loja_selecionada = None
+
+    if is_super_admin:
+        todas_lojas = Barbearia.query.order_by(Barbearia.id.asc()).all()
+        loja_id_param = request.args.get('loja_id', type=int)
+        if loja_id_param:
+            loja_selecionada = Barbearia.query.get(loja_id_param)
+        if not loja_selecionada and todas_lojas:
+            loja_selecionada = todas_lojas[0]
+        loja_id_alvo = loja_selecionada.id if loja_selecionada else None
+    else:
+        loja_id_alvo = current_user.barbearia_id
+        if loja_id_alvo:
+            loja_selecionada = Barbearia.query.get(loja_id_alvo)
+
+    if not loja_id_alvo:
         flash("Você precisa estar vinculado a uma loja para ver o chat.", "warning")
-        return redirect(url_for('main.agenda'))
+        return redirect(url_for('main.admin_painel_novo' if is_super_admin else 'main.agenda'))
 
     # ⏱️ CONFIGURA O FUSO HORÁRIO
     sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
+    telefone_selecionado = request.args.get('telefone')
+
+    # ⚡ FAST-PATH AJAX: No auto-update de 3s, busca SOMENTE as mensagens da conversa ativa (Zero N+1)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        mensagens_ajax = []
+        if telefone_selecionado:
+            mensagens_db = ChatLog.query.filter_by(
+                barbearia_id=loja_id_alvo,
+                cliente_telefone=telefone_selecionado
+            ).order_by(ChatLog.data_hora.asc()).all()
+            for msg in mensagens_db:
+                if msg.data_hora:
+                    hora_utc = msg.data_hora.replace(tzinfo=pytz.utc) if msg.data_hora.tzinfo is None else msg.data_hora
+                    msg.data_hora = hora_utc.astimezone(sao_paulo_tz)
+                mensagens_ajax.append(msg)
+        return render_template('monitor_partial.html', msgs=mensagens_ajax)
 
     # 1. PEGAR LISTA DE CONTATOS (Agrupados) e IGNORAR VAZIOS/FANTASMAS
     subquery = db.session.query(
         ChatLog.cliente_telefone,
         func.max(ChatLog.data_hora).label('ultima_interacao')
     ).filter(
-        ChatLog.barbearia_id == current_user.barbearia_id,
+        ChatLog.barbearia_id == loja_id_alvo,
         ChatLog.cliente_telefone != None,
         ChatLog.cliente_telefone != ''
     ).group_by(ChatLog.cliente_telefone)\
@@ -1604,35 +1630,56 @@ def monitor_chat():
 
     lista_contatos = []
     
-    # MÁGICA 1: Formatador de Telefone Padrão WhatsApp
+    # MÁGICA 1: Formatador de Telefone Padrão WhatsApp (Limpa @c.us e @lid)
     def formatar_tel(tel):
-        t = ''.join(filter(str.isdigit, str(tel)))
+        if not tel:
+            return ""
+        texto = str(tel).strip()
+        is_lid = '@lid' in texto.lower()
+        base = texto.replace('whatsapp:', '').split('@')[0]
+        t = ''.join(filter(str.isdigit, base))
         if len(t) == 13 and t.startswith('55'): 
-            return f"+{t[:2]} ({t[2:4]}) {t[4:9]}-{t[9:]}"
+            return f"({t[2:4]}) {t[4:9]}-{t[9:]}"
         if len(t) == 12 and t.startswith('55'): # Sem o nono dígito
-            return f"+{t[:2]} ({t[2:4]}) {t[4:8]}-{t[8:]}"
+            return f"({t[2:4]}) {t[4:8]}-{t[8:]}"
         if len(t) == 11: 
-            return f"+55 ({t[:2]}) {t[2:7]}-{t[7:]}"
+            return f"({t[:2]}) {t[2:7]}-{t[7:]}"
+        if len(t) == 10:
+            return f"({t[:2]}) {t[2:6]}-{t[6:]}"
+        if is_lid or len(t) > 13:
+            return f"WhatsApp (#{t[-4:]})" if len(t) >= 4 else "WhatsApp Cliente"
         return f"+{t}" if t else ""
+
+    # MÁGICA 2 OTIMIZADA (ZERO N+1): Pré-carrega nomes de clientes da loja em 1 única query
+    mapa_nomes_clientes = {}
+    agendamentos_nomes = db.session.query(
+        Agendamento.telefone_cliente,
+        Agendamento.nome_cliente
+    ).filter(
+        Agendamento.barbearia_id == loja_id_alvo,
+        Agendamento.nome_cliente != None,
+        Agendamento.telefone_cliente != None
+    ).order_by(Agendamento.id.desc()).all()
+
+    for tel_ag, nome_ag in agendamentos_nomes:
+        digitos_ag = ''.join(filter(str.isdigit, str(tel_ag).split('@')[0]))
+        chave_8 = digitos_ag[-8:] if len(digitos_ag) >= 8 else digitos_ag
+        if chave_8 and chave_8 not in mapa_nomes_clientes and nome_ag and nome_ag.strip():
+            nome_parts = nome_ag.strip().split()
+            nome_fmt = nome_parts[0].capitalize()
+            if len(nome_parts) > 1:
+                nome_fmt += " " + nome_parts[-1].capitalize()
+            mapa_nomes_clientes[chave_8] = nome_fmt
 
     for item in subquery:
         phone = item.cliente_telefone
         telefone_formatado = formatar_tel(phone)
         display_name = telefone_formatado
 
-        # MÁGICA 2: Busca Inteligente de Nome (Pega só os últimos 8 dígitos para não falhar)
-        base_phone = phone[-8:] if len(phone) >= 8 else phone 
-        cliente_conhecido = Agendamento.query.filter(
-            Agendamento.barbearia_id == current_user.barbearia_id,
-            Agendamento.telefone_cliente.like(f"%{base_phone}%")
-        ).order_by(Agendamento.id.desc()).first()
-
-        if cliente_conhecido and cliente_conhecido.nome_cliente:
-            # Capitaliza o Primeiro e o Último nome para ficar elegante
-            nome_parts = cliente_conhecido.nome_cliente.strip().split()
-            display_name = nome_parts[0].capitalize()
-            if len(nome_parts) > 1:
-                display_name += " " + nome_parts[-1].capitalize()
+        digitos_phone = ''.join(filter(str.isdigit, str(phone).split('@')[0]))
+        base_phone = digitos_phone[-8:] if len(digitos_phone) >= 8 else digitos_phone
+        if base_phone in mapa_nomes_clientes:
+            display_name = mapa_nomes_clientes[base_phone]
 
         # Ajuste Fuso Horário da Lista Lateral
         hora_br = item.ultima_interacao
@@ -1648,7 +1695,6 @@ def monitor_chat():
         })
 
     # 2. CARREGAR CONVERSA SELECIONADA
-    telefone_selecionado = request.args.get('telefone')
     mensagens = []
     nome_selecionado = ""
 
@@ -1664,7 +1710,7 @@ def monitor_chat():
 
         # Busca APENAS as mensagens daquele telefone exato
         mensagens_db = ChatLog.query.filter_by(
-            barbearia_id=current_user.barbearia_id,
+            barbearia_id=loja_id_alvo,
             cliente_telefone=telefone_selecionado
         ).order_by(ChatLog.data_hora.asc()).all()
 
@@ -1674,16 +1720,53 @@ def monitor_chat():
                 msg.data_hora = hora_utc.astimezone(sao_paulo_tz)
             mensagens.append(msg)
 
-    # Motor de Auto-Update Invisível
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return render_template('monitor_partial.html', msgs=mensagens)
+    # 3. TELEMETRIA DE TOKENS E CUSTO DA LOJA SELECIONADA (VISÃO SUPER ADMIN & AUDITORIA)
+    hoje_sp = datetime.now(sao_paulo_tz)
+    inicio_mes = datetime(hoje_sp.year, hoje_sp.month, 1)
+    mes_ref = hoje_sp.strftime('%Y-%m')
+
+    chars_in_loja = db.session.query(func.sum(func.length(ChatLog.mensagem)))\
+        .filter(ChatLog.barbearia_id == loja_id_alvo, ChatLog.data_hora >= inicio_mes, ChatLog.tipo == 'cliente').scalar() or 0
+    chars_out_loja = db.session.query(func.sum(func.length(ChatLog.mensagem)))\
+        .filter(ChatLog.barbearia_id == loja_id_alvo, ChatLog.data_hora >= inicio_mes, ChatLog.tipo == 'ia').scalar() or 0
+    respostas_ia_loja = db.session.query(func.count(ChatLog.id))\
+        .filter(ChatLog.barbearia_id == loja_id_alvo, ChatLog.data_hora >= inicio_mes, ChatLog.tipo == 'ia').scalar() or 0
+
+    # Estimativa contextualizada (System Prompt + Histórico + Tools ≈ 1.850 tokens de contexto por turno + chars/4)
+    est_input_tokens = int(chars_in_loja / 4) + (respostas_ia_loja * 1850)
+    est_output_tokens = int(chars_out_loja / 4)
+
+    # Combina com telemetria real acumulada da API Gemini no Redis (se maior)
+    try:
+        from app.extensions import cache as _cache
+        dados_redis_loja = _cache.get(f"telemetry_tokens:{mes_ref}:loja_{loja_id_alvo}") or {}
+    except Exception:
+        dados_redis_loja = {}
+
+    tokens_in_loja = max(int(dados_redis_loja.get("input_tokens", 0)), est_input_tokens)
+    tokens_out_loja = max(int(dados_redis_loja.get("output_tokens", 0)), est_output_tokens)
+    total_tokens_loja = tokens_in_loja + tokens_out_loja
+    custo_usd_loja = ((tokens_in_loja / 1_000_000) * 0.10) + ((tokens_out_loja / 1_000_000) * 0.40)
+    custo_brl_loja = custo_usd_loja * 6.10
+
+    telemetria_loja = {
+        'tokens_input': tokens_in_loja,
+        'tokens_output': tokens_out_loja,
+        'total_tokens': total_tokens_loja,
+        'interacoes_ia': max(int(dados_redis_loja.get("requests", 0)), respostas_ia_loja),
+        'custo_usd': custo_usd_loja,
+        'custo_brl': custo_brl_loja
+    }
 
     return render_template(
         'monitor.html', 
         contatos=lista_contatos, 
         msgs=mensagens, 
         selecionado=telefone_selecionado,
-        nome_selecionado=nome_selecionado
+        nome_selecionado=nome_selecionado,
+        todas_lojas=todas_lojas,
+        loja_selecionada=loja_selecionada,
+        telemetria_loja=telemetria_loja
     )
 
 # ============================================
@@ -1722,24 +1805,37 @@ def admin_painel_novo():
     
     hoje = datetime.now()
     inicio_mes = datetime(hoje.year, hoje.month, 1)
+    mes_ref = hoje.strftime('%Y-%m')
     
     total_agendamentos = Agendamento.query.filter(Agendamento.data_hora >= inicio_mes).count()
     
-    # 3. CONTABILIZADOR DE TOKENS (AUDITORIA DE CUSTO)
-    # A IA cobra por "Token". 
-    # Média da Indústria: 1 Token ≈ 4 Caracteres (Português/Inglês)
+    # 3. CONTABILIZADOR DE TOKENS (AUDITORIA DE CUSTO REALISTA + TELEMETRIA REDIS)
+    # A IA cobra por "Token" (Input = Mensagem + System Prompt + Histórico + Tools; Output = Resposta gerada).
     
-    # Soma caracteres que o CLIENTE enviou (Input - Mais barato)
+    # Soma caracteres que o CLIENTE enviou (Input direto)
     chars_input = db.session.query(func.sum(func.length(ChatLog.mensagem)))\
         .filter(ChatLog.data_hora >= inicio_mes, ChatLog.tipo == 'cliente').scalar() or 0
     
     # Soma caracteres que a IA respondeu (Output - Mais caro)
     chars_output = db.session.query(func.sum(func.length(ChatLog.mensagem)))\
         .filter(ChatLog.data_hora >= inicio_mes, ChatLog.tipo == 'ia').scalar() or 0
+
+    # Contagem de turnos de resposta da IA no ciclo atual (cada chamada carrega o System Prompt + Contexto)
+    total_interacoes_ia = db.session.query(func.count(ChatLog.id))\
+        .filter(ChatLog.data_hora >= inicio_mes, ChatLog.tipo == 'ia').scalar() or 0
     
-    # Conversão para Tokens
-    tokens_input = int(chars_input / 4)
-    tokens_output = int(chars_output / 4)
+    # Conversão para Tokens (inclui ~1.850 tokens médios de System Prompt/Tools por turno de IA)
+    est_tokens_input = int(chars_input / 4) + (total_interacoes_ia * 1850)
+    est_tokens_output = int(chars_output / 4)
+
+    try:
+        from app.extensions import cache as _cache
+        dados_redis_global = _cache.get(f"telemetry_tokens:{mes_ref}:global") or {}
+    except Exception:
+        dados_redis_global = {}
+
+    tokens_input = max(int(dados_redis_global.get("input_tokens", 0)), est_tokens_input)
+    tokens_output = max(int(dados_redis_global.get("output_tokens", 0)), est_tokens_output)
     total_tokens = tokens_input + tokens_output
     
     # 4. Faturamento (MRR)
@@ -1761,12 +1857,12 @@ def admin_painel_novo():
     # As conversas de "Service" (Chat da IA) são GRÁTIS na janela de 24h.
     custo_meta_usd = total_agendamentos * 0.008
     
-    # B. CUSTO IA (GEMINI FLASH - PREÇO PAY-AS-YOU-GO)
-    # Tabela Oficial Google Cloud (Vertex AI / Studio):
-    # Input: $0.075 por 1 Milhão de tokens
-    # Output: $0.30 por 1 Milhão de tokens
-    custo_input_usd = (tokens_input / 1_000_000) * 0.075
-    custo_output_usd = (tokens_output / 1_000_000) * 0.30
+    # B. CUSTO IA (GEMINI 2.0/2.5 FLASH - PREÇO PAY-AS-YOU-GO)
+    # Tabela Oficial Google Cloud (Vertex AI / AI Studio):
+    # Input: $0.10 por 1 Milhão de tokens
+    # Output: $0.40 por 1 Milhão de tokens
+    custo_input_usd = (tokens_input / 1_000_000) * 0.10
+    custo_output_usd = (tokens_output / 1_000_000) * 0.40
     custo_ia_usd = custo_input_usd + custo_output_usd
     
     # C. CUSTO INFRA (RENDER)
@@ -1788,10 +1884,12 @@ def admin_painel_novo():
         total_lojas=total_lojas,
         lojas_ativas=lojas_ativas,
         total_agendamentos=total_agendamentos,
-        # Dados de IA para o Gráfico
+        # Dados de IA para o Gráfico e Auditoria
         total_tokens=total_tokens,
         tokens_input=tokens_input,
         tokens_output=tokens_output,
+        total_interacoes_ia=total_interacoes_ia,
+        custo_ia_usd=custo_ia_usd,
         custo_ia_brl=custo_ia_usd * DOLAR_HOJE,
         # Financeiro
         mrr=mrr_final,
@@ -1882,7 +1980,10 @@ def redirect_gcal(agendamento_id):
         return "Erro ao gerar link da agenda."
 
 @bp.route('/fix_db_column_v2')
+@login_required
 def fix_db_column_v2():
+    if getattr(current_user, 'role', '') != 'super_admin':
+        abort(403)
     try:
         # 1. Cria a coluna 'business_type' se não existir
         # 2. Define 'barbershop' para todo mundo que já existe
@@ -1911,7 +2012,12 @@ def api_reservas_calendario():
     if not current_user.barbearia_id:
         return jsonify([])
     
-    agendamentos = Agendamento.query.filter_by(barbearia_id=current_user.barbearia_id).all()
+    agendamentos = (
+        Agendamento.query
+        .options(joinedload(Agendamento.servico), joinedload(Agendamento.profissional))
+        .filter_by(barbearia_id=current_user.barbearia_id)
+        .all()
+    )
     eventos = []
     
     # Paleta de cores premium para diferenciar os quartos
@@ -1937,8 +2043,8 @@ def api_reservas_calendario():
             'color': cor_quarto, # Envia a cor para o calendário
             'extendedProps': {
                 'quarto_id': str(ag.profissional_id),
-                'quarto_nome': ag.profissional.nome,
-                'telefone': ag.telefone_cliente,
+                'quarto_nome': ag.profissional.nome if ag.profissional else '',
+                'telefone': str(ag.telefone_cliente or '').split('@')[0],
                 'tipo': tipo_texto,
                 'checkin': ag.data_hora.strftime('%d/%m às %H:%M'),
                 'checkout': fim.strftime('%d/%m às %H:%M')
@@ -2071,15 +2177,18 @@ def conectar_numero():
     
 
 @bp.route('/api/waha/desconectar', methods=['POST'])
+@login_required
 def desconectar_waha():
     try:
         import os
         import requests
         from app.services.waha_service import get_waha_headers
         
-        # Pega a sessão atual do usuário logado (ex: loja-1)
-        # Substitua essa variável pela forma como você já captura a sessão no seu código
-        session_id = "loja-1" 
+        if not current_user.barbearia_id and getattr(current_user, 'role', '') != 'super_admin':
+            return jsonify({"success": False, "error": "Usuário não vinculado a uma loja."}), 403
+
+        # Pega a sessão dinâmica da loja do usuário logado
+        session_id = f"loja-{current_user.barbearia_id}" if current_user.barbearia_id else (request.json or {}).get('session_id', 'loja-1')
         
         WAHA_URL = os.environ.get('WAHA_BASE_URL', 'http://waha-agendamento-ia:10000').rstrip('/')
         headers = get_waha_headers()

@@ -17,7 +17,7 @@ def index():
     """Exibe a lista de clientes únicos da barbearia logada."""
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        return redirect(url_for('auth.login')) # Ajuste se necessário
+        return redirect(url_for('main.login')) # Corrigido para rota existente main.login
         
     barbearia_id_logada = current_user.barbearia_id
     

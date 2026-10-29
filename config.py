@@ -20,6 +20,9 @@ class Config:
 
     # Segurança
     SECRET_KEY: str = os.getenv("APP_SECRET_KEY") or os.getenv("SECRET_KEY") or "fallback-secret-key-mude-isto"
+    SESSION_COOKIE_HTTPONLY: bool = True
+    SESSION_COOKIE_SAMESITE: str = "Lax"
+    SESSION_COOKIE_SECURE: bool = os.getenv("APP_ENV", "development").lower() == "production"
 
     # SQLAlchemy
     SQLALCHEMY_DATABASE_URI: str | None = None
