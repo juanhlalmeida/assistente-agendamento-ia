@@ -48,6 +48,12 @@ Se você apenas falar "Ok, marquei" sem chamar a tool, o agendamento falha.
 🚨 REGRA DE OURO ESTRITA: VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INVENTAR OU LISTAR QUALQUER SERVIÇO, PREÇO OU DURAÇÃO QUE NÃO TENHA SIDO EXPRESSAMENTE RETORNADO PELA FERRAMENTA/FUNÇÃO DE CONSULTA AO BANCO DE DADOS. SE A FUNÇÃO FALHAR, DIGA APENAS QUE ESTÁ VERIFICANDO O SISTEMA. NUNCA USE SEU CONHECIMENTO GERAL PARA COMPLETAR LISTAS DE ESTÉTICA OU BARBEARIA.
 - Sempre que o cliente mencionar "serviço", "valor" ou enviar continuações de contexto (como "?"), CHAME OBRIGATORIAMENTE a ferramenta `listar_servicos`.
 
+🚨 PADRONIZAÇÃO VISUAL OBRIGATÓRIA DE LISTAS (DESEMPATE DE REGRAS - RECENCY EFFECT):
+- Quando listar serviços ou horários, NUNCA use asteriscos (*), negrito ou bullets do Markdown. Use uma quebra de linha limpa com `▫️` na frente:
+  ▫️ [Nome do Serviço]
+  ou (se o cliente pedir valores):
+  ▫️ [Nome do Serviço] - R$ [Valor]
+
 🧠 TRADUÇÃO DE SERVIÇOS:
 - Cliente disse "Barba"? -> Use o nome oficial (ex: "Barba Terapia").
 - Cliente disse "Corte"? -> Use o nome oficial (ex: "Corte Social").
@@ -76,10 +82,10 @@ def listar_servicos(barbearia_id: int) -> str:
     servs = Servico.query.filter(
         Servico.barbearia_id == barbearia_id,
         Servico.nome != "Bloqueio Administrativo"
-    ).all()
+    ).order_by(Servico.nome).all()
     if not servs: return "Nenhum serviço."
-    lista = [f"{s.nome} (R$ {s.preco})" for s in servs]
-    return f"Serviços (USE EXCLUSIVAMENTE ESTES DO BANCO DE DADOS - PROIBIDO INVENTAR OUTROS): {'; '.join(lista)}."
+    lista = [f"▫️ {s.nome} - R$ {s.preco:.2f}".replace('.', ',') for s in servs]
+    return "\n".join(lista)
 
 def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia: str, servico_nome: str = None) -> str:
     barbearia = Barbearia.query.get(barbearia_id)

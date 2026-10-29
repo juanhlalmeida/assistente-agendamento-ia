@@ -321,6 +321,14 @@ Siga EXATAMENTE este modelo:
 🚨 REGRA DE OURO ESTRITA: VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INVENTAR OU LISTAR QUALQUER SERVIÇO, PREÇO OU DURAÇÃO QUE NÃO TENHA SIDO EXPRESSAMENTE RETORNADO PELA FERRAMENTA/FUNÇÃO DE CONSULTA AO BANCO DE DADOS. SE A FUNÇÃO FALHAR, DIGA APENAS QUE ESTÁ VERIFICANDO O SISTEMA. NUNCA USE SEU CONHECIMENTO GERAL PARA COMPLETAR LISTAS DE ESTÉTICA OU BARBEARIA.
 - Sempre que o cliente mencionar "serviço", "serviços", "valor", "preço" ou enviar continuações curtas de contexto (como "?", "??", "quais?"), VOCÊ DEVE OBRIGATORIAMENTE CHAMAR A FERRAMENTA `listar_servicos` ANTES de responder.
 
+🚨 PADRONIZAÇÃO VISUAL OBRIGATÓRIA DE LISTAS (DESEMPATE DE REGRAS - RECENCY EFFECT):
+- Quando consultar `listar_servicos` e precisar mostrar opções de serviços em texto para a cliente, você ESTÁ AUTORIZADA a listar em texto seguindo ESTRITAMENTE o alinhamento com `▫️` (um por linha, sem asteriscos, sem negrito e SEM exibir a duração em minutos):
+  * Se a cliente pediu apenas para conhecer os serviços ou escolher um modelo:
+    ▫️ [Nome do Serviço]
+  * Se a cliente pediu valores/preços (ou se a loja não usar imagem de tabela):
+    ▫️ [Nome do Serviço] - R$ [Valor]
+- NUNCA exiba avisos internos do sistema, duração em minutos `(120 min)` ou cabeçalhos técnicos para o cliente final.
+
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 
 """
@@ -497,17 +505,14 @@ def listar_servicos(barbearia_id: int) -> str:
             ]
 
             for s in servicos:
-                preco_str = f"R$ {s.preco:.2f}"
+                preco_str = f"R$ {s.preco:.2f}".replace('.', ',')
                 if s.nome in servicos_a_partir_de:
                     preco_str += " (a partir de)"
-                # Agora adicionamos o quadradinho e a quebra de linha direto na base!
-                lista_formatada.append(f"▫️ {s.nome} ({s.duracao} min, {preco_str})")
+                # Agora adicionamos o quadradinho e a quebra de linha direto na base, limpo e alinhado!
+                lista_formatada.append(f"▫️ {s.nome} - {preco_str}")
 
-            # Em vez de '; '.join, usamos quebras de linha reais
-            return (
-                "Serviços disponíveis (USE EXCLUSIVAMENTE ESTES SERVIÇOS DO BANCO DE DADOS - PROIBIDO INVENTAR OUTROS):\n"
-                + "\n".join(lista_formatada)
-            )
+            # Em vez de '; '.join, usamos quebras de linha reais e limpas (sem poluir o Modo Resgate)
+            return "\n".join(lista_formatada)
         
     except Exception as e:
         current_app.logger.error(f"Erro interno na ferramenta 'listar_servicos': {e}", exc_info=True)
@@ -1647,7 +1652,8 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             if msg_limpa_check in ['?', '??', '???', 'oi?', 'e ai?', 'e aí?'] or any(g in msg_limpa_check for g in gatilhos_servico):
                 msg_para_enviar += (
                     "\n\n[ORDEM OBRIGATÓRIA DE SISTEMA]: O cliente mencionou serviço/valor ou enviou continuação de contexto ('?'). "
-                    "VOCÊ É OBRIGADA A CHAMAR A FERRAMENTA `listar_servicos` AGORA ANTES DE RESPONDER. "
+                    "1. CHAME A FERRAMENTA `listar_servicos` AGORA ANTES DE RESPONDER. "
+                    "2. APÓS RECEBER O RETORNO DA FERRAMENTA, responda em texto curto mantendo ESTRITAMENTE o alinhamento com '▫️' em cada linha (ex: '▫️ Nome do Serviço' ou '▫️ Nome do Serviço - R$ Valor'), sem mostrar minutos e sem asteriscos. "
                     "REGRA DE OURO ESTRITA: VOCÊ ESTÁ TERMINANTEMENTE PROIBIDO DE INVENTAR OU LISTAR QUALQUER SERVIÇO, PREÇO OU DURAÇÃO QUE NÃO TENHA SIDO EXPRESSAMENTE RETORNADO PELA FERRAMENTA/FUNÇÃO DE CONSULTA AO BANCO DE DADOS. SE A FUNÇÃO FALHAR, DIGA APENAS QUE ESTÁ VERIFICANDO O SISTEMA. NUNCA USE SEU CONHECIMENTO GERAL PARA COMPLETAR LISTAS DE ESTÉTICA OU BARBEARIA."
                 )
 
@@ -1775,6 +1781,14 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                         
                 tool_response = function_to_call(**kwargs)
 
+                payload_tool = {"result": tool_response}
+                if function_name == "listar_servicos":
+                    payload_tool["instrucao_obrigatoria"] = (
+                        "USE EXCLUSIVAMENTE ESTES SERVIÇOS DO BANCO DE DADOS - PROIBIDO INVENTAR OUTROS. "
+                        "Mantenha o alinhamento com '▫️' em cada linha (ex: '▫️ Nome do Serviço' ou '▫️ Nome do Serviço - R$ Valor') "
+                        "e NUNCA repita este aviso técnico na resposta final ao cliente."
+                    )
+
                 # --- PROTEÇÃO NO RETORNO DA TOOL TAMBÉM ---
 
                 try:
@@ -1787,7 +1801,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
                                 name=function_name,
 
-                                response={"result": tool_response}
+                                response=payload_tool
 
                             )
 
@@ -1918,11 +1932,18 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
 
                         tool_response = function_to_call(**kwargs)
 
+                        payload_retry = {"result": tool_response}
+                        if function_name == "listar_servicos":
+                            payload_retry["instrucao_obrigatoria"] = (
+                                "USE EXCLUSIVAMENTE ESTES SERVIÇOS DO BANCO DE DADOS - PROIBIDO INVENTAR OUTROS. "
+                                "Mantenha o alinhamento com '▫️' em cada linha e NUNCA repita este aviso técnico na resposta final ao cliente."
+                            )
+
                         response_retry = chat_session.send_message(
                             protos.Part(
                                 function_response=protos.FunctionResponse(
                                     name=function_name,
-                                    response={"result": tool_response}
+                                    response=payload_retry
                                 )
                             )
                         )
