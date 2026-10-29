@@ -1,212 +1,252 @@
-{% extends 'base.html' %} 
+{% extends 'base.html' %}
 
-{% block title %}Dashboard{% endblock %}
+{% block title %}Visão Geral Executiva{% endblock %}
 
 {% block content %}
 
-  {# ================================================================= #}
-  {# 🧠 LÓGICA PRESERVADA: DETECÇÃO DE NICHO (LASH VS BARBEARIA)     #}
-  {# ================================================================= #}
   {% set is_lash = False %}
   {% if current_user.barbearia %}
       {% set nome_negocio = current_user.barbearia.nome_fantasia.lower() %}
-      {% if 'lash' in nome_negocio or 'cílios' in nome_negocio or 'sobrancelha' in nome_negocio or 'studio' in nome_negocio or 'estética' in nome_negocio %}
+      {% if 'lash' in nome_negocio or 'cílios' in nome_negocio or 'sobrancelha' in nome_negocio or 'studio' in nome_negocio or 'estética' in nome_negocio or 'beauty' in nome_negocio %}
           {% set is_lash = True %}
       {% endif %}
   {% endif %}
 
-  {# Mensagens Flash #}
+  {# Alertas Flash #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      {% for category, message in messages %}
-        <div class="mb-4 p-4 rounded-lg text-sm md:text-base {% if category == 'success' %}bg-green-500/10 border border-green-500 text-green-500{% elif category == 'danger' or category == 'error' %}bg-red-500/10 border border-red-500 text-red-500{% elif category == 'warning' %}bg-yellow-500/10 border border-yellow-500 text-yellow-500{% else %}bg-blue-500/10 border border-blue-500 text-blue-500{% endif %}">
-          {{ message }}
-        </div>
-      {% endfor %}
+      <div class="flex flex-col gap-2 mb-6">
+        {% for category, message in messages %}
+          <div class="saas-card px-4 py-3 flex items-center justify-between text-sm {% if category == 'success' %}border-emerald-200 bg-emerald-50/60 text-emerald-900{% elif category == 'danger' or category == 'error' %}border-red-200 bg-red-50/60 text-red-900{% elif category == 'warning' %}border-amber-200 bg-amber-50/60 text-amber-900{% else %}border-slate-200 bg-white text-slate-800{% endif %}">
+            <span class="font-medium">{{ message }}</span>
+            <button type="button" onclick="this.parentElement.remove()" class="p-1 text-slate-400 hover:text-slate-700">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        {% endfor %}
+      </div>
     {% endif %}
   {% endwith %}
 
-  {# ============================================ #}
-  {# ✨ Badge de Status da Assinatura (RESPONSIVO)#}
-  {# ============================================ #}
-  {% if current_user.barbearia %}
-  <div class="mb-6">
-    {% if current_user.barbearia.assinatura_ativa %}
-      
-      {% if is_lash %}
-          {# --- VERSÃO LASH (ROSA/ROXO) --- #}
-          <div class="bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/30 rounded-xl p-4 shadow-lg shadow-pink-500/5">
-            {# Mobile: Flex-col (Empilhado) | Desktop: Flex-row (Lado a lado) #}
-            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div class="flex items-center gap-4 w-full md:w-auto">
-                <div class="bg-pink-500/20 p-2 rounded-full text-pink-500 flex-shrink-0">
-                    <span class="material-symbols-outlined text-3xl">verified</span>
-                </div>
-                <div>
-                  <h3 class="text-lg font-bold text-pink-100 leading-tight">Studio Ativo & Online ✨</h3>
-                  {% if current_user.barbearia.assinatura_expira_em %}
-                  <p class="text-sm text-pink-200/70">
-                    Válido até: <strong class="text-pink-100">{{ current_user.barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}</strong>
-                  </p>
-                  {% endif %}
-                </div>
-              </div>
-              {# Botão: Full width no mobile #}
-              <a href="{{ url_for('assinaturas.planos') }}" class="w-full md:w-auto text-center px-4 py-2 bg-pink-500 text-white rounded-full text-sm font-medium hover:bg-pink-600 transition-colors shadow-md shadow-pink-500/20">
-                 Ver Meu Plano 💖
-              </a>
-            </div>
-          </div>
-      {% else %}
-          {# --- VERSÃO BARBEARIA (VERDE PADRÃO) --- #}
-          <div class="bg-green-500/10 border-2 border-green-500 rounded-xl p-4">
-            <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div class="flex items-center gap-3 w-full md:w-auto">
-                <span class="material-symbols-outlined text-3xl text-green-500 flex-shrink-0">check_circle</span>
-                <div>
-                  <h3 class="text-lg font-bold text-green-500 leading-tight">Assinatura Ativa</h3>
-                  {% if current_user.barbearia.assinatura_expira_em %}
-                  <p class="text-sm text-text-secondary-dark">
-                    Válida até: <strong class="text-text-primary-dark">{{ current_user.barbearia.assinatura_expira_em.strftime('%d/%m/%Y') }}</strong>
-                  </p>
-                  {% endif %}
-                </div>
-              </div>
-              <a href="{{ url_for('assinaturas.planos') }}"
-                 class="w-full md:w-auto text-center px-4 py-2 bg-green-500/20 text-green-500 rounded-lg hover:bg-green-500/30 transition-colors text-sm font-medium">
-                Ver Planos
-              </a>
-            </div>
-          </div>
-      {% endif %}
-
-    {% else %}
-      
-      {# Assinatura INATIVA (Comum) #}
-      <div class="bg-yellow-500/10 border-2 border-yellow-500 rounded-xl p-4">
-        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div class="flex items-center gap-3 w-full md:w-auto">
-            <span class="material-symbols-outlined text-3xl text-yellow-500 flex-shrink-0">warning</span>
-            <div>
-              <h3 class="text-lg font-bold text-yellow-500 leading-tight">Assinatura Inativa</h3>
-              <p class="text-sm text-text-secondary-dark">
-                Ative sua assinatura para usar todas as funcionalidades
-              </p>
-            </div>
-          </div>
-          <a href="{{ url_for('assinaturas.planos') }}" 
-             class="w-full md:w-auto text-center px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium">
-            ⚡ Ativar Agora
-          </a>
-        </div>
+  {# Cabeçalho Executivo #}
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+    <div>
+      <div class="flex items-center gap-2.5">
+        <h1 class="text-xl md:text-2xl font-bold heading-tight">
+          {% if is_lash %}Visão Geral do Studio{% else %}Visão Geral Executiva{% endif %}
+        </h1>
+        {% if current_user.barbearia and current_user.barbearia.assinatura_ativa %}
+          <span class="saas-badge">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+            Assinatura Ativa
+          </span>
+        {% endif %}
       </div>
+      <p class="text-xs md:text-sm text-[#64748B] mt-0.5">{{ data_hoje }} · Base de <strong class="tabular-nums text-[#0F172A]">{{ total_clientes }}</strong> clientes atendidos</p>
+    </div>
 
-    {% endif %}
+    <div class="flex items-center gap-2.5">
+      {% if current_user.barbearia %}
+        <a href="{{ url_for('assinaturas.planos') }}" class="saas-btn-secondary">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+          <span>Meu Plano</span>
+        </a>
+      {% endif %}
+      <a href="{{ url_for('main.agenda') }}" class="saas-btn-primary">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+        <span>Abrir Agenda</span>
+      </a>
+    </div>
+  </div>
+
+  {# Banner Sóbrio caso Assinatura esteja Inativa #}
+  {% if current_user.barbearia and not current_user.barbearia.assinatura_ativa %}
+  <div class="saas-card p-4 mb-6 border-amber-300 bg-amber-50/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+      </div>
+      <div>
+        <h3 class="text-sm font-bold text-amber-950">Assinatura Pendente de Ativação</h3>
+        <p class="text-xs text-amber-800">Regularize seu plano para manter o atendimento automático no WhatsApp ativo.</p>
+      </div>
+    </div>
+    <a href="{{ url_for('assinaturas.planos') }}" class="saas-btn-primary shrink-0">
+      <span>Ativar Assinatura</span>
+    </a>
   </div>
   {% endif %}
 
-  {# Cabeçalho com Data #}
-  <div class="mb-6 md:mb-8">
-    <h1 class="text-2xl md:text-3xl font-bold text-text-primary-dark mb-1">
-        {% if is_lash %}Olá, Lash Designer 🦋{% else %}Dashboard{% endif %}
-    </h1>
-    <p class="text-text-secondary-dark text-sm md:text-base">{{ data_hoje }}</p>
-  </div>
+  {# ===================================================================== #}
+  {# GRID DE KPIs EXECUTIVOS (2x2 no Mobile, 4 Colunas no Desktop)         #}
+  {# ===================================================================== #}
+  <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8" aria-label="Indicadores Executivos">
 
-  {# Grid de Cards de Resumo #}
-  {# grid-cols-1 garante um card por linha no mobile #}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-8">
-    
-    {# Card: Agendamentos Hoje #}
-    <div class="bg-surface-dark rounded-xl shadow-lg p-5 md:p-6 flex items-center justify-between border border-white/5 hover:border-primary/50 transition-colors group">
-      <div>
-        <p class="text-sm font-medium text-text-secondary-dark mb-1">Agendamentos Hoje</p>
-        <p class="text-3xl font-bold text-text-primary-dark">{{ agendamentos_hoje }}</p>
+    {# KPI 1: Agendamentos Hoje #}
+    <div class="saas-kpi-card">
+      <div class="flex items-start justify-between gap-2">
+        <span class="saas-kpi-label">Agenda Hoje</span>
+        <div class="saas-kpi-icon">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>
+          </svg>
+        </div>
       </div>
-      <div class="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-          <span class="material-symbols-outlined text-3xl md:text-4xl text-primary">calendar_today</span>
+      <div>
+        <p class="saas-kpi-value">{{ agendamentos_hoje }}</p>
+        <p class="text-[11px] text-[#64748B] mt-1">Atendimentos do dia</p>
       </div>
     </div>
 
-    {# Card: Total de Clientes #}
-    <div class="bg-surface-dark rounded-xl shadow-lg p-5 md:p-6 flex items-center justify-between border border-white/5 hover:border-primary/50 transition-colors group">
-      <div>
-        <p class="text-sm font-medium text-text-secondary-dark mb-1">Total de Clientes</p>
-        <p class="text-3xl font-bold text-text-primary-dark">{{ total_clientes }}</p>
+    {# KPI 2: Receita Prevista Hoje #}
+    <div class="saas-kpi-card">
+      <div class="flex items-start justify-between gap-2">
+        <span class="saas-kpi-label">Receita Hoje</span>
+        <div class="saas-kpi-icon">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+        </div>
       </div>
-      <div class="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-          <span class="material-symbols-outlined text-3xl md:text-4xl text-primary">group</span>
+      <div>
+        <p class="saas-kpi-value">R$ {{ "%.2f"|format(receita_hoje|default(0, true))|replace('.', ',') }}</p>
+        <p class="text-[11px] text-[#64748B] mt-1">Previsão diária</p>
       </div>
     </div>
 
-    {# Card: Em Atendimento #}
-    <div class="bg-surface-dark rounded-xl shadow-lg p-5 md:p-6 flex items-center justify-between border border-white/5 hover:border-primary/50 transition-colors group">
-      <div>
-        <p class="text-sm font-medium text-text-secondary-dark mb-1">Em Atendimento</p>
-        <p class="text-3xl font-bold text-text-primary-dark">0</p> 
+    {# KPI 3: Agendamentos na Semana #}
+    <div class="saas-kpi-card">
+      <div class="flex items-start justify-between gap-2">
+        <span class="saas-kpi-label">Agenda Semana</span>
+        <div class="saas-kpi-icon">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/>
+          </svg>
+        </div>
       </div>
-      <div class="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-          <span class="material-symbols-outlined text-3xl md:text-4xl text-primary">schedule</span>
+      <div>
+        <p class="saas-kpi-value">{{ agendamentos_semana|default(agendamentos_hoje, true) }}</p>
+        <p class="text-[11px] text-[#64748B] mt-1">Horários na semana</p>
       </div>
     </div>
-  </div>
 
-  {# Seção: Próximos Agendamentos #}
-  <div class="bg-surface-dark rounded-xl shadow-lg p-4 md:p-6 border border-white/5">
-    <h2 class="text-lg md:text-xl font-bold text-text-primary-dark mb-4 flex items-center gap-2">
-      <span class="material-symbols-outlined text-primary">update</span>
-      Próximos Agendamentos (Hoje)
-    </h2>
-    
-    <div class="flex flex-col gap-3 md:gap-4">
+    {# KPI 4: Receita da Semana #}
+    <div class="saas-kpi-card">
+      <div class="flex items-start justify-between gap-2">
+        <span class="saas-kpi-label">Receita Semana</span>
+        <div class="saas-kpi-icon">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+          </svg>
+        </div>
+      </div>
+      <div>
+        <p class="saas-kpi-value">R$ {{ "%.2f"|format(receita_semana|default(0, true))|replace('.', ',') }}</p>
+        <p class="text-[11px] text-[#64748B] mt-1">Previsão semanal</p>
+      </div>
+    </div>
+
+  </section>
+
+  {# ===================================================================== #}
+  {# TIMELINE EXECUTIVA: PRÓXIMOS AGENDAMENTOS DE HOJE                     #}
+  {# ===================================================================== #}
+  <section class="saas-card overflow-hidden">
+    <div class="px-4 py-4 md:px-6 border-b border-[#EAEAEA] flex items-center justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <svg class="w-[18px] h-[18px] text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <h2 class="text-base font-bold heading-tight">Cronograma de Hoje</h2>
+        <span class="saas-badge-neutral tabular-nums">{{ proximos_agendamentos|length }}</span>
+      </div>
+
+      <a href="{{ url_for('main.agenda') }}" class="text-xs font-semibold hover:underline flex items-center gap-1" style="color: var(--accent-primary);">
+        <span>Ver agenda completa</span>
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </a>
+    </div>
+
+    <div class="p-3 md:p-5 flex flex-col gap-2.5">
       {% if proximos_agendamentos %}
         {% for ag in proximos_agendamentos %}
-          {# Item da lista: Flex com wrap para garantir adaptação #}
-          <div class="bg-background-dark p-4 rounded-lg flex items-start md:items-center gap-4 hover:bg-white/5 transition-colors border border-transparent hover:border-primary/20 relative">
+          <div class="timeline-item flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             
-            {# Avatar #}
-            <div class="flex-shrink-0 bg-primary/20 text-primary aspect-square rounded-full size-10 md:size-12 flex items-center justify-center font-bold text-lg md:text-xl">
-              {{ (ag.nome_cliente[0] if ag.nome_cliente else '?') | upper }}
-            </div>
-            
-            {# Informações - Grid interno ajustado #}
-            <div class="flex-grow grid grid-cols-1 md:grid-cols-3 gap-1 md:gap-4 items-start md:items-center text-sm w-full">
-              
-              {# Coluna 1: Nome e Telefone #}
-              <div class="mb-1 md:mb-0">
-                <p class="font-semibold text-text-primary-dark text-base md:text-sm">{{ ag.nome_cliente }}</p>
-                <p class="text-text-secondary-dark flex items-center gap-1 text-xs md:text-sm">
-                   <span class="material-symbols-outlined text-[12px] md:text-[14px]">call</span> {{ ag.telefone_cliente }}
-                </p>
+            {# Esquerda: Horário em destaque tabular + Dados do Cliente #}
+            <div class="flex items-start sm:items-center gap-3.5 min-w-0">
+              <div class="timeline-time-box shrink-0">
+                {{ ag.data_hora.strftime('%H:%M') if ag.data_hora else ag.hora_formatada }}
               </div>
-              
-              {# Coluna 2: Serviço e Profissional #}
-              <div class="mb-1 md:mb-0">
-                <p class="text-text-primary-dark font-medium">{{ ag.servico.nome if ag.servico else 'Serviço Indefinido' }}</p>
-                <p class="text-text-secondary-dark text-xs">Prof: {{ ag.profissional.nome if ag.profissional else 'N/A' }}</p>
-              </div>
-              
-              {# Coluna 3: Hora (Badge) #}
-              <div class="flex justify-start md:justify-end mt-1 md:mt-0">
-                <span class="inline-block px-3 py-1 bg-primary/20 text-primary rounded-full font-bold text-xs md:text-sm">
-                    {{ ag.data_hora.strftime('%H:%M') }}
-                </span>
+
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="font-bold text-sm md:text-base text-[#0F172A] truncate">{{ ag.nome_cliente }}</p>
+                  {% if ag.servico %}
+                    <span class="saas-badge">
+                      <span>{{ ag.servico.nome }}</span>
+                      {% if ag.servico.duracao %}
+                        <span class="opacity-60">·</span>
+                        <span class="tabular-nums">{{ ag.servico.duracao }} min</span>
+                      {% endif %}
+                    </span>
+                  {% endif %}
+                </div>
+
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-[#64748B]">
+                  <span class="inline-flex items-center gap-1 tabular-nums">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    {{ ag.telefone_cliente }}
+                  </span>
+                  <span class="inline-flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    {{ ag.profissional.nome if ag.profissional else 'Profissional' }}
+                  </span>
+                </div>
               </div>
             </div>
 
-             {# Botão Editar (Ajustado para não sobrepor em telas pequenas) #}
-             <a href="{{ url_for('main.editar_agendamento', agendamento_id=ag.id) }}" class="p-2 text-text-secondary-dark hover:text-white hover:bg-primary rounded-lg transition-all flex-shrink-0" title="Ver/Editar">
-               <span class="material-symbols-outlined">edit_calendar</span>
-             </a>
+            {# Direita: Valor Tabular + Botões de Ação (44px min touch target) #}
+            <div class="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#EAEAEA]">
+              {% if ag.servico and ag.servico.preco is not none %}
+                <span class="text-sm font-bold tabular-nums text-[#0F172A]">
+                  R$ {{ "%.2f"|format(ag.servico.preco)|replace('.', ',') }}
+                </span>
+              {% endif %}
+
+              <div class="flex items-center gap-1.5">
+                {% if ag.telefone_cliente %}
+                  {% set fone_limpo = ag.telefone_cliente|replace(' ', '')|replace('-', '')|replace('(', '')|replace(')', '')|replace('+', '') %}
+                  <a href="https://wa.me/{% if not fone_limpo.startswith('55') %}55{% endif %}{{ fone_limpo }}"
+                     target="_blank"
+                     rel="noopener"
+                     class="saas-icon-btn"
+                     title="Conversar no WhatsApp">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                  </a>
+                {% endif %}
+
+                <a href="{{ url_for('main.editar_agendamento', agendamento_id=ag.id) }}"
+                   class="saas-icon-btn"
+                   title="Editar agendamento">
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </a>
+              </div>
+            </div>
+
           </div>
         {% endfor %}
       {% else %}
-        <div class="text-center py-8 opacity-60">
-            <span class="material-symbols-outlined text-4xl mb-2">event_busy</span>
-            <p class="text-text-secondary-dark">Nenhum agendamento pendente para hoje.</p>
+        <div class="py-12 px-4 text-center">
+          <div class="w-11 h-11 rounded-full bg-[#F8F9FA] border border-[#EAEAEA] flex items-center justify-center mx-auto mb-3 text-[#64748B]">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>
+            </svg>
+          </div>
+          <p class="text-sm font-semibold text-[#0F172A]">Nenhum atendimento pendente hoje</p>
+          <p class="text-xs text-[#64748B] mt-1">Novos horários marcados via WhatsApp ou manualmente aparecerão aqui.</p>
         </div>
       {% endif %}
     </div>
-  </div>
+  </section>
 
 {% endblock %}

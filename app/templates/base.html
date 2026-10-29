@@ -1,342 +1,364 @@
 <!DOCTYPE html>
-{# 
-  Este é o arquivo 'base.html' FINAL.
-  Inclui: Menu Mobile Responsivo + Cores Dinâmicas + BOTÃO CONFIGURAÇÕES.
-#}
-<html class="dark" lang="pt-br">
+{% set is_lash_theme = false %}
+{% set vocab = {
+    'prof_label': 'Profissionais',
+    'serv_label': 'Serviços',
+    'icon_prof': 'person',
+    'icon_serv': 'content_cut',
+    'icon_logo': 'content_cut',
+    'color_theme': '#0F172A',
+    'bg_main': '#F8F9FA'
+} %}
+
+{% if current_user.is_authenticated and current_user.barbearia %}
+    {% set tipo = current_user.barbearia.business_type %}
+    {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+    {% if tipo == 'pousada' or 'pousada' in nome or 'hotel' in nome %}
+        {% set vocab = {
+            'prof_label': 'Quartos',
+            'serv_label': 'Diárias',
+            'icon_prof': 'bed',
+            'icon_serv': 'calendar_month',
+            'icon_logo': 'hotel',
+            'color_theme': '#0F172A',
+            'bg_main': '#F8F9FA'
+        } %}
+    {% elif 'lash' in nome or 'studio' in nome or 'cílios' in nome or 'estética' in nome or 'beauty' in nome %}
+        {% set is_lash_theme = true %}
+        {% set vocab = {
+            'prof_label': 'Designers',
+            'serv_label': 'Procedimentos',
+            'icon_prof': 'face_3',
+            'icon_serv': 'brush',
+            'icon_logo': 'spa',
+            'color_theme': '#9E5A63',
+            'bg_main': '#FAF8F6'
+        } %}
+    {% endif %}
+{% endif %}
+<html lang="pt-br" data-theme="{{ 'lash' if is_lash_theme else 'slate' }}">
 <head>
   <meta charset="utf-8"/>
-  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  
-  <title>{% block title %}Painel de Controle{% endblock %}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="theme-color" content="{{ vocab.color_theme }}"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="{{ current_user.barbearia.nome_fantasia if current_user.is_authenticated and current_user.barbearia else 'Agenda Pro' }}"/>
 
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-  
-  <link href="https://fonts.googleapis.com" rel="preconnect"/>
-  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}"/>
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.svg') }}"/>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/icon-192.svg') }}"/>
+
+  <title>{% block title %}Painel Executivo{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
 
-  {# ================================================================= #}
-  {# 🧠 CÉREBRO DO VOCABULÁRIO (Cole isto no topo, dentro do <head>) #}
-  {# ================================================================= #}
-  
-  {# 1. Define o padrão (Barbearia) #}
-  {% set vocab = {
-      'prof_label': 'Profissionais',
-      'serv_label': 'Serviços',
-      'icon_prof': 'person',
-      'icon_serv': 'content_cut',
-      'icon_logo': 'content_cut',
-      'color_theme': '#00A6FB' 
-  } %}
-
-  {# 2. Se estiver logado, verifica qual é o negócio #}
-  {% if current_user.is_authenticated and current_user.barbearia %}
-      {% set tipo = current_user.barbearia.business_type %}
-      {% set nome = current_user.barbearia.nome_fantasia.lower() %}
-      
-      {# É POUSADA? #}
-      {% if tipo == 'pousada' or 'pousada' in nome or 'hotel' in nome %}
-          {% set vocab = {
-              'prof_label': 'Quartos',
-              'serv_label': 'Diárias',
-              'icon_prof': 'bed',
-              'icon_serv': 'calendar_month',
-              'icon_logo': 'hotel',
-              'color_theme': '#00d4ff'
-          } %}
-      
-      {# É LASH / ESTÉTICA? #}
-      {% elif 'lash' in nome or 'studio' in nome or 'cílios' in nome %}
-          {% set vocab = {
-              'prof_label': 'Designers',
-              'serv_label': 'Procedimentos',
-              'icon_prof': 'face_3',
-              'icon_serv': 'brush',
-              'icon_logo': 'spa',
-              'color_theme': '#d946ef'
-          } %}
-      {% endif %}
-  {% endif %}
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
 
   <script>
     tailwind.config = {
-      darkMode: "class",
       theme: {
         extend: {
           colors: {
-            "primary": "{{ vocab.color_theme }}", /* ✨ AGORA É DINÂMICO */
-            "background-light": "#f6f7f8",
-            "background-dark": "#121212",
-            "surface-dark": "#1E1E1E",
-            "text-primary-dark": "#FFFFFF",
-            "text-secondary-dark": "#A0A0A0",
-            /* Cores Específicas Lash */
-            "lash-pink": "#EC4899",
-            "lash-purple": "#A855F7",
+            "primary": "{{ vocab.color_theme }}",
+            "background-light": "{{ vocab.bg_main }}",
+            "background-dark": "{{ vocab.bg_main }}",
+            "surface-dark": "#FFFFFF",
+            "text-primary-dark": "{{ '#1E1B18' if is_lash_theme else '#0F172A' }}",
+            "text-secondary-dark": "{{ '#6E6259' if is_lash_theme else '#64748B' }}"
           },
           fontFamily: {
-            "display": ["Inter", "sans-serif"]
-          },
-        },
-      },
+            "display": ["'Plus Jakarta Sans'", "Inter", "sans-serif"],
+            "sans": ["'Plus Jakarta Sans'", "Inter", "sans-serif"]
+          }
+        }
+      }
     }
   </script>
-  
-  <style>
-    .material-symbols-outlined {
-      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24
-    }
 
-    /* ========================================= */
-    /* 🎨 DEFINIÇÃO DE CORES (CSS VARIABLES)     */
-    /* ========================================= */
-    :root {
-        /* Lógica: 
-           1. Se tiver cor no banco, usa ela.
-           2. Se for Lash, usa Rosa (#EC4899).
-           3. Se não, usa Azul Padrão (#00A6FB).
-        */
-        {% if current_user.is_authenticated and current_user.barbearia.cor_primaria %}
-            --theme-color: {{ current_user.barbearia.cor_primaria }};
-        {% elif vocab.color_theme != '#00A6FB' %}
-            --theme-color: {{ vocab.color_theme }};
-        {% else %}
-            --theme-color: #00A6FB; /* Azul Padrão */
-        {% endif %}
-    }
-
-    /* Força classes utilitárias a usarem a variável */
-    .bg-primary { background-color: var(--theme-color) !important; }
-    .text-primary { color: var(--theme-color) !important; }
-    .border-primary { border-color: var(--theme-color) !important; }
-    
-    /* Ajuste da borda da sidebar no desktop */
-    @media (min-width: 768px) {
-        aside { border-right: 1px solid #333; }
-    }
-  </style>
-  
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
 </head>
-<body class="bg-background-dark font-display text-text-primary-dark overflow-x-hidden">
-  
-  <div class="relative flex h-auto min-h-screen w-full flex-col">
-    
-    {# ======================================================= #}
-    {# 📱 HEADER MOBILE (Só aparece em telas pequenas)        #}
-    {# ======================================================= #}
-    <div class="md:hidden flex items-center justify-between p-4 bg-surface-dark border-b border-white/5 sticky top-0 z-40">
-        <div class="flex items-center gap-3">
-            <div class="bg-primary p-1.5 rounded-lg flex items-center justify-center">
-                 <span class="material-symbols-outlined text-white text-xl">
-                    {{ vocab.icon_logo }}
-                </span>
+<body data-theme="{{ 'lash' if is_lash_theme else 'slate' }}" class="min-h-screen font-display antialiased selection:bg-slate-200">
+
+  <div class="flex min-h-screen w-full flex-col md:flex-row">
+
+    {# ===================================================================== #}
+    {# DESKTOP SIDEBAR (min-width: 769px) — Padrão SaaS Linear / Stripe      #}
+    {# ===================================================================== #}
+    <aside class="desktop-sidebar flex-col justify-between p-5 select-none">
+      <div class="flex flex-col gap-6">
+        {# Cabeçalho da Loja Ativa #}
+        <div class="flex items-center justify-between pb-4 border-b border-[#EAEAEA]">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0" style="background-color: var(--accent-primary);">
+              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
             </div>
-            <span class="font-bold text-lg truncate">
-                {% if current_user.is_authenticated %}
-                    {{ current_user.barbearia.nome_fantasia }}
+            <div class="min-w-0">
+              <h1 class="text-sm font-bold truncate heading-tight">
+                {% if current_user.is_authenticated and current_user.barbearia %}
+                  {{ current_user.barbearia.nome_fantasia }}
                 {% else %}
-                    Painel
-                {% endif %}
-            </span>
-        </div>
-        <button id="mobile-menu-btn" class="text-white p-2 rounded-lg hover:bg-white/10 transition-colors">
-            <span class="material-symbols-outlined text-3xl">menu</span>
-        </button>
-    </div>
-
-    <div class="layout-container flex h-full grow flex-row">
-      
-      {# ======================================================= #}
-      {# 🌗 OVERLAY MOBILE (Fundo escuro ao abrir menu)         #}
-      {# ======================================================= #}
-      <div id="mobile-overlay" class="fixed inset-0 bg-black/60 z-40 hidden md:hidden backdrop-blur-sm transition-opacity opacity-0"></div>
-
-      {# ======================================================= #}
-      {# 📂 SIDEBAR (Adaptável: Slide no Mobile, Fixa no PC)     #}
-      {# ======================================================= #}
-      <aside id="sidebar" class="
-            fixed inset-y-0 left-0 z-50 w-72 bg-surface-dark h-full
-            transform -translate-x-full transition-transform duration-300 ease-in-out
-            flex flex-col gap-y-8 p-6 overflow-y-auto
-            md:translate-x-0 md:static md:h-screen md:sticky md:top-0 md:flex-shrink-0
-      ">
-        
-        {# Cabeçalho da Sidebar (Logo + Botão Fechar Mobile) #}
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-4">
-              <div class="bg-primary aspect-square rounded-lg size-12 flex items-center justify-center transition-colors duration-300 shadow-lg shadow-primary/20">
-                <span class="material-symbols-outlined text-white text-3xl">
-                    {{ vocab.icon_logo }}
-                </span>
-              </div>
-              <h1 class="text-text-primary-dark text-xl font-bold leading-tight">
-                {% if current_user.is_authenticated %}
-                    {{ current_user.barbearia.nome_fantasia }}
-                {% else %}
-                    Meu Negócio
+                  Painel Executivo
                 {% endif %}
               </h1>
-            </div>
-            {# Botão X para fechar no mobile #}
-            <button id="close-sidebar-btn" class="md:hidden text-text-secondary-dark hover:text-white">
-                <span class="material-symbols-outlined text-2xl">close</span>
-            </button>
-        </div>
-        
-<nav class="flex flex-col gap-3 flex-1">
-          
-          {# ============================================================ #}
-          {# 🕵️‍♂️ MENU EXCLUSIVO DO SUPER ADMIN (DONO DO SAAS)            #}
-          {# ============================================================ #}
-          {% if current_user.role == 'super_admin' %}
-            
-            <div class="px-4 py-2">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Gestão SaaS</span>
-            </div>
-
-            {# 1. Painel Novo (Centro de Comando) #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'main.admin_painel_novo' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('main.admin_painel_novo') }}">
-              <span class="material-symbols-outlined">monitoring</span>
-              <p class="text-base">Centro de Comando</p>
-            </a>
-
-            {# 2. Gerenciar Clientes (Lojas) #}
-            {# CORREÇÃO: Aponta para a lista antiga onde tem o CRUD de edição #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'main.admin_barbearias' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('main.admin_barbearias') }}"> 
-              <span class="material-symbols-outlined">store</span>
-              <p class="text-base">Clientes / Lojas</p>
-            </a>
-
-            {# 3. Planos e Preços #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint == 'main.admin_planos' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('main.admin_planos') }}"> 
-              <span class="material-symbols-outlined">payments</span>
-              <p class="text-base">Planos e Preços</p>
-            </a>
-
-          {# ============================================================ #}
-          {# 💈 MENU DO CLIENTE (DONO DA BARBEARIA)                       #}
-          {# ============================================================ #}
-          {% else %}
-
-            {# Link Agendamentos #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.agenda') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('main.agenda') }}">
-              <span class="material-symbols-outlined">calendar_today</span>
-              <p class="text-base">Agendamentos</p>
-            </a>
-            
-            {# Link Dashboard #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('dashboard.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}"
-               href="{{ url_for('dashboard.index') }}">
-              <span class="material-symbols-outlined">dashboard</span>
-              <p class="text-base">Dashboard</p>
-            </a>
-
-            {# Monitoramento IA #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint == 'main.monitor_chat' %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('main.monitor_chat') }}"> 
-              <span class="material-symbols-outlined">chat</span>
-              <p class="text-base">Monitoramento IA</p>
-            </a>
-            
-            {# LINK PROFISSIONAIS / QUARTOS #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('profissionais.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('profissionais.index') }}">
-              <span class="material-symbols-outlined">{{ vocab.icon_prof }}</span>
-              <p class="text-base">{{ vocab.prof_label }}</p>
-            </a>
-
-            {# LINK SERVIÇOS / DIÁRIAS #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('servicos.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('servicos.index') }}">
-              <span class="material-symbols-outlined">{{ vocab.icon_serv }}</span>
-              <p class="text-base">{{ vocab.serv_label }}</p>
-            </a>
-
-            {# Link Clientes #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('clientes.index') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('clientes.index') }}"> 
-              <span class="material-symbols-outlined">person_search</span>
-              <p class="text-base">Clientes</p>
-            </a>
-
-            {# Link Configurações #}
-            <a class="flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 {% if request.endpoint and request.endpoint.startswith('main.configuracoes') %}bg-primary text-white font-semibold shadow-lg shadow-primary/20{% else %}text-text-secondary-dark hover:bg-white/5 font-medium hover:text-primary{% endif %}" 
-               href="{{ url_for('main.configuracoes') }}"> 
-              <span class="material-symbols-outlined">settings</span>
-              <p class="text-base">Configurações</p>
-            </a>
-
-          {% endif %} {# Fim da verificação de Super Admin #}
-
-        </nav>
-        
-        {# Rodapé do Usuário #}
-        <div class="flex flex-col gap-4 mt-auto">
-          {% if current_user.is_authenticated %}
-          <div class="flex items-center justify-between p-3 rounded-xl bg-background-dark/50 border border-white/5">
-            <div class="flex items-center gap-3 overflow-hidden">
-              <div class="bg-primary aspect-square rounded-full size-10 flex flex-shrink-0 items-center justify-center text-white font-bold text-lg shadow-md shadow-primary/20">
-                {{ (current_user.nome[0] if current_user.nome else 'U') | upper }}
-              </div>
-              <div class="flex flex-col min-w-0">
-                <p class="text-text-primary-dark font-semibold truncate text-sm">{{ current_user.nome or 'Usuário' }}</p>
-                <p class="text-text-secondary-dark text-xs truncate" title="{{ current_user.email }}">{{ current_user.email }}</p>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                <span class="text-[11px] font-medium text-[#64748B] truncate">
+                  {% if is_lash_theme %}Studio & Estética{% else %}Unidade Ativa{% endif %}
+                </span>
               </div>
             </div>
-            <a href="{{ url_for('main.logout') }}" class="text-text-secondary-dark hover:text-red-400 transition-colors p-1" title="Sair">
-              <span class="material-symbols-outlined text-xl">logout</span>
-            </a>
           </div>
-          {% endif %}
         </div>
-      </aside>
-      
-      {# MAIN CONTENT: Ajustado padding p-4 (mobile) e p-8 (desktop) #}
-      <main class="flex-1 p-4 md:p-8 overflow-y-auto h-screen w-full">
-        {% block content %}{% endblock %}
-      </main>
 
-    </div>
+        {# Navegação Principal Desktop #}
+        <nav class="flex flex-col gap-1">
+          {% if current_user.is_authenticated and current_user.role == 'super_admin' %}
+            <div class="px-3 pb-1.5">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">Gestão SaaS</span>
+            </div>
+            <a href="{{ url_for('main.admin_painel_novo') }}"
+               class="desktop-nav-item {% if request.endpoint == 'main.admin_painel_novo' %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+              <span>Centro de Comando</span>
+            </a>
+            <a href="{{ url_for('main.admin_barbearias') }}"
+               class="desktop-nav-item {% if request.endpoint == 'main.admin_barbearias' %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <span>Clientes / Lojas</span>
+            </a>
+            <a href="{{ url_for('main.admin_planos') }}"
+               class="desktop-nav-item {% if request.endpoint == 'main.admin_planos' %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+              <span>Planos e Preços</span>
+            </a>
+          {% else %}
+            <div class="px-3 pb-1.5">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">Operação</span>
+            </div>
+            <a href="{{ url_for('dashboard.index') }}"
+               class="desktop-nav-item {% if request.endpoint and request.endpoint.startswith('dashboard.index') %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+              <span>Início</span>
+            </a>
+
+            <a href="{{ url_for('main.agenda') }}"
+               class="desktop-nav-item {% if request.endpoint and request.endpoint.startswith('main.agenda') %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+              <span>Agenda</span>
+            </a>
+
+            <a href="{{ url_for('clientes.index') }}"
+               class="desktop-nav-item {% if request.endpoint and request.endpoint.startswith('clientes.index') %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              <span>Clientes</span>
+            </a>
+
+            <a href="{{ url_for('servicos.index') }}"
+               class="desktop-nav-item {% if request.endpoint and request.endpoint.startswith('servicos.index') %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" x2="7.01" y1="7" y2="7"/></svg>
+              <span>{{ vocab.serv_label }}</span>
+            </a>
+
+            <a href="{{ url_for('profissionais.index') }}"
+               class="desktop-nav-item {% if request.endpoint and request.endpoint.startswith('profissionais.index') %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              <span>{{ vocab.prof_label }}</span>
+            </a>
+
+            <div class="px-3 pt-4 pb-1.5">
+              <span class="text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">Sistema</span>
+            </div>
+
+            <a href="{{ url_for('main.monitor_chat') }}"
+               class="desktop-nav-item {% if request.endpoint == 'main.monitor_chat' %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              <span>Monitoramento IA</span>
+            </a>
+
+            <a href="{{ url_for('main.configuracoes') }}"
+               class="desktop-nav-item {% if request.endpoint and request.endpoint.startswith('main.configuracoes') %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span>Ajustes</span>
+            </a>
+          {% endif %}
+        </nav>
+      </div>
+
+      {# Rodapé do Usuário Desktop #}
+      {% if current_user.is_authenticated %}
+      <div class="pt-4 border-t border-[#EAEAEA] flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+               style="background-color: var(--accent-badge-bg); color: var(--accent-badge-text); border: 1px solid var(--accent-badge-border);">
+            {{ (current_user.nome[0] if current_user.nome else 'U') | upper }}
+          </div>
+          <div class="min-w-0">
+            <p class="text-xs font-semibold truncate text-[#0F172A]">{{ current_user.nome or 'Administrador' }}</p>
+            <p class="text-[11px] text-[#64748B] truncate" title="{{ current_user.email }}">{{ current_user.email }}</p>
+          </div>
+        </div>
+        <a href="{{ url_for('main.logout') }}"
+           class="p-2 rounded-lg text-[#64748B] hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+           title="Encerrar sessão">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" x2="9" y1="12" y2="12"/>
+          </svg>
+        </a>
+      </div>
+      {% endif %}
+    </aside>
+
+    {# ===================================================================== #}
+    {# MOBILE TOPBAR COMPACTA (max-width: 768px)                             #}
+    {# ===================================================================== #}
+    <header class="mobile-topbar items-center justify-between px-4">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-7 h-7 rounded-md flex items-center justify-center text-white shrink-0" style="background-color: var(--accent-primary);">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+        </div>
+        <span class="font-bold text-sm truncate heading-tight">
+          {% if current_user.is_authenticated and current_user.barbearia %}
+            {{ current_user.barbearia.nome_fantasia }}
+          {% else %}
+            Painel Executivo
+          {% endif %}
+        </span>
+      </div>
+
+      {% if current_user.is_authenticated %}
+      <div class="flex items-center gap-1">
+        {% if current_user.role != 'super_admin' %}
+        <a href="{{ url_for('profissionais.index') }}"
+           class="p-2 rounded-lg text-[#64748B] hover:text-[#0F172A]"
+           title="{{ vocab.prof_label }}">
+          <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+        </a>
+        <a href="{{ url_for('main.monitor_chat') }}"
+           class="p-2 rounded-lg text-[#64748B] hover:text-[#0F172A]"
+           title="Monitoramento IA">
+          <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </a>
+        {% endif %}
+        <a href="{{ url_for('main.logout') }}"
+           class="p-2 rounded-lg text-[#64748B] hover:text-red-600"
+           title="Sair">
+          <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>
+          </svg>
+        </a>
+      </div>
+      {% endif %}
+    </header>
+
+    {# ===================================================================== #}
+    {# ÁREA DE CONTEÚDO PRINCIPAL                                            #}
+    {# ===================================================================== #}
+    <main class="main-viewport flex-1 w-full max-w-[1440px] mx-auto px-4 py-5 md:px-8 md:py-8 overflow-x-hidden">
+      {% block content %}{% endblock %}
+    </main>
+
+    {# ===================================================================== #}
+    {# MOBILE BOTTOM NAVIGATION BAR (5 Abas Fixas - 64px + Safe Area)        #}
+    {# ===================================================================== #}
+    {% if current_user.is_authenticated %}
+      {% if current_user.role == 'super_admin' %}
+      <nav class="mobile-bottom-nav select-none !grid-cols-3" aria-label="Navegação Super Admin Mobile">
+        <a href="{{ url_for('main.admin_painel_novo') }}"
+           class="mobile-nav-item {% if request.endpoint == 'main.admin_painel_novo' %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          <span>Comando</span>
+        </a>
+        <a href="{{ url_for('main.admin_barbearias') }}"
+           class="mobile-nav-item {% if request.endpoint == 'main.admin_barbearias' %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>Lojas</span>
+        </a>
+        <a href="{{ url_for('main.admin_planos') }}"
+           class="mobile-nav-item {% if request.endpoint == 'main.admin_planos' %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+          <span>Planos</span>
+        </a>
+      </nav>
+      {% else %}
+      <nav class="mobile-bottom-nav select-none" aria-label="Navegação Principal Mobile">
+        <a href="{{ url_for('dashboard.index') }}"
+           class="mobile-nav-item {% if request.endpoint and request.endpoint.startswith('dashboard.index') %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/>
+          </svg>
+          <span>Início</span>
+        </a>
+
+        <a href="{{ url_for('main.agenda') }}"
+           class="mobile-nav-item {% if request.endpoint and request.endpoint.startswith('main.agenda') %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>
+          </svg>
+          <span>Agenda</span>
+        </a>
+
+        <a href="{{ url_for('clientes.index') }}"
+           class="mobile-nav-item {% if request.endpoint and request.endpoint.startswith('clientes.index') %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Clientes</span>
+        </a>
+
+        <a href="{{ url_for('servicos.index') }}"
+           class="mobile-nav-item {% if request.endpoint and request.endpoint.startswith('servicos.index') %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" x2="7.01" y1="7" y2="7"/>
+          </svg>
+          <span>Serviços</span>
+        </a>
+
+        <a href="{{ url_for('main.configuracoes') }}"
+           class="mobile-nav-item {% if request.endpoint and request.endpoint.startswith('main.configuracoes') %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>Ajustes</span>
+        </a>
+      </nav>
+      {% endif %}
+    {% endif %}
+
   </div>
 
-  {# ======================================================= #}
-  {# 📜 SCRIPT PARA CONTROLE DO MENU MOBILE                 #}
-  {# ======================================================= #}
   <script>
-    const menuBtn = document.getElementById('mobile-menu-btn');
-    const closeBtn = document.getElementById('close-sidebar-btn');
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('mobile-overlay');
-
-    function toggleSidebar() {
-        const isClosed = sidebar.classList.contains('-translate-x-full');
-        
-        if (isClosed) {
-            // Abrir
-            sidebar.classList.remove('-translate-x-full');
-            overlay.classList.remove('hidden');
-            // Timeout pequeno para permitir transição de opacidade
-            setTimeout(() => overlay.classList.remove('opacity-0'), 10);
-        } else {
-            // Fechar
-            sidebar.classList.add('-translate-x-full');
-            overlay.classList.add('opacity-0');
-            setTimeout(() => overlay.classList.add('hidden'), 300);
-        }
+    if (window.lucide) {
+      lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
     }
-
-    if(menuBtn) menuBtn.addEventListener('click', toggleSidebar);
-    if(closeBtn) closeBtn.addEventListener('click', toggleSidebar);
-    if(overlay) overlay.addEventListener('click', toggleSidebar);
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}").catch(function () {});
+      });
+    }
   </script>
 
-  {% block scripts %}
-  {% endblock %}
+  {% block scripts %}{% endblock %}
 </body>
 </html>
