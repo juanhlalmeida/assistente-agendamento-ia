@@ -1,138 +1,193 @@
 <!DOCTYPE html>
-<html class="dark" lang="pt-br">
+<html lang="pt-br">
 <head>
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-  <title>Editar Barbearia</title>
+  <title>Editar Barbearia — Super Admin</title>
   <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
   <link href="https://fonts.googleapis.com" rel="preconnect"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet"/>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
   <script>
-    tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#00A6FB", "background-dark": "#121212", "surface-dark": "#1E1E1E" }, fontFamily: { "display": ["Inter", "sans-serif"] } } } }
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#0F172A",
+            "background-dark": "#F8F9FA",
+            "surface-dark": "#FFFFFF"
+          },
+          fontFamily: {
+            "display": ["'Plus Jakarta Sans'", "Inter", "sans-serif"]
+          }
+        }
+      }
+    }
   </script>
-  <style> .material-symbols-outlined { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24 } </style>
+  <style>
+    body {
+      background-color: #F8F9FA;
+      color: #0F172A;
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+    }
+    .exec-input {
+      min-height: 44px;
+      background-color: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      color: #0F172A;
+      font-size: 0.875rem;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .exec-input:focus {
+      border-color: #0F172A;
+      box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+      outline: none;
+    }
+  </style>
 </head>
-<body class="bg-background-dark font-display text-white min-h-screen flex flex-col items-center py-10">
+<body class="font-display text-[#0F172A] min-h-screen flex flex-col items-center py-8 px-4">
 
-  <div class="w-full max-w-3xl px-4">
-    
-    <div class="flex items-center justify-between mb-8">
+  <div class="w-full max-w-3xl">
+
+    <div class="flex items-center justify-between mb-6 pb-4 border-b border-[#EAEAEA]">
       <div>
-        <h1 class="text-3xl font-bold flex items-center gap-2">
-          <span class="material-symbols-outlined text-primary">edit_square</span> Editar Barbearia
+        <h1 class="text-2xl font-bold flex items-center gap-2.5 text-[#0F172A] tracking-tight">
+          <svg class="w-5 h-5 text-[#0F172A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg>
+          Editar Unidade / Cliente
         </h1>
-        <p class="text-gray-400 mt-1">ID: <span class="font-mono text-primary">{{ barbearia.id }}</span></p>
+        <p class="text-[#64748B] text-xs mt-1">Identificador da Unidade: <span class="font-mono font-semibold text-[#0F172A] tabular-nums">#{{ barbearia.id }}</span></p>
       </div>
-      <a href="{{ url_for('main.admin_barbearias') }}" class="text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
-        <span class="material-symbols-outlined text-lg">arrow_back</span> Voltar
+      <a href="{{ url_for('main.admin_barbearias') }}"
+         class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg bg-white border border-[#EAEAEA] text-xs font-semibold text-[#0F172A] hover:bg-[#F1F5F9] transition-colors">
+        <svg class="w-4 h-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>
+        </svg>
+        Voltar
       </a>
     </div>
 
-    <div class="bg-surface-dark rounded-xl shadow-2xl p-8 border border-gray-800">
-      
+    <div class="bg-white rounded-xl shadow-[0_1px_2px_rgba(16,24,40,0.04)] p-6 sm:p-8 border border-[#EAEAEA]">
+
       <form method="POST" action="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) }}" enctype="multipart/form-data" class="space-y-6">
-        
+
         <div class="space-y-4">
-          <h2 class="text-xl font-semibold border-b border-gray-700 pb-2 mb-4 text-primary">Dados da Empresa</h2>
-          
+          <h2 class="text-sm font-bold uppercase tracking-wider border-b border-[#EAEAEA] pb-2.5 mb-4 text-[#0F172A]">Dados da Empresa</h2>
+
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-gray-400 mb-1">Nome Fantasia</label>
-              <input type="text" name="nome_fantasia" value="{{ barbearia.nome_fantasia }}" required 
-                     class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary outline-none transition-all">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-[#64748B] mb-1.5">Nome Fantasia</label>
+              <input type="text" name="nome_fantasia" value="{{ barbearia.nome_fantasia }}" required
+                     class="exec-input w-full px-3.5 py-2.5">
             </div>
-            
+
             <div>
-              <label class="block text-sm font-medium text-gray-400 mb-1">WhatsApp (com 55)</label>
-              <input type="text" name="telefone_whatsapp" value="{{ barbearia.telefone_admin or '' }}" 
-                     class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-primary outline-none transition-all">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-[#64748B] mb-1.5">WhatsApp (com 55)</label>
+              <input type="text" name="telefone_whatsapp" value="{{ barbearia.telefone_admin or '' }}"
+                     class="exec-input w-full px-3.5 py-2.5 tabular-nums">
             </div>
           </div>
-          
-          <div class="pt-4">
-            <label class="block text-sm font-bold text-gray-300 mb-1 flex items-center gap-2">
-              <span class="material-symbols-outlined text-primary text-sm">psychology</span> Base de Conhecimento da IA
+
+          <div class="pt-3">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-[#0F172A] mb-1 flex items-center gap-1.5">
+              <svg class="w-4 h-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              </svg>
+              Base de Conhecimento da IA
             </label>
-            <p class="text-xs text-gray-500 mb-3">Escreva tudo que a IA precisa saber para responder aos clientes (Ex: tem wifi? aceita pet? tem estacionamento? regras de cancelamento? valores extras?)</p>
-            
-            <textarea name="regras_negocio" rows="6" 
-                      class="w-full bg-background-dark border border-gray-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-primary outline-none transition-all" 
+            <p class="text-xs text-[#64748B] mb-2.5">Escreva tudo que a IA precisa saber para responder aos clientes (Ex: Wi-Fi, estacionamento, regras de cancelamento, tolerância).</p>
+
+            <textarea name="regras_negocio" rows="6"
+                      class="w-full bg-white border border-[#E2E8F0] rounded-lg p-3.5 text-sm text-[#0F172A] focus:border-[#0F172A] focus:ring-2 focus:ring-slate-900/10 outline-none transition-all"
                       placeholder="- Temos Wi-Fi grátis.&#10;- Aceitamos Pets de pequeno porte.&#10;- Não temos estacionamento.">{{ barbearia.regras_negocio if barbearia.regras_negocio else '' }}</textarea>
           </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3">
              <div class="md:col-span-1">
-                <label class="block text-sm font-medium text-gray-400 mb-1">Status Assinatura</label>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-[#64748B] mb-1.5">Status Assinatura</label>
                 <div class="relative">
-                    <select name="status_assinatura" class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 text-white appearance-none focus:ring-2 focus:ring-primary outline-none">
+                    <select name="status_assinatura" class="exec-input w-full px-3.5 py-2.5">
                         <option value="ativa" {% if barbearia.status_assinatura == 'ativa' %}selected{% endif %}>Ativa</option>
                         <option value="inativa" {% if barbearia.status_assinatura == 'inativa' %}selected{% endif %}>Inativa</option>
                         <option value="teste" {% if barbearia.status_assinatura == 'teste' %}selected{% endif %}>Teste Grátis</option>
                     </select>
-                    <span class="material-symbols-outlined absolute right-3 top-2 pointer-events-none text-gray-500">expand_more</span>
                 </div>
              </div>
              <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-400 mb-1">Meta Phone Number ID</label>
-                <input type="text" name="meta_phone_number_id" value="{{ barbearia.meta_phone_number_id or '' }}" 
-                       class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 font-mono text-yellow-500 focus:ring-2 focus:ring-primary outline-none">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-[#64748B] mb-1.5">Meta Phone Number ID</label>
+                <input type="text" name="meta_phone_number_id" value="{{ barbearia.meta_phone_number_id or '' }}"
+                       class="exec-input w-full px-3.5 py-2.5 font-mono text-xs tabular-nums">
              </div>
           </div>
-          
+
           <div>
-            <label class="block text-sm font-medium text-gray-400 mb-1">Meta Access Token</label>
-            <input type="text" name="meta_access_token" value="{{ barbearia.meta_access_token or '' }}" 
-                   class="w-full bg-background-dark border border-gray-700 rounded-lg px-4 py-2 font-mono text-green-500 focus:ring-2 focus:ring-primary outline-none">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-[#64748B] mb-1.5">Meta Access Token</label>
+            <input type="text" name="meta_access_token" value="{{ barbearia.meta_access_token or '' }}"
+                   class="exec-input w-full px-3.5 py-2.5 font-mono text-xs">
           </div>
 
-          <div class="pt-4 border-t border-gray-800">
-            <label class="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-2">
-                <span class="material-symbols-outlined text-purple-400">image</span> Tabela de Preços (Imagem para IA)
+          <div class="pt-4 border-t border-[#EAEAEA]">
+            <label class="block text-xs font-semibold uppercase tracking-wider text-[#64748B] mb-2 flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+                </svg>
+                Tabela de Preços (Imagem para IA)
             </label>
-            <input type="file" name="arquivo_tabela_admin" accept="image/*" 
-                   class="w-full bg-background-dark border border-gray-700 rounded-lg text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary file:text-white hover:file:bg-blue-600 transition-all cursor-pointer">
-            
+            <input type="file" name="arquivo_tabela_admin" accept="image/*"
+                   class="w-full bg-[#F8F9FA] border border-[#E2E8F0] rounded-lg text-xs text-[#475569] file:mr-4 file:py-2.5 file:px-4 file:rounded-l-lg file:border-0 file:bg-[#0F172A] file:text-white file:font-semibold hover:file:bg-[#1E293B] transition-all cursor-pointer">
+
             {% if barbearia.url_tabela_precos %}
-                <div class="mt-2 p-2 bg-green-500/10 border border-green-500/30 rounded-lg">
-                    <p class="text-xs text-green-400 flex items-center gap-1">
-                        <span class="material-symbols-outlined text-sm">check_circle</span> Imagem atual configurada.
+                <div class="mt-2.5 p-3 bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg flex items-center justify-between">
+                    <p class="text-xs font-medium text-[#047857] flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-[#059669]"></span> Imagem atual configurada.
                     </p>
-                    <a href="{{ barbearia.url_tabela_precos }}" target="_blank" class="text-xs text-blue-400 hover:underline mt-1 block">Ver imagem atual</a>
+                    <a href="{{ barbearia.url_tabela_precos }}" target="_blank" class="text-xs font-semibold text-[#047857] hover:underline">Ver imagem atual</a>
                 </div>
             {% else %}
-                <div class="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                    <p class="text-xs text-yellow-500 flex items-center gap-1">
-                        <span class="material-symbols-outlined text-sm">warning</span> Nenhuma imagem. A IA não enviará nada.
+                <div class="mt-2.5 p-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-lg">
+                    <p class="text-xs font-medium text-[#B45309]">
+                        Nenhuma imagem configurada. A IA responderá apenas via texto.
                     </p>
                 </div>
             {% endif %}
           </div>
         </div>
 
-        <div class="pt-6 space-y-4">
-          <h2 class="text-xl font-semibold border-b border-gray-700 pb-2 mb-4 text-red-500 flex items-center gap-2">
-            <span class="material-symbols-outlined">lock_reset</span> Gerenciamento de Acesso
+        <div class="pt-4 space-y-4">
+          <h2 class="text-sm font-bold uppercase tracking-wider border-b border-[#EAEAEA] pb-2.5 mb-4 text-[#991B1B] flex items-center gap-2">
+            Gerenciamento de Acesso
           </h2>
-          <div class="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex gap-4 items-start">
-            <span class="material-symbols-outlined text-red-500 mt-1">warning</span>
-            <div class="text-sm text-red-200">
-              <p class="font-bold mb-1">Atenção Super Admin</p>
-              <p class="opacity-80">Você não pode ver a senha atual. Digite abaixo apenas se quiser <strong>sobrescrever</strong> a senha do cliente.</p>
-            </div>
+          <div class="bg-[#FEF2F2] border border-[#FECACA] rounded-lg p-4 text-xs text-[#991B1B]">
+            <p class="font-bold mb-0.5">Atenção Super Admin</p>
+            <p>A senha atual é criptografada. Preencha o campo abaixo apenas se desejar <strong>sobrescrever</strong> a senha de acesso do cliente.</p>
           </div>
           <div>
-            <label class="block text-sm font-bold text-red-400 mb-1">Nova Senha do Cliente (Opcional)</label>
-            <input type="text" name="nova_senha_admin" placeholder="Digite para trocar a senha..." 
-                   class="w-full bg-background-dark border border-red-900/50 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-red-500 outline-none transition-all">
-            <p class="text-xs text-gray-500 mt-2">Deixe em branco para manter a senha atual.</p>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-[#64748B] mb-1.5">Nova Senha do Cliente (Opcional)</label>
+            <input type="text" name="nova_senha_admin" placeholder="Digite para redefinir a senha..."
+                   class="exec-input w-full px-3.5 py-2.5">
+            <p class="text-xs text-[#64748B] mt-1.5">Deixe em branco para manter a senha atual inalterada.</p>
           </div>
         </div>
 
-        <div class="flex justify-end gap-4 pt-6 border-t border-gray-800 mt-6">
-          <a href="{{ url_for('main.admin_barbearias') }}" class="px-6 py-2 rounded-lg text-gray-400 hover:bg-white/5 transition font-medium">Cancelar</a>
-          <button type="submit" class="px-6 py-2 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 transition shadow-lg shadow-primary/20 flex items-center gap-2">
-            <span class="material-symbols-outlined">save</span> Salvar Alterações
+        <div class="flex justify-end gap-3 pt-5 border-t border-[#EAEAEA] mt-6">
+          <a href="{{ url_for('main.admin_barbearias') }}"
+             class="inline-flex items-center justify-center min-h-[44px] px-5 rounded-lg border border-[#EAEAEA] bg-white text-sm font-semibold text-[#475569] hover:bg-[#F8F9FA] transition-colors">
+            Cancelar
+          </a>
+          <button type="submit"
+                  class="inline-flex items-center justify-center gap-2 min-h-[44px] px-6 rounded-lg bg-[#0F172A] text-white text-sm font-semibold hover:bg-[#1E293B] transition-colors">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>Salvar Alterações</span>
           </button>
         </div>
 

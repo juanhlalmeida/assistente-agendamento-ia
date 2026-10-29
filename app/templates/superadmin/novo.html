@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% if barbearia %}Editar{% else %}Criar{% endif %} Barbearia - Admin</title>
+    <title>{% if barbearia %}Editar{% else %}Criar{% endif %} Unidade — Super Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet"/>
     <style>
         * {
             margin: 0;
@@ -12,46 +15,64 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a1a;
+            font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #F8F9FA;
+            color: #0F172A;
             min-height: 100vh;
-            padding: 20px;
+            padding: 32px 16px;
+            -webkit-font-smoothing: antialiased;
         }
 
         .container {
-            background: #2a2a2a;
-            border-radius: 10px;
-            padding: 40px;
+            background: #FFFFFF;
+            border: 1px solid #EAEAEA;
+            border-radius: 12px;
+            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+            padding: 32px;
             max-width: 800px;
             width: 100%;
             margin: 0 auto;
-            max-height: 95vh;
-            overflow-y: auto;
-            color: #e0e0e0;
+            color: #0F172A;
         }
 
         h1 {
-            color: #00d4ff;
-            margin-bottom: 30px;
-            text-align: center;
+            color: #0F172A;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.015em;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #EAEAEA;
         }
 
         h2 {
-            color: #00d4ff;
-            font-size: 16px;
-            margin-bottom: 20px;
-            margin-top: 25px;
-            font-weight: 600;
+            color: #0F172A;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 16px;
+            margin-top: 24px;
+            font-weight: 700;
         }
 
         .form-group {
-            margin-bottom: 18px;
+            margin-bottom: 16px;
         }
 
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            .container {
+                padding: 20px;
+            }
         }
 
         .form-row .form-group {
@@ -61,9 +82,11 @@
         label {
             display: block;
             margin-bottom: 6px;
-            color: #b0b0b0;
-            font-weight: 500;
-            font-size: 13px;
+            color: #475569;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
         }
 
         input[type="text"],
@@ -74,13 +97,15 @@
         select,
         textarea {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #444;
-            border-radius: 5px;
+            min-height: 44px;
+            padding: 10px 14px;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
             font-size: 14px;
             font-family: inherit;
-            background: #333;
-            color: #e0e0e0;
+            background: #FFFFFF;
+            color: #0F172A;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
         input[type="text"]:focus,
@@ -91,9 +116,9 @@
         select:focus,
         textarea:focus {
             outline: none;
-            border-color: #00d4ff;
-            box-shadow: 0 0 5px rgba(0, 212, 255, 0.3);
-            background: #3a3a3a;
+            border-color: #0F172A;
+            box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+            background: #FFFFFF;
         }
 
         textarea {
@@ -103,139 +128,148 @@
 
         .button-group {
             display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 30px;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 28px;
         }
 
         button {
-            padding: 12px 30px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
+            min-height: 44px;
+            padding: 10px 24px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            font-size: 14px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.15s ease;
             font-weight: 600;
+            font-family: inherit;
         }
 
         .btn-save {
-            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
-            color: #000;
+            background: #0F172A;
+            color: #FFFFFF;
         }
 
         .btn-save:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.4);
+            background: #1E293B;
         }
 
         .btn-cancel {
-            background: #444;
-            color: #e0e0e0;
+            background: #FFFFFF;
+            color: #475569;
+            border: 1px solid #EAEAEA;
         }
 
         .btn-cancel:hover {
-            background: #555;
+            background: #F8F9FA;
+            color: #0F172A;
         }
 
         a.btn-cancel {
-            padding: 12px 30px;
+            min-height: 44px;
+            padding: 10px 24px;
+            border-radius: 8px;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 5px;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
         }
 
         hr {
-            margin: 25px 0;
+            margin: 24px 0;
             border: none;
-            border-top: 1px solid #444;
+            border-top: 1px solid #EAEAEA;
         }
 
         .optional-note {
             font-size: 12px;
-            color: #888;
-            margin-top: -14px;
-            margin-bottom: 10px;
+            color: #64748B;
+            margin-top: 6px;
         }
 
         .danger-zone {
-            background: #3d2020;
-            border-radius: 5px;
+            background: #FEF2F2;
+            border-radius: 8px;
             padding: 20px;
-            margin-top: 30px;
-            border: 1px solid #662020;
+            margin-top: 24px;
+            border: 1px solid #FECACA;
         }
 
         .danger-zone h3 {
-            color: #ff6b6b;
-            margin-bottom: 15px;
+            color: #991B1B;
+            font-size: 14px;
+            margin-bottom: 8px;
         }
 
         .danger-zone p {
-            color: #b0b0b0;
-            margin-bottom: 15px;
+            color: #7F1D1D;
+            font-size: 13px;
+            margin-bottom: 14px;
         }
 
         .btn-delete {
-            background: #cc3333;
+            background: #DC2626;
             color: white;
             width: 100%;
         }
 
         .btn-delete:hover {
-            background: #992222;
+            background: #B91C1C;
         }
 
         .alert-box {
-            background: #3d2020;
-            border-left: 4px solid #ff6b6b;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            color: #e0e0e0;
+            background: #FFFBEB;
+            border: 1px solid #FDE68A;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            border-radius: 8px;
+            color: #92400E;
         }
 
         .alert-box h4 {
-            color: #ff6b6b;
-            margin-bottom: 10px;
+            color: #92400E;
+            font-size: 13px;
+            margin-bottom: 4px;
         }
 
         .alert-box p {
             margin: 0;
-            font-size: 13px;
+            font-size: 12px;
         }
 
         .success-box {
-            background: #203d20;
-            border-left: 4px solid #52c41a;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 5px;
-            color: #e0e0e0;
+            background: #ECFDF5;
+            border: 1px solid #A7F3D0;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            border-radius: 8px;
+            color: #065F46;
+            font-size: 13px;
         }
-        
-        /* Estilo específico para o seletor de tipo de negócio */
+
         .highlight-section {
-            background: rgba(0, 212, 255, 0.05); 
-            border: 1px solid rgba(0, 212, 255, 0.3); 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin-bottom: 25px;
+            background: #F8F9FA;
+            border: 1px solid #EAEAEA;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>{% if barbearia %}✏️ Editar Barbearia{% else %}🏪 Criar Nova Barbearia{% endif %}</h1>
+        <h1>{% if barbearia %}Editar Unidade Comercial{% else %}Criar Nova Unidade Comercial{% endif %}</h1>
 
         {% if barbearia %}
         <div class="alert-box">
-            <h4>⚠️ Atenção Super Admin</h4>
+            <h4>Atenção Super Admin</h4>
             <p>Você não pode ver a senha atual. Digite abaixo apenas se quiser <strong>sobrescrever</strong> a senha do cliente.</p>
         </div>
 
         <div class="success-box">
-            <p>✅ Imagem atual configurada. <a href="{{ barbearia.url_tabela_precos }}" target="_blank" style="color: #52c41a; text-decoration: underline;">Ver imagem atual</a></p>
+            <p>Imagem atual configurada. <a href="{{ barbearia.url_tabela_precos }}" target="_blank" style="color: #047857; font-weight: 600; text-decoration: underline;">Ver imagem atual</a></p>
         </div>
         {% endif %}
 
@@ -243,19 +277,19 @@
               action="{{ url_for('main.admin_editar_barbearia', barbearia_id=barbearia.id) if barbearia else url_for('main.admin_nova_barbearia') }}">
 
             <div class="highlight-section">
-                <label for="business_type" style="color: #00d4ff; font-weight: bold; display: block; margin-bottom: 8px;">🏢 Tipo de Negócio (O Cérebro da IA)</label>
+                <label for="business_type" style="color: #0F172A; font-weight: 700; display: block; margin-bottom: 8px;">Tipo de Negócio (Motor de IA)</label>
                 <select id="business_type" name="business_type" required>
                     <option value="barbershop" {% if not barbearia or barbearia.business_type == 'barbershop' %}selected{% endif %}>
-                        💈 Barbearia / Salão (Agendamento por Horário)
+                        Barbearia / Studio / Salão (Agendamento por Horário)
                     </option>
                     <option value="pousada" {% if barbearia and barbearia.business_type == 'pousada' %}selected{% endif %}>
-                        🏨 Pousada / Hotelaria (Reserva por Diárias)
+                        Pousada / Hotelaria (Reserva por Diárias)
                     </option>
                 </select>
-                <small style="color: #aaa; display: block; margin-top: 5px;">Isso muda se a IA vai vender cortes de cabelo ou diárias de quartos.</small>
+                <small style="color: #64748B; display: block; margin-top: 6px; font-size: 12px;">Define se o assistente opera por grade de horários ou diárias de hospedagem.</small>
             </div>
 
-            <h2>📊 Dados da Empresa</h2>
+            <h2>Dados da Empresa</h2>
 
             <div class="form-row">
                 <div class="form-group">
@@ -293,11 +327,11 @@
             <hr>
 
             {% if not barbearia %}
-            <h2>👤 Dados do Admin</h2>
+            <h2>Dados do Administrador</h2>
             <div class="form-row">
                 <div class="form-group">
                     <label for="admin_email">Email do Admin *</label>
-                    <input type="email" id="admin_email" name="admin_email" required placeholder="Ex: admin@barbearia.com">
+                    <input type="email" id="admin_email" name="admin_email" required placeholder="Ex: admin@empresa.com">
                 </div>
 
                 <div class="form-group">
@@ -305,9 +339,9 @@
                     <input type="password" id="admin_senha" name="admin_senha" required placeholder="Mínimo 8 caracteres">
                 </div>
             </div>
-            
+
             {% else %}
-            <h2>🔐 Gerenciamento de Acesso</h2>
+            <h2>Gerenciamento de Acesso</h2>
             <div class="form-group">
                 <label for="nova_senha_admin">Nova Senha do Cliente (Opcional)</label>
                 <input type="password" id="nova_senha_admin" name="nova_senha_admin" placeholder="Digite para trocar a senha...">
@@ -317,7 +351,7 @@
 
             <hr>
 
-            <h2>⏰ Configurações de Funcionamento</h2>
+            <h2>Configurações de Funcionamento</h2>
 
             <div class="form-row">
                 <div class="form-group">
@@ -342,7 +376,7 @@
                     <input type="text" id="horario_fechamento_sabado" name="horario_fechamento_sabado" placeholder="Ex: 14:00" value="{{ barbearia.horario_fechamento_sabado if barbearia else '14:00' }}">
                 </div>
             </div>
-            
+
             <div class="form-row">
                 <div class="form-group">
                     <label for="dias_funcionamento">Dias de Funcionamento</label>
@@ -352,17 +386,17 @@
 
             <hr>
 
-            <h2>🎨 Personalização</h2>
+            <h2>Personalização</h2>
 
             <div class="form-row">
                 <div class="form-group">
                     <label for="cor_primaria">Cor Primária</label>
-                    <input type="color" id="cor_primaria" name="cor_primaria" value="{{ barbearia.cor_primaria if barbearia else '#EC4899' }}">
+                    <input type="color" id="cor_primaria" name="cor_primaria" value="{{ barbearia.cor_primaria if barbearia else '#0F172A' }}">
                 </div>
 
                 <div class="form-group">
-                    <label for="emojis_sistema">Emojis do Sistema</label>
-                    <input type="text" id="emojis_sistema" name="emojis_sistema" placeholder="Ex: 🦋✨💖" value="{{ barbearia.emojis_sistema if barbearia else '🦋✨💖' }}">
+                    <label for="emojis_sistema">Emojis do Sistema (WhatsApp)</label>
+                    <input type="text" id="emojis_sistema" name="emojis_sistema" placeholder="Ex: ✨" value="{{ barbearia.emojis_sistema if barbearia else '🦋✨💖' }}">
                 </div>
             </div>
 
@@ -374,19 +408,19 @@
             <hr>
 
             <div class="button-group">
-                <button type="submit" class="btn-save">{% if barbearia %}💾 Salvar Alterações{% else %}✅ Criar Barbearia{% endif %}</button>
-                <a href="{{ url_for('superadmin.listar_barbearias') }}" class="btn-cancel">❌ Cancelar</a>
+                <a href="{{ url_for('superadmin.listar_barbearias') }}" class="btn-cancel">Cancelar</a>
+                <button type="submit" class="btn-save">{% if barbearia %}Salvar Alterações{% else %}Criar Unidade{% endif %}</button>
             </div>
         </form>
 
         {% if barbearia %}
         <hr>
         <div class="danger-zone">
-            <h3>🗑️ Zona de Perigo</h3>
-            <p>Deletar a barbearia <strong>{{ barbearia.nome_fantasia }}</strong> e todos os seus dados?</p>
-            
-            <form method="POST" action="{{ url_for('superadmin.apagar_barbearia', barbearia_id=barbearia.id) }}" style="margin-top: 15px;">
-                <button type="submit" class="btn-delete" onclick="return confirm('⚠️ ATENÇÃO! Isso apagará TUDO desta barbearia. Tem certeza?')">🗑️ Deletar Barbearia</button>
+            <h3>Zona de Perigo</h3>
+            <p>Deletar a unidade <strong>{{ barbearia.nome_fantasia }}</strong> e todos os seus dados permanentemente?</p>
+
+            <form method="POST" action="{{ url_for('superadmin.apagar_barbearia', barbearia_id=barbearia.id) }}">
+                <button type="submit" class="btn-delete" onclick="return confirm('ATENÇÃO! Isso apagará TUDO desta unidade. Tem certeza?')">Deletar Unidade</button>
             </form>
         </div>
         {% endif %}
@@ -397,39 +431,39 @@
         document.getElementById('lojaForm').addEventListener('submit', function(e) {
             const nome = document.getElementById('nome_fantasia').value.trim();
             const telefone = document.getElementById('telefone_whatsapp').value.trim();
-            
+
             // Verificação se estamos criando (tem email/senha visíveis) ou editando
             const emailInput = document.getElementById('admin_email');
             const senhaInput = document.getElementById('admin_senha');
 
-            if (emailInput) { 
+            if (emailInput) {
                 // Modo CRIAÇÃO: valida tudo
                 const email = emailInput.value.trim();
                 const senha = senhaInput.value.trim();
 
                 if (!nome || !telefone || !email || !senha) {
                     e.preventDefault();
-                    alert('⚠️ Preencha todos os campos obrigatórios!');
+                    alert('Preencha todos os campos obrigatórios!');
                     return false;
                 }
 
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                 if (!emailRegex.test(email)) {
                     e.preventDefault();
-                    alert('⚠️ Email inválido!');
+                    alert('Email inválido!');
                     return false;
                 }
 
                 if (senha.length < 8) {
                     e.preventDefault();
-                    alert('⚠️ Senha deve ter mínimo 8 caracteres!');
+                    alert('Senha deve ter mínimo 8 caracteres!');
                     return false;
                 }
-            } else { 
+            } else {
                 // Modo EDIÇÃO: valida apenas campos básicos
                 if (!nome || !telefone) {
                     e.preventDefault();
-                    alert('⚠️ Preencha todos os campos obrigatórios!');
+                    alert('Preencha todos os campos obrigatórios!');
                     return false;
                 }
             }

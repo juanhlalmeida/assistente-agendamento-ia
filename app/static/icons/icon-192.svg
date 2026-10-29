@@ -1,8 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
-  <rect width="192" height="192" rx="40" fill="#0F172A"/>
-  <rect x="44" y="52" width="104" height="96" rx="14" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  <line x1="44" y1="82" x2="148" y2="82" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
-  <line x1="72" y1="38" x2="72" y2="60" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
-  <line x1="120" y1="38" x2="120" y2="60" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round"/>
-  <path d="M80 115l12 12 24-24" fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Fundo Sólido Executivo (#0F172A) com Moldura Interna Sutil -->
+  <rect width="192" height="192" rx="42" fill="#0F172A"/>
+  <rect x="8" y="8" width="176" height="176" rx="34" fill="none" stroke="#1E293B" stroke-width="1.5"/>
+
+  <!-- Estrutura Minimalista do Calendário Executivo -->
+  <rect x="42" y="50" width="96" height="92" rx="18" fill="#1E293B" fill-opacity="0.45" stroke="#FFFFFF" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="42" y1="78" x2="138" y2="78" stroke="#FFFFFF" stroke-width="5.5" stroke-linecap="round"/>
+  <line x1="68" y1="36" x2="68" y2="56" stroke="#FFFFFF" stroke-width="5.5" stroke-linecap="round"/>
+  <line x1="112" y1="36" x2="112" y2="56" stroke="#FFFFFF" stroke-width="5.5" stroke-linecap="round"/>
+
+  <!-- Marcadores de Grade Minimalistas -->
+  <circle cx="68" cy="100" r="3.5" fill="#94A3B8"/>
+  <circle cx="90" cy="100" r="3.5" fill="#FFFFFF"/>
+  <circle cx="68" cy="118" r="3.5" fill="#FFFFFF"/>
+  <path d="M84 118h22" stroke="#9E5A63" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Selo Circular com Brilho Vetorial Sutil de IA (Terracota / Rose Executivo #9E5A63) -->
+  <circle cx="136" cy="132" r="26" fill="#9E5A63" stroke="#0F172A" stroke-width="5"/>
+  <path d="M136 116 C136 125 139 128 148 128 C139 128 136 131 136 140 C136 131 133 128 124 128 C133 128 136 125 136 116 Z" fill="#FFFFFF"/>
 </svg>
