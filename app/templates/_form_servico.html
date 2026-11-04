@@ -21,6 +21,11 @@
         {% set form_vocab.placeholder_nome = 'Ex: Pacote Casal (Sexta a Domingo)' %}
         {% set form_vocab.label_duracao = 'Tempo de Ocupação (Bloqueio na Agenda)' %}
         {% set form_vocab.help_duracao = 'Define por quanto tempo a acomodação ficará bloqueada no calendário.' %}
+    {% elif tipo in ['odontologia', 'odonto'] or 'dental' in nome or 'odonto' in nome or 'dentista' in nome %}
+        {% set form_vocab.label_nome = 'Nome do Procedimento Odontológico' %}
+        {% set form_vocab.placeholder_nome = 'Ex: Limpeza / Profilaxia, Clareamento a Laser' %}
+        {% set form_vocab.label_duracao = 'Duração Clínica (minutos)' %}
+        {% set form_vocab.help_duracao = 'Tempo reservado na cadeira odontológica (ex: 30, 45, 60).' %}
     {% elif 'lash' in nome or 'studio' in nome %}
         {% set form_vocab.label_nome = 'Nome do Procedimento' %}
         {% set form_vocab.placeholder_nome = 'Ex: Extensão Volume Russo' %}

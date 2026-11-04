@@ -8,6 +8,9 @@
     {% if tipo == 'pousada' or 'pousada' in nome %}
         {% set form_vocab.label_nome = 'Nome do Quarto / Acomodação' %}
         {% set form_vocab.placeholder = 'Ex: Suíte 01 - Casal Standard' %}
+    {% elif tipo in ['odontologia', 'odonto'] or 'dental' in nome or 'odonto' in nome or 'dentista' in nome %}
+        {% set form_vocab.label_nome = 'Nome do Dentista & Especialidade' %}
+        {% set form_vocab.placeholder = 'Ex: Dr. Carlos - Ortodontia' %}
     {% elif 'lash' in nome or 'studio' in nome %}
         {% set form_vocab.label_nome = 'Nome da Designer' %}
         {% set form_vocab.placeholder = 'Ex: Ana Clara' %}

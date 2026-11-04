@@ -35,6 +35,12 @@
           {% set vocab_local.plural = 'Quartos e Acomodações' %}
           {% set vocab_local.icon = 'bed-double' %}
 
+      {# ODONTOLOGIA #}
+      {% elif tipo in ['odontologia', 'odonto'] or 'dental' in nome or 'odonto' in nome or 'dentista' in nome %}
+          {% set vocab_local.singular = 'Dentista / Especialista' %}
+          {% set vocab_local.plural = 'Corpo Clínico (Dentistas)' %}
+          {% set vocab_local.icon = 'stethoscope' %}
+
       {# LASH #}
       {% elif 'lash' in nome or 'studio' in nome %}
           {% set vocab_local.singular = 'Designer' %}

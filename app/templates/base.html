@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 {% set is_lash_theme = false %}
+{% set is_odonto_theme = false %}
 {% set vocab = {
     'prof_label': 'Profissionais',
     'serv_label': 'Serviços',
@@ -22,6 +23,17 @@
             'icon_logo': 'hotel',
             'color_theme': '#0F172A',
             'bg_main': '#F8F9FA'
+        } %}
+    {% elif tipo in ['odontologia', 'odonto'] or 'dental' in nome or 'odonto' in nome or 'dentista' in nome %}
+        {% set is_odonto_theme = true %}
+        {% set vocab = {
+            'prof_label': 'Dentistas',
+            'serv_label': 'Procedimentos',
+            'icon_prof': 'stethoscope',
+            'icon_serv': 'medical_services',
+            'icon_logo': 'dentistry',
+            'color_theme': '#0284C7',
+            'bg_main': '#F8FAFC'
         } %}
     {% elif 'lash' in nome or 'studio' in nome or 'cílios' in nome or 'estética' in nome or 'beauty' in nome %}
         {% set is_lash_theme = true %}
@@ -95,7 +107,7 @@
         {# Cabeçalho da Loja Ativa #}
         <div class="flex items-center justify-between pb-4 border-b border-[#EAEAEA]">
           <div class="flex items-center gap-3 min-w-0">
-            <div class="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0" style="background-color: var(--accent-primary);">
+            <div class="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0" style="background-color: {{ '#0284C7' if is_odonto_theme else 'var(--accent-primary)' }};">
               <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                 <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -112,9 +124,9 @@
                 {% endif %}
               </h1>
               <div class="flex items-center gap-1.5 mt-0.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                <span class="w-1.5 h-1.5 rounded-full {{ 'bg-[#0D9488]' if is_odonto_theme else 'bg-emerald-600' }}"></span>
                 <span class="text-[11px] font-medium text-[#64748B] truncate">
-                  {% if is_lash_theme %}Studio & Estética{% else %}Unidade Ativa{% endif %}
+                  {% if is_odonto_theme %}Clínica Odontológica{% elif is_lash_theme %}Studio & Estética{% else %}Unidade Ativa{% endif %}
                 </span>
               </div>
             </div>

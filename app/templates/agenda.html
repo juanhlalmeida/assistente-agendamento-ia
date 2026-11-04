@@ -16,6 +16,7 @@
     msg_vazio='Nenhum agendamento registrado'
 ) %}
 {% set is_pousada = false %}
+{% set is_odonto = false %}
 
 {% if current_user.is_authenticated and current_user.barbearia %}
     {% set tipo = current_user.barbearia.business_type %}
@@ -29,6 +30,14 @@
         {% set vocab_agenda.agendas = 'Reservas' %}
         {% set vocab_agenda.novo_btn = 'Nova Reserva' %}
         {% set vocab_agenda.msg_vazio = 'Nenhuma reserva registrada' %}
+    {% elif tipo in ['odontologia', 'odonto'] or 'dental' in nome or 'odonto' in nome or 'dentista' in nome %}
+        {% set is_odonto = true %}
+        {% set vocab_agenda.prof = 'Dentista / Especialista' %}
+        {% set vocab_agenda.serv = 'Procedimento Clínico' %}
+        {% set vocab_agenda.agenda = 'Consulta' %}
+        {% set vocab_agenda.agendas = 'Consultas' %}
+        {% set vocab_agenda.novo_btn = 'Nova Consulta' %}
+        {% set vocab_agenda.msg_vazio = 'Nenhuma consulta agendada' %}
     {% elif 'lash' in nome or 'studio' in nome or 'cílios' in nome or 'estética' in nome %}
         {% set vocab_agenda.prof = 'Designer' %}
         {% set vocab_agenda.serv = 'Procedimento' %}
@@ -440,6 +449,710 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 {# ================================================================= #}
+{# 🦷 VISÃO EXCLUSIVA ODONTOLOGIA (CONCEPTZILLA MEDICAL UI & OFFCANVAS) #}
+{# ================================================================= #}
+{% elif is_odonto %}
+
+{# Cabeçalho Clean & Medical Premium #}
+<div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-5 gap-4">
+  <div>
+    <div class="flex flex-wrap items-center gap-2 mb-1.5">
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#F0F9FF] text-[#0284C7] border border-[#BAE6FD]">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#0284C7]"></span>
+        Grade Clínica 30 min · 08h às 19h
+      </span>
+      <span class="text-xs font-medium text-[#64748B] tabular-nums">{{ profissionais|length }} especialista(s) ativo(s)</span>
+    </div>
+    <h1 class="text-xl md:text-2xl font-bold text-[#0F172A] heading-tight">Agenda Clínica Odontológica</h1>
+    <p class="text-xs md:text-sm text-[#64748B] mt-0.5">Toque em um paciente para abrir o prontuário rápido, reagendar ou disparar lembrete via WhatsApp.</p>
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+    <div class="relative flex-1 sm:flex-initial sm:w-60">
+      <select id="filtroDentistaOdonto" class="saas-select !h-11 text-xs sm:text-sm font-medium border-[#E2E8F0] focus:border-[#0284C7]" aria-label="Filtrar por Especialista">
+        <option value="todos">Todos os Especialistas</option>
+        {% for p in profissionais %}
+          <option value="{{ p.id }}">{{ p.nome }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <a href="{{ url_for('servicos.index') }}" class="saas-btn-secondary !h-11 px-3.5 text-xs sm:text-sm">
+      <i data-lucide="stethoscope" class="w-4 h-4 text-[#0284C7]"></i>
+      <span class="hidden sm:inline">Procedimentos</span>
+    </a>
+
+    <button type="button"
+            onclick="abrirModalNovaConsultaOdonto()"
+            class="inline-flex items-center justify-center gap-2 !h-11 px-4 rounded-lg bg-[#0284C7] hover:bg-[#0369A1] text-white font-semibold text-xs sm:text-sm transition-all shadow-xs shrink-0 cursor-pointer">
+      <i data-lucide="plus" class="w-4 h-4"></i>
+      <span>{{ vocab_agenda.novo_btn }}</span>
+    </button>
+  </div>
+</div>
+
+{# Barra de Status Clínico + Pílulas de Especialistas Mobile-First #}
+<div class="saas-card p-3 sm:p-4 mb-4 bg-white border border-[#E2E8F0] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+  {# Pílulas de Dentistas (Alvos de toque de 40px+ para o dentista no celular) #}
+  <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pb-0.5 lg:pb-0 select-none" id="pillsDentistasContainer">
+    <button type="button"
+            data-dentist-pill="todos"
+            class="dentist-filter-pill inline-flex items-center gap-1.5 px-3.5 min-h-[38px] rounded-full text-xs font-semibold transition-all shrink-0 bg-[#0284C7] text-white border border-[#0284C7] cursor-pointer">
+      <i data-lucide="users" class="w-3.5 h-3.5"></i>
+      <span>Todos</span>
+    </button>
+    {% for p in profissionais %}
+      <button type="button"
+              data-dentist-pill="{{ p.id }}"
+              class="dentist-filter-pill inline-flex items-center gap-1.5 px-3.5 min-h-[38px] rounded-full text-xs font-semibold transition-all shrink-0 bg-white text-[#0F172A] border border-[#E2E8F0] hover:border-[#0284C7] cursor-pointer">
+        <span class="w-2 h-2 rounded-full" style="background-color: {{ '#0D9488' if p.id % 2 == 0 else '#0284C7' }};"></span>
+        <span>{{ p.nome }}</span>
+      </button>
+    {% endfor %}
+  </div>
+
+  {# Indicadores de Status em Tempo Real (🟢 Confirmado, 🟡 Aguardando, 🔴 Faltou) #}
+  <div class="flex items-center gap-2 overflow-x-auto no-scrollbar pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-teal-50 text-[#0D9488] border border-teal-200/80 tabular-nums shrink-0">
+      <span>🟢 Confirmado</span>
+      <strong id="countOdontoConfirmado" class="ml-0.5 font-extrabold">0</strong>
+    </span>
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200/80 tabular-nums shrink-0">
+      <span>🟡 Aguardando</span>
+      <strong id="countOdontoAguardando" class="ml-0.5 font-extrabold">0</strong>
+    </span>
+    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200/80 tabular-nums shrink-0">
+      <span>🔴 Faltou</span>
+      <strong id="countOdontoFaltou" class="ml-0.5 font-extrabold">0</strong>
+    </span>
+  </div>
+</div>
+
+{# Grade Principal Conceptzilla (TimeGrid 08h às 19h em slots de 30min) #}
+<div class="saas-card p-3 sm:p-5 bg-white border border-[#E2E8F0] overflow-hidden shadow-2xs">
+  <div id="odontoCalendar" class="touch-pan-y"></div>
+</div>
+
+{# ================================================================= #}
+{# OFFCANVAS LATERAL MODERNO DO PACIENTE (MOBILE SHEET & DESKTOP DRAWER) #}
+{# ================================================================= #}
+<div id="odontoOffcanvasModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] z-50 hidden justify-end">
+  <div class="w-full sm:max-w-md bg-white h-[92vh] sm:h-full mt-auto sm:mt-0 rounded-t-2xl sm:rounded-none sm:border-l border-[#E2E8F0] shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-right duration-200">
+    
+    {# Topo do Offcanvas #}
+    <div class="px-5 py-4 border-b border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-[#E0F2FE] border border-[#BAE6FD] flex items-center justify-center text-[#0284C7] shrink-0">
+          <i data-lucide="user-check" class="w-4 h-4"></i>
+        </div>
+        <div class="min-w-0">
+          <span class="block text-[10px] font-bold uppercase tracking-wider text-[#0284C7]">Ficha de Atendimento Clínico</span>
+          <h3 id="odontoDetalhePaciente" class="text-base sm:text-lg font-bold text-[#0F172A] truncate">—</h3>
+        </div>
+      </div>
+      <button type="button" onclick="fecharOffcanvasOdonto()" class="saas-icon-btn !min-w-[38px] !min-h-[38px]" aria-label="Fechar">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    {# Corpo Rolável do Offcanvas #}
+    <div class="p-5 overflow-y-auto flex-1 space-y-5">
+
+      {# Seletor Rápido de Status Clínico (1-Tap) #}
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-[#64748B] mb-2">Status do Paciente na Clínica</label>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button"
+                  onclick="alterarStatusOdonto('confirmado')"
+                  id="btnStatusOdonto-confirmado"
+                  class="odonto-status-btn flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer">
+            <span>🟢</span>
+            <span>Confirmado</span>
+          </button>
+          <button type="button"
+                  onclick="alterarStatusOdonto('aguardando')"
+                  id="btnStatusOdonto-aguardando"
+                  class="odonto-status-btn flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer">
+            <span>🟡</span>
+            <span>Aguardando</span>
+          </button>
+          <button type="button"
+                  onclick="alterarStatusOdonto('faltou')"
+                  id="btnStatusOdonto-faltou"
+                  class="odonto-status-btn flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer">
+            <span>🔴</span>
+            <span>Faltou</span>
+          </button>
+        </div>
+      </div>
+
+      {# Resumo Clínico da Consulta #}
+      <div class="p-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] space-y-3">
+        <div class="flex items-start justify-between gap-2 pb-3 border-b border-[#E2E8F0]">
+          <div>
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Procedimento Odontológico</span>
+            <p id="odontoDetalheServico" class="text-sm font-bold text-[#0F172A] mt-0.5">—</p>
+          </div>
+          <span id="odontoDetalheDuracao" class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-[#E0F2FE] text-[#0284C7] tabular-nums shrink-0">30 min</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Especialista</span>
+            <p id="odontoDetalheDentista" class="text-xs sm:text-sm font-semibold text-[#0F172A] mt-0.5 truncate">—</p>
+          </div>
+          <div>
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Data &amp; Horário</span>
+            <p id="odontoDetalheHorario" class="text-xs sm:text-sm font-bold text-[#0F172A] tabular-nums mt-0.5">—</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-2 border-t border-[#E2E8F0]">
+          <div>
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">WhatsApp do Paciente</span>
+            <p id="odontoDetalheTelefone" class="text-xs sm:text-sm font-medium text-[#0F172A] tabular-nums mt-0.5">—</p>
+          </div>
+          <div>
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Valor Estimado</span>
+            <p id="odontoDetalhePreco" class="text-sm font-extrabold text-[#0D9488] tabular-nums mt-0.5">R$ 0,00</p>
+          </div>
+        </div>
+      </div>
+
+      {# Botões Principais de Ação Rápida para o Dentista #}
+      <div class="space-y-2.5">
+        <button type="button"
+                id="btnDispararLembreteWaha"
+                onclick="enviarLembreteWhatsAppOdonto()"
+                class="w-full min-h-[46px] px-4 py-2.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer">
+          <i data-lucide="send" class="w-4 h-4"></i>
+          <span id="txtBtnLembreteWaha">Enviar Lembrete WhatsApp (WAHA)</span>
+        </button>
+
+        <button type="button"
+                onclick="toggleBoxReagendarOdonto()"
+                class="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#F0F9FF] hover:bg-[#E0F2FE] text-[#0284C7] border border-[#BAE6FD] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer">
+          <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+          <span>Reagendar Paciente</span>
+        </button>
+      </div>
+
+      {# Painel Inline de Reagendamento Rápido #}
+      <div id="boxReagendarOdonto" class="hidden p-4 rounded-xl bg-white border-2 border-[#0284C7]/30 space-y-3 shadow-xs">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-[#0F172A] flex items-center gap-1.5">
+            <i data-lucide="clock" class="w-3.5 h-3.5 text-[#0284C7]"></i>
+            Novo Horário da Consulta
+          </span>
+          <button type="button" onclick="toggleBoxReagendarOdonto()" class="text-xs text-slate-400 hover:text-slate-700">Fechar</button>
+        </div>
+
+        <div>
+          <label class="saas-label">Nova Data e Hora</label>
+          <input type="datetime-local" id="odontoReagendarDataHora" step="1800" class="saas-input tabular-nums">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label class="saas-label">Especialista</label>
+            <select id="odontoReagendarProfId" class="saas-select text-xs">
+              {% for p in profissionais %}
+                <option value="{{ p.id }}">{{ p.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="saas-label">Procedimento</label>
+            <select id="odontoReagendarServId" class="saas-select text-xs tabular-nums">
+              {% for s in servicos %}
+                <option value="{{ s.id }}">{{ s.nome }} ({{ s.duracao }}m)</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <button type="button"
+                id="btnSalvarReagendamentoOdonto"
+                onclick="salvarReagendamentoOdonto()"
+                class="w-full py-2.5 px-4 rounded-lg bg-[#0284C7] hover:bg-[#0369A1] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer">
+          <i data-lucide="check" class="w-4 h-4"></i>
+          <span>Confirmar Novo Horário</span>
+        </button>
+      </div>
+
+      {# Confirmação Inline de Exclusão/Cancelamento #}
+      <div id="boxConfirmarExclusaoOdonto" class="hidden p-3.5 rounded-xl bg-rose-50 border border-rose-200">
+        <p class="text-xs font-semibold text-rose-900 mb-2.5">Deseja desmarcar e liberar este horário na agenda clínica?</p>
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" onclick="document.getElementById('boxConfirmarExclusaoOdonto').classList.add('hidden')" class="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-700 cursor-pointer">
+            Voltar
+          </button>
+          <button type="button" id="btnConfirmarExclusaoOdontoFinal" onclick="confirmarExclusaoConsultaOdonto()" class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-xs font-semibold text-white cursor-pointer">
+            Sim, Desmarcar
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    {# Rodapé do Offcanvas #}
+    <div class="px-5 py-3.5 border-t border-[#E2E8F0] bg-[#F8FAFC] flex items-center justify-between gap-2">
+      <a id="odontoBtnEditarCompleto" href="#" class="text-xs font-semibold text-[#64748B] hover:text-[#0F172A] inline-flex items-center gap-1.5">
+        <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+        <span>Edição Completa</span>
+      </a>
+      <button type="button"
+              onclick="document.getElementById('boxConfirmarExclusaoOdonto').classList.remove('hidden')"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        <span>Desmarcar Consulta</span>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  #odontoCalendar.fc { font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; color: #0F172A; }
+  #odontoCalendar .fc-theme-standard td, #odontoCalendar .fc-theme-standard th { border-color: #E2E8F0 !important; }
+  #odontoCalendar .fc-col-header-cell-cushion { color: #0F172A !important; font-weight: 700; padding: 10px 4px; font-size: 0.78rem; letter-spacing: -0.01em; }
+  #odontoCalendar .fc-timegrid-slot { height: 3.1rem !important; }
+  #odontoCalendar .fc-timegrid-slot-label-cushion { color: #64748B !important; font-size: 0.74rem; font-weight: 600; font-variant-numeric: tabular-nums; padding: 0 8px !important; }
+  #odontoCalendar .fc-day-today { background-color: rgba(2, 132, 199, 0.03) !important; }
+  #odontoCalendar .fc-timegrid-event { border-radius: 8px !important; border-width: 0 0 0 4px !important; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); padding: 3px 6px !important; cursor: pointer; transition: transform 0.12s ease, box-shadow 0.12s ease; }
+  #odontoCalendar .fc-timegrid-event:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(2, 132, 199, 0.12); }
+  #odontoCalendar .fc-button-primary { background-color: #FFFFFF !important; color: #0F172A !important; border: 1px solid #E2E8F0 !important; font-weight: 600 !important; font-size: 0.78rem !important; border-radius: 8px !important; padding: 0.45rem 0.8rem !important; min-height: 40px; text-transform: capitalize; box-shadow: none !important; }
+  #odontoCalendar .fc-button-primary:hover { background-color: #F8FAFC !important; border-color: #0284C7 !important; color: #0284C7 !important; }
+  #odontoCalendar .fc-button-primary.fc-button-active { background-color: #0284C7 !important; color: #FFFFFF !important; border-color: #0284C7 !important; }
+  #odontoCalendar .fc-toolbar-title { font-size: 1.05rem !important; font-weight: 700 !important; color: #0F172A; text-transform: capitalize; letter-spacing: -0.015em; }
+  #odontoCalendar .fc-timegrid-now-indicator-line { border-color: #0284C7 !important; border-width: 2px !important; }
+  #odontoCalendar .fc-timegrid-now-indicator-arrow { border-color: #0284C7 !important; border-top-color: transparent !important; border-bottom-color: transparent !important; }
+  @media (max-width: 640px) {
+    #odontoCalendar .fc-header-toolbar { flex-direction: column; align-items: stretch; gap: 0.6rem; margin-bottom: 0.85rem !important; }
+    #odontoCalendar .fc-toolbar-chunk { display: flex; justify-content: space-between; align-items: center; }
+    #odontoCalendar .fc-timegrid-slot { height: 3.35rem !important; }
+  }
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
+
+<script>
+window.__odontoCalendarInstance = null;
+window.__hotelCalendarEvents = [];
+let __odontoEventoAtivo = null;
+let __odontoFiltroDentistaAtual = 'todos';
+
+function atualizarContadoresStatusOdonto(events) {
+  let cConf = 0, cAgua = 0, cFalt = 0;
+  (events || []).forEach(ev => {
+    if (ev.display === 'none') return;
+    const st = (ev.extendedProps && ev.extendedProps.status) || 'confirmado';
+    if (st === 'aguardando') cAgua++;
+    else if (st === 'faltou') cFalt++;
+    else cConf++;
+  });
+  const elC = document.getElementById('countOdontoConfirmado');
+  const elA = document.getElementById('countOdontoAguardando');
+  const elF = document.getElementById('countOdontoFaltou');
+  if (elC) elC.textContent = cConf;
+  if (elA) elA.textContent = cAgua;
+  if (elF) elF.textContent = cFalt;
+}
+
+function abrirModalNovaConsultaOdonto(dateStr) {
+  const modal = document.getElementById('novoAgendamentoModal');
+  const inputData = document.getElementById('data_hora');
+  const selectProf = document.getElementById('profissional_id');
+
+  if (dateStr && inputData) {
+    inputData.value = dateStr.length === 10 ? (dateStr + 'T09:00') : dateStr.slice(0, 16);
+  } else if (inputData && !inputData.value) {
+    const agora = new Date();
+    const yyyy = agora.getFullYear();
+    const mm = String(agora.getMonth() + 1).padStart(2, '0');
+    const dd = String(agora.getDate()).padStart(2, '0');
+    inputData.value = `${yyyy}-${mm}-${dd}T09:00`;
+  }
+
+  if (__odontoFiltroDentistaAtual !== 'todos' && selectProf) {
+    selectProf.value = __odontoFiltroDentistaAtual;
+  }
+
+  if (typeof window.validarConflitoFormularioReserva === 'function') {
+    window.validarConflitoFormularioReserva();
+  }
+  if (modal) modal.classList.remove('hidden');
+}
+
+function destacarBotaoStatusOdonto(statusAtivo) {
+  const mapaEstilos = {
+    confirmado: 'bg-teal-50 border-[#0D9488] text-[#0D9488] shadow-2xs',
+    aguardando: 'bg-amber-50 border-amber-500 text-amber-800 shadow-2xs',
+    faltou: 'bg-rose-50 border-rose-500 text-rose-800 shadow-2xs'
+  };
+  ['confirmado', 'aguardando', 'faltou'].forEach(st => {
+    const btn = document.getElementById(`btnStatusOdonto-${st}`);
+    if (!btn) return;
+    if (st === statusAtivo) {
+      btn.className = `odonto-status-btn flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border-2 text-xs font-bold transition-all cursor-pointer ${mapaEstilos[st]}`;
+    } else {
+      btn.className = 'odonto-status-btn flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs font-semibold transition-all cursor-pointer';
+    }
+  });
+}
+
+function abrirOffcanvasOdonto(eventObj) {
+  __odontoEventoAtivo = eventObj;
+  const props = eventObj.extendedProps || {};
+  const id = eventObj.id;
+
+  document.getElementById('odontoDetalhePaciente').textContent = props.nome_paciente || eventObj.title;
+  document.getElementById('odontoDetalheServico').textContent = props.servico_nome || 'Procedimento';
+  document.getElementById('odontoDetalheDuracao').textContent = `${props.duracao || 30} min`;
+  document.getElementById('odontoDetalheDentista').textContent = props.profissional_nome || 'Especialista';
+  document.getElementById('odontoDetalheHorario').textContent = `${props.data_br || ''} · ${props.horario_inicio || ''} às ${props.horario_fim || ''}`;
+  document.getElementById('odontoDetalheTelefone').textContent = props.telefone_formatado || props.telefone || '—';
+  document.getElementById('odontoDetalhePreco').textContent = props.preco_formatado || 'R$ 0,00';
+
+  destacarBotaoStatusOdonto(props.status || 'confirmado');
+
+  // Preenche o painel de reagendamento
+  const inputReag = document.getElementById('odontoReagendarDataHora');
+  const selProf = document.getElementById('odontoReagendarProfId');
+  const selServ = document.getElementById('odontoReagendarServId');
+  if (inputReag && props.data_hora_input) inputReag.value = props.data_hora_input;
+  if (selProf && props.profissional_id) selProf.value = String(props.profissional_id);
+  if (selServ && props.servico_id) selServ.value = String(props.servico_id);
+
+  document.getElementById('boxReagendarOdonto')?.classList.add('hidden');
+  document.getElementById('boxConfirmarExclusaoOdonto')?.classList.add('hidden');
+
+  const urlEditar = "{{ url_for('main.editar_agendamento', agendamento_id=999999) }}".replace('999999', id);
+  document.getElementById('odontoBtnEditarCompleto').href = urlEditar;
+
+  const modal = document.getElementById('odontoOffcanvasModal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function fecharOffcanvasOdonto() {
+  const modal = document.getElementById('odontoOffcanvasModal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  __odontoEventoAtivo = null;
+}
+
+function toggleBoxReagendarOdonto() {
+  const box = document.getElementById('boxReagendarOdonto');
+  if (box) box.classList.toggle('hidden');
+}
+
+async function alterarStatusOdonto(novoStatus) {
+  if (!__odontoEventoAtivo) return;
+  const id = __odontoEventoAtivo.id;
+  destacarBotaoStatusOdonto(novoStatus);
+
+  try {
+    const resp = await fetch(`/api/odonto/status/${id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({ status: novoStatus })
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      if (window.__odontoCalendarInstance) window.__odontoCalendarInstance.refetchEvents();
+      if (window.showToast) window.showToast(data.message || 'Status clínico atualizado!', 'success');
+    } else {
+      if (window.showToast) window.showToast(data.error || 'Erro ao atualizar status.', 'error');
+    }
+  } catch (e) {
+    if (window.showToast) window.showToast('Falha de conexão ao atualizar status.', 'error');
+  }
+}
+
+async function salvarReagendamentoOdonto() {
+  if (!__odontoEventoAtivo) return;
+  const id = __odontoEventoAtivo.id;
+  const novaDataHora = document.getElementById('odontoReagendarDataHora')?.value;
+  const novoProfId = document.getElementById('odontoReagendarProfId')?.value;
+  const novoServId = document.getElementById('odontoReagendarServId')?.value;
+  const btn = document.getElementById('btnSalvarReagendamentoOdonto');
+
+  if (!novaDataHora) {
+    if (window.showToast) window.showToast('Selecione a nova data e horário.', 'error');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>Verificando agenda...</span>';
+  }
+
+  try {
+    const resp = await fetch(`/api/odonto/reagendar/${id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: JSON.stringify({
+        data_hora: novaDataHora,
+        profissional_id: novoProfId,
+        servico_id: novoServId
+      })
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      if (window.__odontoCalendarInstance) window.__odontoCalendarInstance.refetchEvents();
+      fecharOffcanvasOdonto();
+      if (window.showToast) window.showToast(data.message || 'Paciente reagendado com sucesso!', 'success');
+    } else {
+      if (window.showToast) window.showToast(data.error || 'Conflito de horário detectado.', 'error');
+    }
+  } catch (e) {
+    if (window.showToast) window.showToast('Erro ao reagendar consulta.', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i data-lucide="check" class="w-4 h-4"></i><span>Confirmar Novo Horário</span>';
+      if (window.lucide) window.lucide.createIcons();
+    }
+  }
+}
+
+async function enviarLembreteWhatsAppOdonto() {
+  if (!__odontoEventoAtivo) return;
+  const id = __odontoEventoAtivo.id;
+  const btn = document.getElementById('btnDispararLembreteWaha');
+  const txt = document.getElementById('txtBtnLembreteWaha');
+  if (btn) btn.disabled = true;
+  if (txt) txt.textContent = 'Disparando lembrete...';
+
+  try {
+    const resp = await fetch(`/api/odonto/lembrete/${id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      if (window.showToast) window.showToast(data.message || 'Lembrete enviado!', 'success');
+      if (data.sent_via === 'wa_link' && data.wa_url) {
+        window.open(data.wa_url, '_blank', 'noopener');
+      }
+    } else {
+      if (window.showToast) window.showToast(data.error || 'Não foi possível enviar o lembrete.', 'error');
+    }
+  } catch (e) {
+    if (window.showToast) window.showToast('Erro de comunicação ao disparar lembrete.', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (txt) txt.textContent = 'Enviar Lembrete WhatsApp (WAHA)';
+  }
+}
+
+async function confirmarExclusaoConsultaOdonto() {
+  if (!__odontoEventoAtivo) return;
+  const id = __odontoEventoAtivo.id;
+  const urlExcluir = "{{ url_for('main.excluir_agendamento', agendamento_id=999999) }}".replace('999999', id);
+  const btn = document.getElementById('btnConfirmarExclusaoOdontoFinal');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Desmarcando...';
+  }
+
+  try {
+    const resp = await fetch(urlExcluir, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    const data = await resp.json();
+    if (resp.ok && data.success) {
+      __odontoEventoAtivo.remove();
+      if (window.__odontoCalendarInstance) {
+        atualizarContadoresStatusOdonto(window.__odontoCalendarInstance.getEvents());
+      }
+      fecharOffcanvasOdonto();
+      if (window.showToast) window.showToast('Consulta desmarcada e horário liberado.', 'success');
+    } else {
+      if (window.showToast) window.showToast(data.error || 'Erro ao desmarcar consulta.', 'error');
+    }
+  } catch (e) {
+    if (window.showToast) window.showToast('Erro ao comunicar com o servidor.', 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Sim, Desmarcar';
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const calendarEl = document.getElementById('odontoCalendar');
+  if (!calendarEl) return;
+  const isMobile = window.innerWidth < 768;
+
+  const calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: isMobile ? 'timeGridDay' : 'timeGridWeek',
+    locale: 'pt-br',
+    height: 'auto',
+    allDaySlot: false,
+    slotDuration: '00:30:00',
+    slotLabelInterval: '00:30:00',
+    slotMinTime: '08:00:00',
+    slotMaxTime: '19:30:00',
+    nowIndicator: true,
+    expandRows: true,
+    stickyHeaderDates: true,
+    slotLabelFormat: {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    },
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'timeGridDay,timeGridWeek,listDay'
+    },
+    buttonText: {
+      today: 'Hoje',
+      day: 'Dia (30m)',
+      week: 'Semana',
+      list: 'Lista do Dia'
+    },
+    events: '/api/odonto/calendario',
+    eventsSet: function(events) {
+      window.__hotelCalendarEvents = events.map(ev => ({
+        start: ev.start,
+        end: ev.end,
+        title: ev.title,
+        extendedProps: {
+          quarto_id: ev.extendedProps?.profissional_id,
+          nome_cliente: ev.extendedProps?.nome_paciente || ev.title,
+          duracao: ev.extendedProps?.duracao || 30,
+          checkin: ev.extendedProps?.horario_inicio || '',
+          checkout: ev.extendedProps?.horario_fim || ''
+        }
+      }));
+      atualizarContadoresStatusOdonto(events);
+    },
+    eventContent: function(arg) {
+      const props = arg.event.extendedProps || {};
+      const st = props.status || 'confirmado';
+      const dot = st === 'aguardando' ? '🟡' : (st === 'faltou' ? '🔴' : '🟢');
+      const stLabel = props.status_label || 'Confirmado';
+
+      if (arg.view.type.startsWith('list')) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex items-center justify-between gap-3 w-full py-1';
+        wrapper.innerHTML = `
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-sm text-[#0F172A] truncate">${props.nome_paciente || arg.event.title}</span>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-white border border-slate-200 text-slate-700">${dot} ${stLabel}</span>
+            </div>
+            <div class="text-xs text-[#64748B] flex flex-wrap items-center gap-1.5 mt-0.5 tabular-nums">
+              <span class="font-semibold text-[#0284C7]">${props.servico_nome || ''} (${props.duracao || 30} min)</span>
+              <span>·</span>
+              <span>${props.profissional_nome || ''}</span>
+            </div>
+          </div>
+          <span class="text-xs font-bold text-[#0D9488] tabular-nums shrink-0">${props.preco_formatado || ''}</span>
+        `;
+        return { domNodes: [wrapper] };
+      }
+
+      const card = document.createElement('div');
+      card.className = 'flex flex-col justify-between h-full overflow-hidden leading-tight px-1 py-0.5';
+      card.innerHTML = `
+        <div class="flex items-center justify-between gap-1">
+          <span class="font-extrabold text-[11px] sm:text-xs text-[#0F172A] truncate">${props.nome_paciente || arg.event.title}</span>
+          <span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-white/90 text-[#0F172A] border border-black/5 shrink-0" title="${stLabel}">${dot} <span class="hidden sm:inline">${stLabel}</span></span>
+        </div>
+        <div class="flex items-center justify-between gap-1 mt-0.5">
+          <span class="text-[10px] sm:text-[11px] font-semibold text-[#0284C7] truncate">${props.servico_nome || ''}</span>
+          <span class="text-[10px] text-[#64748B] tabular-nums shrink-0">${props.horario_inicio || ''}</span>
+        </div>
+      `;
+      return { domNodes: [card] };
+    },
+    eventClick: function(info) {
+      info.jsEvent.preventDefault();
+      abrirOffcanvasOdonto(info.event);
+    },
+    dateClick: function(info) {
+      abrirModalNovaConsultaOdonto(info.dateStr);
+    }
+  });
+
+  calendar.render();
+  window.__odontoCalendarInstance = calendar;
+
+  function aplicarFiltroDentista(profId) {
+    __odontoFiltroDentistaAtual = profId;
+    const select = document.getElementById('filtroDentistaOdonto');
+    if (select && select.value !== profId) select.value = profId;
+
+    document.querySelectorAll('.dentist-filter-pill').forEach(pill => {
+      const ativo = pill.getAttribute('data-dentist-pill') === profId;
+      pill.className = ativo
+        ? 'dentist-filter-pill inline-flex items-center gap-1.5 px-3.5 min-h-[38px] rounded-full text-xs font-semibold transition-all shrink-0 bg-[#0284C7] text-white border border-[#0284C7] cursor-pointer'
+        : 'dentist-filter-pill inline-flex items-center gap-1.5 px-3.5 min-h-[38px] rounded-full text-xs font-semibold transition-all shrink-0 bg-white text-[#0F172A] border border-[#E2E8F0] hover:border-[#0284C7] cursor-pointer';
+    });
+
+    const eventos = calendar.getEvents();
+    eventos.forEach(ev => {
+      const visivel = (profId === 'todos' || String(ev.extendedProps.profissional_id) === String(profId));
+      ev.setProp('display', visivel ? 'auto' : 'none');
+    });
+    atualizarContadoresStatusOdonto(eventos);
+  }
+
+  document.getElementById('filtroDentistaOdonto')?.addEventListener('change', function(e) {
+    aplicarFiltroDentista(e.target.value);
+  });
+
+  document.querySelectorAll('.dentist-filter-pill').forEach(pill => {
+    pill.addEventListener('click', function() {
+      aplicarFiltroDentista(this.getAttribute('data-dentist-pill'));
+    });
+  });
+
+  // Swipe horizontal no celular para alternar dias rapidamente entre um paciente e outro
+  let touchStartX = 0;
+  let touchStartY = 0;
+  calendarEl.addEventListener('touchstart', function(e) {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+    }
+  }, { passive: true });
+
+  calendarEl.addEventListener('touchend', function(e) {
+    if (!e.changedTouches || e.changedTouches.length === 0) return;
+    const dx = e.changedTouches[0].screenX - touchStartX;
+    const dy = e.changedTouches[0].screenY - touchStartY;
+    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.8) {
+      if (dx < 0) calendar.next();
+      else calendar.prev();
+    }
+  }, { passive: true });
+});
+</script>
+
+
+{# ================================================================= #}
 {# VISÃO EXECUTIVA PADRÃO (STUDIOS DE ESTÉTICA / LASH / BARBEARIAS)  #}
 {# ================================================================= #}
 {% else %}
@@ -696,9 +1409,19 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
 
         <div>
-          <label for="data_hora" class="saas-label">{% if is_pousada %}Data e Horário de Check-in{% else %}Data e Hora{% endif %}</label>
+          <label for="data_hora" class="saas-label">{% if is_pousada %}Data e Horário de Check-in{% elif is_odonto %}Data e Horário da Consulta (Slots de 30m){% else %}Data e Hora{% endif %}</label>
           <input type="datetime-local" id="data_hora" name="data_hora" class="saas-input tabular-nums" required>
         </div>
+
+        {% if is_odonto %}
+        <div>
+          <label for="status_clinico" class="saas-label">Status Inicial do Paciente</label>
+          <select id="status_clinico" name="status_clinico" class="saas-select">
+            <option value="confirmado" selected>🟢 Confirmado</option>
+            <option value="aguardando">🟡 Aguardando Confirmação</option>
+          </select>
+        </div>
+        {% endif %}
 
         {# Resumo Dinâmico de Check-out e Tarifa #}
         <div id="boxResumoEstadia" class="hidden p-3.5 rounded-xl bg-[#F8F9FA] border border-[#EAEAEA] flex items-center justify-between gap-3">

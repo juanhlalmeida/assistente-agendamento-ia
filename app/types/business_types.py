@@ -6,6 +6,7 @@ class BusinessType(Enum):
     """
     BARBERSHOP = "barbershop"      # Barbearias, Salões, Studios (Lógica de Slots/Minutos)
     POUSADA = "accommodation"      # Pousadas, Hotéis, Airbnb (Lógica de Diárias/Noites)
+    ODONTOLOGIA = "odontologia"    # Clínicas Odontológicas e Consultórios (Slots Clínicos 30min)
 
     @classmethod
     def default(cls):

@@ -26,6 +26,12 @@
           {% set vocab.singular = 'Tarifa / Pacote' %}
           {% set vocab.plural = 'Tarifas e Pacotes' %}
           {% set vocab.novo = 'Nova' %}
+
+      {# ODONTOLOGIA #}
+      {% elif tipo in ['odontologia', 'odonto'] or 'dental' in nome or 'odonto' in nome or 'dentista' in nome %}
+          {% set vocab.singular = 'Procedimento Clínico' %}
+          {% set vocab.plural = 'Procedimentos Odontológicos' %}
+          {% set vocab.novo = 'Novo' %}
       
       {# LASH #}
       {% elif 'lash' in nome or 'studio' in nome %}

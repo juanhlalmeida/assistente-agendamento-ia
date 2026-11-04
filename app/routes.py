@@ -403,8 +403,10 @@ def agenda():
                     return jsonify({"success": False, "error": msg_conflito}), 409
                 flash(msg_conflito, 'danger')
             else:
+                status_clinico = request.form.get('status_clinico', '').strip().lower()
+                nome_cliente_final = _aplicar_status_nome(nome_cliente, status_clinico) if status_clinico in ('confirmado', 'aguardando', 'faltou') else nome_cliente
                 novo_agendamento = Agendamento(
-                    nome_cliente=nome_cliente,
+                    nome_cliente=nome_cliente_final,
                     telefone_cliente=telefone_cliente,
                     data_hora=novo_inicio,
                     profissional_id=profissional.id,
@@ -2312,3 +2314,493 @@ def desconectar_waha():
     except Exception as e:
         logging.error(f"Erro ao desconectar: {e}")
         return jsonify({"success": False, "error": str(e)})
+
+
+# ==============================================================================
+# 🦷 MÓDULO ODONTOLOGIA PREMIUM (CONCEPT DENTAL STUDIO & CONCEPTZILLA UI)
+# ==============================================================================
+
+_ODONTO_STATUS_MAP = {
+    'confirmado': 'Confirmado',
+    'aguardando': 'Aguardando',
+    'faltou': 'Faltou',
+}
+
+
+def _extrair_paciente_e_status(nome_raw: str):
+    """
+    Extrai o nome limpo do paciente e o status clínico embutido (ex: 'Mariana Costa [Confirmado]').
+    """
+    texto = str(nome_raw or '').strip()
+    status_key = 'confirmado'
+    match = re.search(r'\[\s*(Confirmado|Aguardando|Faltou)\s*\]\s*$', texto, flags=re.IGNORECASE)
+    if match:
+        tag = match.group(1).strip().lower()
+        if tag in _ODONTO_STATUS_MAP:
+            status_key = tag
+        texto = texto[:match.start()].strip()
+    return texto or 'Paciente', status_key, _ODONTO_STATUS_MAP.get(status_key, 'Confirmado')
+
+
+def _aplicar_status_nome(nome_raw: str, status_key: str) -> str:
+    """
+    Aplica a tag de status clínico ao nome do paciente preservando o limite de 100 caracteres da coluna.
+    """
+    nome_limpo, _, _ = _extrair_paciente_e_status(nome_raw)
+    chave = (status_key or 'confirmado').strip().lower()
+    if chave not in _ODONTO_STATUS_MAP:
+        chave = 'confirmado'
+    rotulo = _ODONTO_STATUS_MAP[chave]
+    base_truncada = nome_limpo[:82].strip()
+    return f"{base_truncada} [{rotulo}]"
+
+
+def executar_seed_odonto():
+    """
+    Injeta ou atualiza os dados fictícios de vitrine da clínica 'Concept Dental Studio'.
+    Retorna (clinica, admin_user, resumo_dict).
+    """
+    nome_clinica = "Concept Dental Studio"
+    clinica = Barbearia.query.filter(
+        func.lower(Barbearia.nome_fantasia) == nome_clinica.lower()
+    ).first()
+
+    if not clinica:
+        telefone_vitrine = "5511998887766"
+        if Barbearia.query.filter_by(telefone_whatsapp=telefone_vitrine).first():
+            telefone_vitrine = f"55119{int(datetime.now().timestamp()) % 100000000:08d}"
+
+        clinica = Barbearia(
+            nome_fantasia=nome_clinica,
+            business_type="odontologia",
+            telefone_whatsapp=telefone_vitrine,
+            telefone_admin="5511998887766",
+            status_assinatura="ativa",
+            assinatura_ativa=True,
+            assinatura_expira_em=datetime.now() + timedelta(days=365),
+            horario_abertura="08:00",
+            horario_fechamento="19:00",
+            horario_abertura_sabado="08:00",
+            horario_fechamento_sabado="14:00",
+            dias_funcionamento="Segunda a Sábado",
+            cor_primaria="#0284C7",
+            emojis_sistema="🦷✨💙",
+            provedor_mensageria="waha",
+            regras_negocio=(
+                "- Clínica Odontológica de alto padrão (Concept Dental Studio).\n"
+                "- Horário de atendimento: Segunda a Sexta das 08h às 19h, Sábados das 08h às 14h.\n"
+                "- Especialidades: Ortodontia Digital (Dr. Carlos) e Clínica Geral / Estética (Dra. Ana).\n"
+                "- Estacionamento conveniado no local e Wi-Fi gratuito na recepção."
+            )
+        )
+        db.session.add(clinica)
+        db.session.flush()
+    else:
+        clinica.business_type = "odontologia"
+        clinica.status_assinatura = "ativa"
+        clinica.assinatura_ativa = True
+        clinica.horario_abertura = "08:00"
+        clinica.horario_fechamento = "19:00"
+        clinica.dias_funcionamento = "Segunda a Sábado"
+        clinica.cor_primaria = "#0284C7"
+        db.session.flush()
+
+    if not clinica.waha_session_id:
+        clinica.waha_session_id = f"loja-{clinica.id}"
+
+    # 1. Usuário Admin da Clínica
+    email_odonto = "contato@conceptdental.com.br"
+    admin_odonto = User.query.filter_by(email=email_odonto).first()
+    if not admin_odonto:
+        admin_odonto = User(
+            email=email_odonto,
+            nome="Dr. Carlos Eduardo — Concept Dental",
+            role="admin",
+            barbearia_id=clinica.id
+        )
+        admin_odonto.set_password("odonto123")
+        db.session.add(admin_odonto)
+    else:
+        admin_odonto.barbearia_id = clinica.id
+        admin_odonto.set_password("odonto123")
+
+    # 2. Profissionais (Dentistas)
+    dentistas_seed = [
+        "Dr. Carlos - Ortodontia",
+        "Dra. Ana - Clínica Geral",
+    ]
+    mapa_dentistas = {}
+    for nome_dentista in dentistas_seed:
+        prof = Profissional.query.filter_by(barbearia_id=clinica.id, nome=nome_dentista).first()
+        if not prof:
+            prof = Profissional(
+                nome=nome_dentista,
+                barbearia_id=clinica.id,
+                tipo="humano",
+                capacidade=1
+            )
+            db.session.add(prof)
+            db.session.flush()
+        mapa_dentistas[nome_dentista] = prof
+
+    # 3. Serviços Odontológicos com durações exatas solicitadas
+    servicos_seed = [
+        ("Avaliação", 30, 150.00),
+        ("Limpeza/Profilaxia", 45, 280.00),
+        ("Clareamento a Laser", 60, 850.00),
+        ("Manutenção de Aparelho", 30, 220.00),
+    ]
+    mapa_servicos = {}
+    for nome_srv, duracao_min, preco_val in servicos_seed:
+        srv = Servico.query.filter_by(barbearia_id=clinica.id, nome=nome_srv).first()
+        if not srv:
+            srv = Servico(
+                nome=nome_srv,
+                duracao=duracao_min,
+                preco=preco_val,
+                barbearia_id=clinica.id
+            )
+            db.session.add(srv)
+            db.session.flush()
+        else:
+            srv.duracao = duracao_min
+            srv.preco = preco_val
+        mapa_servicos[nome_srv] = srv
+
+    # 4. Agendamentos de Vitrine (Popula o dia atual e o dia seguinte se ainda não houver)
+    hoje_dt = date.today()
+    amanha_dt = hoje_dt + timedelta(days=1)
+    inicio_hoje = datetime.combine(hoje_dt, time.min)
+    qtd_existentes_hoje = Agendamento.query.filter(
+        Agendamento.barbearia_id == clinica.id,
+        Agendamento.data_hora >= inicio_hoje
+    ).count()
+
+    agendamentos_criados = 0
+    if qtd_existentes_hoje == 0:
+        dr_carlos = mapa_dentistas["Dr. Carlos - Ortodontia"]
+        dra_ana = mapa_dentistas["Dra. Ana - Clínica Geral"]
+
+        grade_vitrine = [
+            # Hoje
+            (hoje_dt, 8, 30, "Mariana Costa [Confirmado]", "5511991234501", dr_carlos, mapa_servicos["Manutenção de Aparelho"]),
+            (hoje_dt, 9, 30, "Roberto Almeida [Confirmado]", "5511991234502", dra_ana, mapa_servicos["Limpeza/Profilaxia"]),
+            (hoje_dt, 10, 30, "Fernanda Lima [Aguardando]", "5511991234503", dr_carlos, mapa_servicos["Avaliação"]),
+            (hoje_dt, 11, 30, "Lucas Mendes [Confirmado]", "5511991234504", dra_ana, mapa_servicos["Clareamento a Laser"]),
+            (hoje_dt, 14, 0, "Patrícia Souza [Faltou]", "5511991234505", dr_carlos, mapa_servicos["Manutenção de Aparelho"]),
+            (hoje_dt, 15, 0, "Gabriel Santos [Aguardando]", "5511991234506", dra_ana, mapa_servicos["Limpeza/Profilaxia"]),
+            (hoje_dt, 16, 30, "Camila Rocha [Confirmado]", "5511991234507", dr_carlos, mapa_servicos["Avaliação"]),
+            # Amanhã
+            (amanha_dt, 9, 0, " Beatriz Nogueira [Confirmado]", "5511991234508", dra_ana, mapa_servicos["Clareamento a Laser"]),
+            (amanha_dt, 10, 30, "Thiago Ribeiro [Aguardando]", "5511991234509", dr_carlos, mapa_servicos["Manutenção de Aparelho"]),
+            (amanha_dt, 14, 30, "Juliana Martins [Confirmado]", "5511991234510", dra_ana, mapa_servicos["Avaliação"]),
+        ]
+
+        for dt_ref, h, m, pac_nome, pac_tel, prof_obj, srv_obj in grade_vitrine:
+            novo_ag = Agendamento(
+                data_hora=datetime(dt_ref.year, dt_ref.month, dt_ref.day, h, m),
+                nome_cliente=pac_nome.strip(),
+                telefone_cliente=pac_tel,
+                profissional_id=prof_obj.id,
+                servico_id=srv_obj.id,
+                barbearia_id=clinica.id
+            )
+            db.session.add(novo_ag)
+            agendamentos_criados += 1
+
+    db.session.commit()
+    return clinica, admin_odonto, {
+        "clinica_id": clinica.id,
+        "clinica_nome": clinica.nome_fantasia,
+        "email_login": email_odonto,
+        "senha_login": "odonto123",
+        "profissionais": len(mapa_dentistas),
+        "servicos": len(mapa_servicos),
+        "agendamentos_criados": agendamentos_criados
+    }
+
+
+@bp.route('/setup-odonto', methods=['GET', 'POST'])
+def setup_odonto_route():
+    """
+    Rota de Setup Vitrine para criar/atualizar a clínica 'Concept Dental Studio',
+    autenticar automaticamente na conta demonstrativa e abrir o Calendário Conceptzilla.
+    """
+    try:
+        clinica, admin_odonto, info = executar_seed_odonto()
+
+        if request.args.get('format') == 'json':
+            return jsonify({"success": True, **info})
+
+        if request.args.get('nologin') != '1':
+            login_user(admin_odonto)
+
+        flash(
+            f"🦷 Vitrine '{clinica.nome_fantasia}' pronta! "
+            f"(Login: {info['email_login']} | Senha: {info['senha_login']})",
+            "success"
+        )
+        return redirect(url_for('main.agenda'))
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Erro em /setup-odonto: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bp.route('/api/odonto/calendario')
+@login_required
+def api_odonto_calendario():
+    """
+    Feed JSON otimizado (Zero N+1) para o Calendário Odontológico (Conceptzilla UI).
+    """
+    if not current_user.barbearia_id:
+        return jsonify([])
+
+    query = (
+        Agendamento.query
+        .options(joinedload(Agendamento.servico), joinedload(Agendamento.profissional))
+        .filter_by(barbearia_id=current_user.barbearia_id)
+    )
+
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    try:
+        if start_str:
+            dt_start = datetime.fromisoformat(start_str[:10]) - timedelta(days=2)
+            query = query.filter(Agendamento.data_hora >= dt_start)
+        if end_str:
+            dt_end = datetime.fromisoformat(end_str[:10]) + timedelta(days=2)
+            query = query.filter(Agendamento.data_hora <= dt_end)
+    except Exception:
+        pass
+
+    agendamentos = query.order_by(Agendamento.data_hora.asc()).all()
+    eventos = []
+
+    for ag in agendamentos:
+        duracao = ag.servico.duracao if (ag.servico and ag.servico.duracao) else 30
+        preco = float(ag.servico.preco) if (ag.servico and ag.servico.preco is not None) else 0.0
+        servico_nome = ag.servico.nome if ag.servico else 'Consulta Odontológica'
+        prof_nome = ag.profissional.nome if ag.profissional else 'Especialista'
+        fim = ag.data_hora + timedelta(minutes=duracao)
+
+        nome_paciente, status_key, status_label = _extrair_paciente_e_status(ag.nome_cliente)
+
+        tel_raw = str(ag.telefone_cliente or '').replace('whatsapp:', '').split('@')[0]
+        tel_digitos = ''.join(filter(str.isdigit, tel_raw))
+        if len(tel_digitos) == 13 and tel_digitos.startswith('55'):
+            tel_fmt = f"({tel_digitos[2:4]}) {tel_digitos[4:9]}-{tel_digitos[9:]}"
+        elif len(tel_digitos) == 11:
+            tel_fmt = f"({tel_digitos[:2]}) {tel_digitos[2:7]}-{tel_digitos[7:]}"
+        else:
+            tel_fmt = tel_digitos or 'Sem telefone'
+
+        # Cores clínicas baseadas em status (Conceptzilla Medical UI)
+        if status_key == 'aguardando':
+            cor_borda = '#F59E0B'
+            cor_fundo = '#FFFBEB'
+        elif status_key == 'faltou':
+            cor_borda = '#EF4444'
+            cor_fundo = '#FEF2F2'
+        else:
+            cor_borda = '#0D9488' if (ag.profissional_id and ag.profissional_id % 2 == 0) else '#0284C7'
+            cor_fundo = '#F0FDFA' if (ag.profissional_id and ag.profissional_id % 2 == 0) else '#F0F9FF'
+
+        eventos.append({
+            'id': ag.id,
+            'title': nome_paciente,
+            'start': ag.data_hora.strftime('%Y-%m-%dT%H:%M:%S'),
+            'end': fim.strftime('%Y-%m-%dT%H:%M:%S'),
+            'backgroundColor': cor_fundo,
+            'borderColor': cor_borda,
+            'textColor': '#0F172A',
+            'extendedProps': {
+                'nome_paciente': nome_paciente,
+                'profissional_id': str(ag.profissional_id),
+                'profissional_nome': prof_nome,
+                'servico_id': str(ag.servico_id or ''),
+                'servico_nome': servico_nome,
+                'duracao': duracao,
+                'preco': preco,
+                'preco_formatado': f"R$ {preco:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                'telefone': tel_digitos,
+                'telefone_formatado': tel_fmt,
+                'status': status_key,
+                'status_label': status_label,
+                'horario_inicio': ag.data_hora.strftime('%H:%M'),
+                'horario_fim': fim.strftime('%H:%M'),
+                'data_br': ag.data_hora.strftime('%d/%m/%Y'),
+                'data_hora_input': ag.data_hora.strftime('%Y-%m-%dT%H:%M')
+            }
+        })
+
+    return jsonify(eventos)
+
+
+@bp.route('/api/odonto/status/<int:agendamento_id>', methods=['POST'])
+@login_required
+def api_odonto_atualizar_status(agendamento_id):
+    """
+    Atualiza rapidamente o status clínico do paciente (Confirmado, Aguardando, Faltou).
+    """
+    ag = Agendamento.query.filter_by(id=agendamento_id, barbearia_id=current_user.barbearia_id).first()
+    if not ag:
+        return jsonify({"success": False, "error": "Agendamento não encontrado."}), 404
+
+    payload = request.get_json(silent=True) or request.form or {}
+    novo_status = str(payload.get('status', 'confirmado')).strip().lower()
+    if novo_status not in _ODONTO_STATUS_MAP:
+        return jsonify({"success": False, "error": "Status inválido."}), 400
+
+    try:
+        ag.nome_cliente = _aplicar_status_nome(ag.nome_cliente, novo_status)
+        db.session.commit()
+        _, status_key, status_label = _extrair_paciente_e_status(ag.nome_cliente)
+        return jsonify({
+            "success": True,
+            "status": status_key,
+            "status_label": status_label,
+            "message": f"Status atualizado para {status_label}."
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bp.route('/api/odonto/reagendar/<int:agendamento_id>', methods=['POST'])
+@login_required
+def api_odonto_reagendar(agendamento_id):
+    """
+    Reagenda um paciente a partir do Offcanvas lateral validando conflitos de cadeira/dentista.
+    """
+    ag = (
+        Agendamento.query
+        .options(joinedload(Agendamento.servico), joinedload(Agendamento.profissional))
+        .filter_by(id=agendamento_id, barbearia_id=current_user.barbearia_id)
+        .first()
+    )
+    if not ag:
+        return jsonify({"success": False, "error": "Agendamento não encontrado."}), 404
+
+    payload = request.get_json(silent=True) or request.form or {}
+    nova_data_hora_str = payload.get('data_hora')
+    novo_prof_id = payload.get('profissional_id') or ag.profissional_id
+    novo_serv_id = payload.get('servico_id') or ag.servico_id
+    novo_status = payload.get('status')
+
+    if not nova_data_hora_str:
+        return jsonify({"success": False, "error": "Informe a nova data e horário."}), 400
+
+    try:
+        prof = Profissional.query.filter_by(id=int(novo_prof_id), barbearia_id=current_user.barbearia_id).first()
+        srv = Servico.query.filter_by(id=int(novo_serv_id), barbearia_id=current_user.barbearia_id).first()
+        if not prof or not srv:
+            return jsonify({"success": False, "error": "Especialista ou procedimento inválido."}), 400
+
+        novo_inicio = datetime.strptime(nova_data_hora_str[:16], '%Y-%m-%dT%H:%M').replace(tzinfo=None)
+        novo_fim = novo_inicio + timedelta(minutes=srv.duracao)
+
+        # Validação de colisão de horário para o mesmo especialista
+        janela_ini = novo_inicio - timedelta(days=1)
+        janela_fim = novo_fim + timedelta(days=1)
+        candidatos = (
+            Agendamento.query
+            .options(joinedload(Agendamento.servico))
+            .filter(
+                Agendamento.barbearia_id == current_user.barbearia_id,
+                Agendamento.profissional_id == prof.id,
+                Agendamento.id != ag.id,
+                Agendamento.data_hora >= janela_ini,
+                Agendamento.data_hora < janela_fim
+            )
+            .all()
+        )
+
+        for outro in candidatos:
+            dur_outro = outro.servico.duracao if (outro.servico and outro.servico.duracao) else 30
+            fim_outro = outro.data_hora + timedelta(minutes=dur_outro)
+            if max(novo_inicio, outro.data_hora) < min(novo_fim, fim_outro):
+                pac_conflito, _, _ = _extrair_paciente_e_status(outro.nome_cliente)
+                return jsonify({
+                    "success": False,
+                    "error": f"Horário ocupado por {pac_conflito} ({outro.data_hora.strftime('%H:%M')} às {fim_outro.strftime('%H:%M')})."
+                }), 409
+
+        ag.data_hora = novo_inicio
+        ag.profissional_id = prof.id
+        ag.servico_id = srv.id
+        if novo_status in _ODONTO_STATUS_MAP:
+            ag.nome_cliente = _aplicar_status_nome(ag.nome_cliente, novo_status)
+
+        db.session.commit()
+        return jsonify({
+            "success": True,
+            "message": f"Consulta reagendada para {novo_inicio.strftime('%d/%m/%Y às %H:%M')}!"
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": f"Erro ao reagendar: {str(e)}"}), 500
+
+
+@bp.route('/api/odonto/lembrete/<int:agendamento_id>', methods=['POST'])
+@login_required
+def api_odonto_enviar_lembrete(agendamento_id):
+    """
+    Dispara lembrete de consulta odontológica via integração WAHA/Meta existente.
+    """
+    ag = (
+        Agendamento.query
+        .options(joinedload(Agendamento.servico), joinedload(Agendamento.profissional))
+        .filter_by(id=agendamento_id, barbearia_id=current_user.barbearia_id)
+        .first()
+    )
+    if not ag:
+        return jsonify({"success": False, "error": "Agendamento não encontrado."}), 404
+
+    barbearia = Barbearia.query.get(current_user.barbearia_id)
+    nome_paciente, _, _ = _extrair_paciente_e_status(ag.nome_cliente)
+    prof_nome = ag.profissional.nome if ag.profissional else "Especialista"
+    srv_nome = ag.servico.nome if ag.servico else "Consulta Odontológica"
+    duracao = ag.servico.duracao if (ag.servico and ag.servico.duracao) else 30
+
+    msg_lembrete = (
+        f"Olá, *{nome_paciente}*! 🦷✨\n\n"
+        f"Passando para lembrar e confirmar sua consulta no *{barbearia.nome_fantasia}*:\n\n"
+        f"🗓 *Data:* {ag.data_hora.strftime('%d/%m/%Y')}\n"
+        f"⏰ *Horário:* {ag.data_hora.strftime('%H:%M')}\n"
+        f"👨‍⚕️ *Especialista:* {prof_nome}\n"
+        f"✨ *Procedimento:* {srv_nome} ({duracao} min)\n\n"
+        f"Podemos confirmar sua presença? Caso precise reagendar, estamos à disposição! 😊"
+    )
+
+    tel_limpo = re.sub(r'\D', '', str(ag.telefone_cliente or '').split('@')[0])
+    if (
+        not tel_limpo
+        or tel_limpo in ('0', '550')
+        or set(tel_limpo) == {'0'}
+        or (tel_limpo.startswith('55') and set(tel_limpo[2:]) == {'0'})
+        or len(tel_limpo) < 10
+    ):
+        return jsonify({
+            "success": False,
+            "error": "Paciente sem número de WhatsApp válido cadastrado."
+        }), 400
+
+    tel_destino = tel_limpo if len(tel_limpo) > 11 else f"55{tel_limpo}"
+    wa_link_fallback = f"https://wa.me/{tel_destino}?text={urllib.parse.quote(msg_lembrete)}"
+
+    enviado = enviar_mensagem_whatsapp_meta(tel_destino, msg_lembrete, barbearia)
+    if enviado:
+        return jsonify({
+            "success": True,
+            "sent_via": "waha",
+            "message": f"Lembrete enviado via WhatsApp para {nome_paciente}!",
+            "wa_url": wa_link_fallback
+        })
+    else:
+        return jsonify({
+            "success": True,
+            "sent_via": "wa_link",
+            "message": "Sessão WAHA offline no momento — abrindo lembrete pronto no WhatsApp!",
+            "wa_url": wa_link_fallback
+        })

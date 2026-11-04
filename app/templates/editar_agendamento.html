@@ -21,6 +21,12 @@
         {% set vocab_edit.prof = 'Acomodação / Quarto' %}
         {% set vocab_edit.serv = 'Tarifa / Pacote' %}
         {% set vocab_edit.data = 'Check-in (Data e Hora de Entrada)' %}
+    {% elif tipo in ['odontologia', 'odonto'] or 'dental' in nome or 'odonto' in nome or 'dentista' in nome %}
+        {% set vocab_edit.titulo = 'Editar Consulta Odontológica' %}
+        {% set vocab_edit.cliente = 'Nome do Paciente' %}
+        {% set vocab_edit.prof = 'Dentista / Especialista' %}
+        {% set vocab_edit.serv = 'Procedimento Clínico' %}
+        {% set vocab_edit.data = 'Data e Horário da Consulta' %}
     {% elif 'lash' in nome or 'studio' in nome %}
         {% set vocab_edit.prof = 'Designer' %}
         {% set vocab_edit.serv = 'Procedimento' %}

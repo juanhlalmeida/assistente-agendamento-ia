@@ -285,6 +285,9 @@
                     <option value="pousada" {% if barbearia and barbearia.business_type == 'pousada' %}selected{% endif %}>
                         Pousada / Hotelaria (Reserva por Diárias)
                     </option>
+                    <option value="odontologia" {% if barbearia and barbearia.business_type == 'odontologia' %}selected{% endif %}>
+                        Clínica Odontológica / Saúde (Grade Clínica 30min)
+                    </option>
                 </select>
                 <small style="color: #64748B; display: block; margin-top: 6px; font-size: 12px;">Define se o assistente opera por grade de horários ou diárias de hospedagem.</small>
             </div>

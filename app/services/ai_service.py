@@ -1363,9 +1363,20 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
             # --- LÓGICA MULTI-TENANCY (BARBEARIA VS LASH) - MODO CLIENTE ---
 
             nome_lower = barbearia.nome_fantasia.lower()
-            eh_lash = any(x in nome_lower for x in ['lash', 'cílios', 'sobrancelha', 'estética', 'beauty', 'studio'])
+            eh_odonto = (getattr(barbearia, 'business_type', '') in ['odontologia', 'odonto']) or any(
+                x in nome_lower for x in ['odonto', 'dental', 'dentista', 'sorriso', 'ortodontia']
+            )
+            eh_lash = (not eh_odonto) and any(x in nome_lower for x in ['lash', 'cílios', 'sobrancelha', 'estética', 'beauty', 'studio'])
 
-            if eh_lash:
+            if eh_odonto:
+                header_persona = f"""
+PERSONA: Recepcionista Virtual da {barbearia.nome_fantasia} (Clínica Odontológica Premium).
+TOM: Clínico, acolhedor, elegante, objetivo e tranquilizador.
+- TRATAMENTO: Chame pelo Nome ou de Paciente com cordialidade.
+- EMOJIS: Use com moderação (1 ou 2 por mensagem). Ex: 🦷 ✨ 😊
+- INÍCIO: Se não souber o nome, pergunte gentilmente antes de finalizar o agendamento da consulta/procedimento.
+"""
+            elif eh_lash:
                 # 👇 AQUI ESTÁ O AJUSTE DE PERSONA (SEM 'QUERIDA') 👇
                 header_persona = f"""
 PERSONA: Assistente Virtual do {barbearia.nome_fantasia} (Studio de Beleza/Lash).
@@ -1480,11 +1491,19 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                     logging.error(f"Erro ao enviar boas-vindas pousada com flyer: {e}")
 
             else:
-                # ----- BARBEARIA / LASH / OUTROS -----
+                # ----- BARBEARIA / LASH / ODONTO / OUTROS -----
                 nome_loja_check = barbearia.nome_fantasia.lower()
-                is_lash_check = any(x in nome_loja_check for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
+                is_odonto_check = (getattr(barbearia, 'business_type', '') in ['odontologia', 'odonto']) or any(
+                    x in nome_loja_check for x in ['odonto', 'dental', 'dentista', 'sorriso', 'ortodontia']
+                )
+                is_lash_check = (not is_odonto_check) and any(x in nome_loja_check for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
                 
-                if is_lash_check:
+                if is_odonto_check:
+                    msg_boas_vindas = (
+                        f"Olá! Seja bem-vindo(a) ao {barbearia.nome_fantasia}! 🦷✨\n\n"
+                        "Sou a assistente virtual da clínica. Deseja agendar uma avaliação/procedimento ou consultar nossos especialistas? 😊"
+                    )
+                elif is_lash_check:
                     # 👇 SAUDAÇÃO CURTA E OBJETIVA DA CAROL 👇
                     msg_boas_vindas = (
                         f"Bem-vinda ao {barbearia.nome_fantasia}! ✨ Sou a assistente inteligente.\n\n"
@@ -1500,8 +1519,8 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
                 try:
                     enviar_texto_direto(msg_boas_vindas)
                     
-                    # 👇 A MÁGICA ACONTECE AQUI: SÓ ENVIA A IMAGEM SE NÃO FOR LASH/BEAUTY 👇
-                    if not is_lash_check and barbearia.url_tabela_precos:
+                    # 👇 A MÁGICA ACONTECE AQUI: SÓ ENVIA A IMAGEM SE NÃO FOR LASH/BEAUTY/ODONTO 👇
+                    if not is_lash_check and not is_odonto_check and barbearia.url_tabela_precos:
                         logging.info(f"📸 Enviando Tabela de Preços inicial para {cliente_whatsapp}")
                         enviar_midia_direta(barbearia.url_tabela_precos)
                         
@@ -1538,11 +1557,19 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             eh_inicio_conversa = len(history_to_load) <= 2
 
             if eh_inicio_conversa:
-                # Verificação dinâmica se é Studio Lash
+                # Verificação dinâmica se é Odonto ou Studio Lash
                 nome_loja_check2 = barbearia.nome_fantasia.lower()
-                is_lash_check2 = any(x in nome_loja_check2 for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
+                is_odonto_check2 = (getattr(barbearia, 'business_type', '') in ['odontologia', 'odonto']) or any(
+                    x in nome_loja_check2 for x in ['odonto', 'dental', 'dentista', 'sorriso', 'ortodontia']
+                )
+                is_lash_check2 = (not is_odonto_check2) and any(x in nome_loja_check2 for x in ['lash', 'studio', 'cílios', 'sobrancelha', 'estética', 'beauty'])
                 
-                if is_lash_check2:
+                if is_odonto_check2:
+                    msg_texto = (
+                        f"Olá! Seja bem-vindo(a) ao {barbearia.nome_fantasia}! 🦷✨\n\n"
+                        "Sou a assistente virtual da clínica. Deseja agendar uma avaliação/procedimento ou consultar nossos especialistas? 😊"
+                    )
+                elif is_lash_check2:
                     # 👇 SAUDAÇÃO CURTA E OBJETIVA DA CAROL 👇
                     msg_texto = (
                         f"Bem-vinda ao {barbearia.nome_fantasia}! ✨ Sou a assistente inteligente.\n\n"
