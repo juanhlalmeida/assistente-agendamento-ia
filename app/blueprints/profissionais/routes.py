@@ -17,7 +17,7 @@ def index():
     """Exibe a lista de profissionais da barbearia logada."""
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        return redirect(url_for('auth.login')) # Ajuste 'auth.login' se necessário
+        return redirect(url_for('main.login'))
         
     barbearia_id_logada = current_user.barbearia_id
     
@@ -37,7 +37,7 @@ def novo_profissional():
     """Exibe o formulário (GET) e processa a criação (POST)."""
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        return redirect(url_for('auth.login'))
+        return redirect(url_for('main.login'))
         
     barbearia_id_logada = current_user.barbearia_id
 
@@ -79,7 +79,7 @@ def editar_profissional(profissional_id):
     """Exibe o formulário preenchido (GET) e processa a atualização (POST)."""
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        return redirect(url_for('auth.login'))
+        return redirect(url_for('main.login'))
 
     barbearia_id_logada = current_user.barbearia_id
 
@@ -126,7 +126,7 @@ def apagar_profissional(profissional_id):
     """Apaga um profissional, SE não houver agendamentos associados."""
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        return redirect(url_for('auth.login')) 
+        return redirect(url_for('main.login')) 
         
     barbearia_id_logada = current_user.barbearia_id
 

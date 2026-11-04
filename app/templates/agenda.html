@@ -53,144 +53,388 @@
 
 
 {# ================================================================= #}
-{# VISÃO EXCLUSIVA POUSADA (FULLCALENDAR PRESERVADO)                 #}
+{# VISÃO EXCLUSIVA POUSADA (CALENDÁRIO MOBILE-FIRST & ANTI-OVERBOOK) #}
 {# ================================================================= #}
 {% if is_pousada %}
 
-<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+{# Cabeçalho Executivo da Pousada #}
+<div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-5 gap-4">
   <div>
-    <h1 class="text-xl md:text-2xl font-bold heading-tight">Mapa de Reservas Mensal</h1>
-    <p class="text-xs md:text-sm text-[#64748B] mt-0.5">Gerencie ocupação de quartos e pré-reservas em tempo real.</p>
+    <div class="flex items-center gap-2 mb-1">
+      <span class="saas-badge">Mapa de Ocupação</span>
+      <span class="text-xs font-medium text-[#64748B] tabular-nums">{{ profissionais|length }} acomodação(ões) ativa(s)</span>
+    </div>
+    <h1 class="text-xl md:text-2xl font-bold text-[#0F172A] heading-tight">Calendário de Reservas</h1>
+    <p class="text-xs md:text-sm text-[#64748B] mt-0.5">Toque em uma data para pré-reservar ou deslize lateralmente no celular para navegar entre períodos.</p>
   </div>
 
-  <div class="flex items-center gap-2.5 w-full md:w-auto">
-    <div class="relative flex-1 md:w-64">
-      <select id="filtroQuarto" class="saas-select">
-        <option value="todos">Todos os Quartos</option>
+  <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+    <div class="relative flex-1 sm:flex-initial sm:w-56">
+      <select id="filtroQuarto" class="saas-select !h-11 text-xs sm:text-sm font-medium" aria-label="Filtrar por Acomodação">
+        <option value="todos">Todas as Acomodações</option>
         {% for p in profissionais %}
           <option value="{{ p.id }}">{{ p.nome }}</option>
         {% endfor %}
       </select>
     </div>
 
+    <a href="{{ url_for('servicos.index') }}" class="saas-btn-secondary !h-11 px-3.5 text-xs sm:text-sm">
+      <svg class="w-4 h-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" x2="7.01" y1="7" y2="7"/>
+      </svg>
+      <span class="hidden sm:inline">Pacotes &amp; Tarifas</span>
+    </a>
+
     <button type="button"
             id="btnAbrirModalCalendario"
-            onclick="document.getElementById('novoAgendamentoModal').classList.remove('hidden')"
-            class="saas-btn-primary shrink-0">
+            onclick="abrirModalNovaReservaPousada()"
+            class="saas-btn-primary !h-11 px-4 shrink-0">
       <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span class="hidden sm:inline">{{ vocab_agenda.novo_btn }}</span>
+      <span>{{ vocab_agenda.novo_btn }}</span>
     </button>
   </div>
 </div>
 
-<div class="saas-card p-4 md:p-6">
-  <div id="hotelCalendar"></div>
+{# Pílulas Rápidas de Filtro Mobile-First (Alvos de toque confortáveis) #}
+<div class="flex items-center gap-2 overflow-x-auto pb-2 mb-4 no-scrollbar select-none" id="pillsQuartosContainer">
+  <button type="button"
+          data-room-pill="todos"
+          class="room-filter-pill inline-flex items-center gap-1.5 px-3.5 min-h-[38px] rounded-full text-xs font-semibold transition-all shrink-0 bg-[#0F172A] text-white border border-[#0F172A]">
+    <span>Todos</span>
+  </button>
+  {% for p in profissionais %}
+    <button type="button"
+            data-room-pill="{{ p.id }}"
+            class="room-filter-pill inline-flex items-center gap-1.5 px-3.5 min-h-[38px] rounded-full text-xs font-semibold transition-all shrink-0 bg-white text-[#0F172A] border border-[#EAEAEA] hover:border-[#CBD5E1]">
+      <span class="w-2 h-2 rounded-full" style="background-color: {{ ['#0F172A', '#0284C7', '#059669', '#D97706', '#7C3AED', '#E11D48', '#0D9488', '#4F46E5'][p.id % 8] }};"></span>
+      <span>{{ p.nome }}</span>
+    </button>
+  {% endfor %}
+</div>
+
+{# Superfície Principal do Calendário #}
+<div class="saas-card p-3 sm:p-5 md:p-6 overflow-hidden">
+  <div id="hotelCalendar" class="touch-pan-y"></div>
+</div>
+
+{# Modal / Drawer Executivo de Detalhes da Reserva (Mobile Bottom-Sheet & Desktop Modal) #}
+<div id="reservaDetalheModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 hidden">
+  <div class="saas-card w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-xl overflow-hidden shadow-xl border border-[#EAEAEA] animate-in fade-in">
+    <div class="px-5 py-4 border-b border-[#EAEAEA] flex items-center justify-between bg-[#F8F9FA]">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span id="detalheCorQuarto" class="w-3 h-3 rounded-full shrink-0 bg-[#0F172A]"></span>
+        <span id="detalheQuartoNome" class="text-xs font-bold uppercase tracking-wider text-[#64748B] truncate">Acomodação</span>
+      </div>
+      <button type="button" onclick="fecharDetalheReserva()" class="saas-icon-btn !min-w-[36px] !min-h-[36px]" aria-label="Fechar">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="p-5 flex flex-col gap-4">
+      <div>
+        <div class="flex items-start justify-between gap-2">
+          <h3 id="detalheNomeCliente" class="text-lg font-bold text-[#0F172A] heading-tight">—</h3>
+          <span id="detalheTipoBadge" class="saas-badge shrink-0">Diária</span>
+        </div>
+        <p id="detalheServicoNome" class="text-xs text-[#64748B] mt-0.5">—</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5 p-3.5 rounded-xl bg-[#F8F9FA] border border-[#EAEAEA]">
+        <div>
+          <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Check-in</span>
+          <span id="detalheCheckin" class="text-xs sm:text-sm font-bold text-[#0F172A] tabular-nums mt-0.5 block">—</span>
+        </div>
+        <div class="border-l border-[#EAEAEA] pl-3">
+          <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Check-out</span>
+          <span id="detalheCheckout" class="text-xs sm:text-sm font-bold text-[#0F172A] tabular-nums mt-0.5 block">—</span>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between px-1">
+        <span class="text-xs font-medium text-[#64748B]">Tarifa do Pacote</span>
+        <span id="detalhePreco" class="text-base font-bold text-[#047857] tabular-nums">R$ 0,00</span>
+      </div>
+
+      {# Confirmação Inline de Exclusão (Substitui confirm() do navegador) #}
+      <div id="boxConfirmarExclusaoReserva" class="hidden p-3.5 rounded-xl bg-red-50 border border-red-200">
+        <p class="text-xs font-semibold text-red-900 mb-2.5">Confirmar o cancelamento e liberação imediata desta acomodação?</p>
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" onclick="ocultarConfirmacaoExclusaoReserva()" class="px-3 py-1.5 rounded-lg bg-white border border-[#EAEAEA] text-xs font-semibold text-[#0F172A]">
+            Voltar
+          </button>
+          <button type="button" id="btnConfirmarExclusaoFinal" class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-xs font-semibold text-white">
+            Sim, Cancelar Reserva
+          </button>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2 border-t border-[#EAEAEA]">
+        <a id="detalheBtnWhatsApp" href="#" target="_blank" rel="noopener" class="saas-btn-primary flex-1 !h-11 justify-center">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          <span>Conversar no WhatsApp</span>
+        </a>
+        <div class="flex items-center gap-2">
+          <a id="detalheBtnEditar" href="#" class="saas-btn-secondary flex-1 sm:flex-initial !h-11 px-3.5 justify-center" title="Editar Reserva">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span class="sm:hidden">Editar</span>
+          </a>
+          <button type="button" onclick="mostrarConfirmacaoExclusaoReserva()" class="saas-icon-btn saas-icon-btn-danger !h-11 !w-11 shrink-0" title="Cancelar Reserva">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .fc { font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; color: var(--text-primary); }
   .fc-theme-standard td, .fc-theme-standard th { border-color: #EAEAEA !important; }
-  .fc-col-header-cell-cushion { color: #64748B !important; font-weight: 600; padding: 10px 0; text-transform: uppercase; font-size: 0.75rem; }
-  .fc-daygrid-day-number { color: #0F172A !important; padding: 8px; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .fc-day-today { background-color: var(--accent-badge-bg) !important; }
-  .fc-event { cursor: pointer; border: none; border-radius: 6px; padding: 2px 4px; }
-  .fc-button-primary { background-color: var(--accent-primary) !important; border: 1px solid var(--accent-primary) !important; font-weight: 600 !important; border-radius: 8px !important; text-transform: capitalize; }
-  .fc-toolbar-title { font-size: 1.15rem !important; font-weight: 700; color: var(--text-primary); text-transform: capitalize; }
+  .fc-col-header-cell-cushion { color: #64748B !important; font-weight: 600; padding: 10px 0; text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.03em; }
+  .fc-daygrid-day-number { color: #0F172A !important; padding: 8px 10px !important; font-weight: 600; font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+  .fc-daygrid-day-frame { min-height: 84px; cursor: pointer; transition: background-color 0.12s ease; }
+  .fc-daygrid-day-frame:hover { background-color: #F8FAFC; }
+  .fc-day-today { background-color: #F8FAFC !important; }
+  .fc-day-today .fc-daygrid-day-number { background-color: #0F172A; color: #FFFFFF !important; border-radius: 9999px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; margin: 4px; padding: 0 !important; }
+  .fc-event { cursor: pointer; border: none !important; border-radius: 6px !important; padding: 2px 5px !important; margin-bottom: 2px !important; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08); }
+  .fc-button-primary { background-color: #FFFFFF !important; color: #0F172A !important; border: 1px solid #EAEAEA !important; font-weight: 600 !important; font-size: 0.8rem !important; border-radius: 8px !important; padding: 0.45rem 0.8rem !important; min-height: 40px; text-transform: capitalize; box-shadow: none !important; transition: all 0.15s ease; }
+  .fc-button-primary:hover { background-color: #F8F9FA !important; border-color: #CBD5E1 !important; }
+  .fc-button-primary.fc-button-active { background-color: #0F172A !important; color: #FFFFFF !important; border-color: #0F172A !important; }
+  .fc-toolbar-title { font-size: 1.05rem !important; font-weight: 700 !important; color: #0F172A; text-transform: capitalize; letter-spacing: -0.015em; }
+  .fc-list { border-color: #EAEAEA !important; border-radius: 10px; overflow: hidden; }
+  .fc-list-day-cushion { background-color: #F8F9FA !important; }
+  .fc-list-event td { padding: 12px 14px !important; }
+  @media (max-width: 640px) {
+    .fc .fc-header-toolbar { flex-direction: column; align-items: stretch; gap: 0.65rem; margin-bottom: 1rem !important; }
+    .fc .fc-toolbar-chunk { display: flex; justify-content: space-between; align-items: center; }
+    .fc-daygrid-day-frame { min-height: 68px; }
+  }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
-<script src="https://unpkg.com/@popperjs/core@2"></script>
-<script src="https://unpkg.com/tippy.js@6"></script>
-<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/animations/scale-subtle.css" />
 
 <script>
-function excluirReserva(url, eventId) {
-  if (!confirm('Tem certeza que deseja cancelar e apagar esta reserva?')) return;
-  fetch(url, {
+window.__hotelCalendarEvents = [];
+window.__hotelCalendarInstance = null;
+let __reservaAtivaDetalhe = null;
+
+function abrirModalNovaReservaPousada(dateStr) {
+  const modal = document.getElementById('novoAgendamentoModal');
+  const inputData = document.getElementById('data_hora');
+  const filtroQuarto = document.getElementById('filtroQuarto');
+  const selectProf = document.getElementById('profissional_id');
+
+  if (dateStr && inputData) {
+    inputData.value = dateStr + 'T12:00';
+  } else if (inputData && !inputData.value) {
+    const hoje = new Date();
+    const yyyy = hoje.getFullYear();
+    const mm = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dd = String(hoje.getDate()).padStart(2, '0');
+    inputData.value = `${yyyy}-${mm}-${dd}T12:00`;
+  }
+
+  if (filtroQuarto && filtroQuarto.value !== 'todos' && selectProf) {
+    selectProf.value = filtroQuarto.value;
+  }
+
+  if (typeof window.validarConflitoFormularioReserva === 'function') {
+    window.validarConflitoFormularioReserva();
+  }
+  if (modal) modal.classList.remove('hidden');
+}
+
+function abrirDetalheReserva(eventObj) {
+  const props = eventObj.extendedProps || {};
+  const id = eventObj.id;
+  __reservaAtivaDetalhe = eventObj;
+
+  document.getElementById('detalheCorQuarto').style.backgroundColor = eventObj.backgroundColor || '#0F172A';
+  document.getElementById('detalheQuartoNome').textContent = props.quarto_nome || 'Acomodação';
+  document.getElementById('detalheNomeCliente').textContent = props.nome_cliente || eventObj.title;
+  document.getElementById('detalheTipoBadge').textContent = props.tipo || 'Diária';
+  document.getElementById('detalheServicoNome').textContent = props.servico_nome || 'Pacote de Hospedagem';
+  document.getElementById('detalheCheckin').textContent = props.checkin || '—';
+  document.getElementById('detalheCheckout').textContent = props.checkout || '—';
+  document.getElementById('detalhePreco').textContent = props.preco_formatado || 'R$ 0,00';
+
+  let zap = String(props.telefone || '').replace(/\D/g, '');
+  if (zap.length === 10 || zap.length === 11) zap = '55' + zap;
+  const btnWa = document.getElementById('detalheBtnWhatsApp');
+  if (zap && zap.length <= 13) {
+    btnWa.href = `https://wa.me/${zap}`;
+    btnWa.classList.remove('hidden');
+  } else {
+    btnWa.classList.add('hidden');
+  }
+
+  const urlEditar = "{{ url_for('main.editar_agendamento', agendamento_id=999999) }}".replace('999999', id);
+  document.getElementById('detalheBtnEditar').href = urlEditar;
+
+  ocultarConfirmacaoExclusaoReserva();
+  document.getElementById('reservaDetalheModal').classList.remove('hidden');
+}
+
+function fecharDetalheReserva() {
+  document.getElementById('reservaDetalheModal').classList.add('hidden');
+  ocultarConfirmacaoExclusaoReserva();
+  __reservaAtivaDetalhe = null;
+}
+
+function mostrarConfirmacaoExclusaoReserva() {
+  document.getElementById('boxConfirmarExclusaoReserva').classList.remove('hidden');
+}
+
+function ocultarConfirmacaoExclusaoReserva() {
+  document.getElementById('boxConfirmarExclusaoReserva').classList.add('hidden');
+}
+
+document.getElementById('btnConfirmarExclusaoFinal')?.addEventListener('click', function () {
+  if (!__reservaAtivaDetalhe) return;
+  const id = __reservaAtivaDetalhe.id;
+  const urlExcluir = "{{ url_for('main.excluir_agendamento', agendamento_id=999999) }}".replace('999999', id);
+  const btn = this;
+  btn.disabled = true;
+  btn.textContent = 'Cancelando...';
+
+  fetch(urlExcluir, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
       'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
     },
     credentials: 'same-origin'
-  }).then(response => {
-    if (response.ok) window.location.reload();
-    else alert('Erro ao excluir a reserva.');
-  }).catch(() => alert('Erro ao excluir a reserva.'));
-}
+  })
+  .then(r => r.json().then(data => ({ ok: r.ok, data })))
+  .then(({ ok, data }) => {
+    btn.disabled = false;
+    btn.textContent = 'Sim, Cancelar Reserva';
+    if (ok && data.success) {
+      __reservaAtivaDetalhe.remove();
+      window.__hotelCalendarEvents = window.__hotelCalendarInstance ? window.__hotelCalendarInstance.getEvents() : [];
+      fecharDetalheReserva();
+      if (window.showToast) window.showToast(data.message || 'Reserva cancelada com sucesso.', 'success');
+    } else {
+      if (window.showToast) window.showToast(data.error || 'Não foi possível excluir a reserva.', 'error');
+    }
+  })
+  .catch(() => {
+    btn.disabled = false;
+    btn.textContent = 'Sim, Cancelar Reserva';
+    if (window.showToast) window.showToast('Erro de comunicação ao cancelar a reserva.', 'error');
+  });
+});
 
 document.addEventListener('DOMContentLoaded', function() {
-  var calendarEl = document.getElementById('hotelCalendar');
+  const calendarEl = document.getElementById('hotelCalendar');
   if (!calendarEl) return;
-  var isMobile = window.innerWidth < 768;
+  const isMobile = window.innerWidth < 768;
 
-  var calendar = new FullCalendar.Calendar(calendarEl, {
-    initialView: isMobile ? 'listWeek' : 'dayGridMonth',
+  const calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: isMobile ? 'listMonth' : 'dayGridMonth',
     locale: 'pt-br',
     height: 'auto',
     displayEventTime: false,
+    dayMaxEvents: isMobile ? 2 : 4,
     headerToolbar: {
-      left: 'prev,next',
+      left: 'prev,next today',
       center: 'title',
-      right: 'dayGridMonth,listWeek,today'
+      right: 'dayGridMonth,listMonth'
     },
-    buttonText: { today: 'Hoje', month: 'Mês', week: 'Lista' },
+    buttonText: { today: 'Hoje', month: 'Mapa Mensal', list: 'Lista' },
     events: '/api/reservas_calendario',
+    eventsSet: function(events) {
+      window.__hotelCalendarEvents = events;
+    },
     eventContent: function(arg) {
-      if (arg.view.type === 'listWeek') {
-        return { html: `<b>${arg.event.title}</b> <span class="text-xs text-slate-500 ml-2">(${arg.event.extendedProps.quarto_nome})</span>` };
+      const props = arg.event.extendedProps || {};
+      if (arg.view.type.startsWith('list')) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'flex items-center justify-between gap-3 w-full py-0.5';
+        wrapper.innerHTML = `
+          <div class="min-w-0">
+            <div class="font-bold text-sm text-[#0F172A] truncate">${arg.event.title}</div>
+            <div class="text-xs text-[#64748B] flex flex-wrap items-center gap-1.5 mt-0.5 tabular-nums">
+              <span class="font-semibold text-[#0F172A]">${props.quarto_nome || ''}</span>
+              <span>·</span>
+              <span>${props.tipo || ''}</span>
+              <span>·</span>
+              <span>Saída: ${props.checkout || ''}</span>
+            </div>
+          </div>
+          <span class="text-xs font-bold text-[#047857] tabular-nums shrink-0">${props.preco_formatado || ''}</span>
+        `;
+        return { domNodes: [wrapper] };
       }
-      let div = document.createElement('div');
-      div.className = 'flex flex-col px-2 py-1 overflow-hidden';
+      const div = document.createElement('div');
+      div.className = 'flex flex-col px-1.5 py-0.5 overflow-hidden leading-tight';
       div.innerHTML = `
-        <span class="font-semibold text-xs truncate text-white leading-tight">${arg.event.title}</span>
-        <span class="text-[11px] text-white/90 truncate leading-tight">${arg.event.extendedProps.quarto_nome}</span>
+        <span class="font-bold text-[11px] truncate text-white">${arg.event.title}</span>
+        <span class="text-[10px] text-white/90 truncate">${props.quarto_nome || ''} · ${props.tipo || ''}</span>
       `;
       return { domNodes: [div] };
     },
-    eventDidMount: function(info) {
-      let props = info.event.extendedProps;
-      let id = info.event.id;
-      let urlEditar = "{{ url_for('main.editar_agendamento', agendamento_id=999999) }}".replace('999999', id);
-      let urlExcluir = "{{ url_for('main.excluir_agendamento', agendamento_id=999999) }}".replace('999999', id);
-      let zap = (props.telefone || '').replace(/\D/g, '');
-      if (zap.length === 10 || zap.length === 11) zap = '55' + zap;
-
-      let conteudoHTML = `
-        <div class="text-left p-2 font-sans w-56">
-          <div class="font-bold text-sm text-white mb-2 border-b border-slate-700 pb-1">${info.event.title}</div>
-          <div class="text-xs text-slate-200 mb-1"><strong>Quarto:</strong> ${props.quarto_nome}</div>
-          <div class="text-xs text-slate-200 mb-1"><strong>Tipo:</strong> ${props.tipo}</div>
-          <div class="text-xs text-slate-200 mb-1 tabular-nums"><strong>Check-in:</strong> ${props.checkin}</div>
-          <div class="text-xs text-slate-200 mb-2 tabular-nums"><strong>Check-out:</strong> ${props.checkout}</div>
-          <a href="https://wa.me/${zap}" target="_blank" onclick="event.stopPropagation();" class="block w-full text-xs text-emerald-300 hover:text-white font-semibold mt-2 bg-emerald-500/20 hover:bg-emerald-600 px-2 py-1.5 rounded text-center">
-            Conversar no WhatsApp
-          </a>
-          <div class="flex gap-2 mt-2 pt-2 border-t border-slate-700">
-            <a href="${urlEditar}" onclick="event.stopPropagation();" class="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-center py-1.5 rounded text-xs font-semibold">Editar</a>
-            <button onclick="event.stopPropagation(); excluirReserva('${urlExcluir}', '${id}');" class="flex-1 bg-red-900/60 hover:bg-red-600 text-red-100 text-center py-1.5 rounded text-xs font-semibold">Excluir</button>
-          </div>
-        </div>
-      `;
-      tippy(info.el, {
-        content: conteudoHTML, allowHTML: true, animation: 'scale-subtle',
-        placement: 'top', arrow: true, interactive: true, appendTo: document.body, delay: [100, 200]
-      });
+    eventClick: function(info) {
+      info.jsEvent.preventDefault();
+      abrirDetalheReserva(info.event);
     },
     dateClick: function(info) {
-      document.getElementById('data_hora').value = info.dateStr + "T14:00";
-      document.getElementById('novoAgendamentoModal').classList.remove('hidden');
+      abrirModalNovaReservaPousada(info.dateStr);
     }
   });
 
   calendar.render();
+  window.__hotelCalendarInstance = calendar;
+
+  function aplicarFiltroQuarto(roomId) {
+    const select = document.getElementById('filtroQuarto');
+    if (select && select.value !== roomId) select.value = roomId;
+
+    document.querySelectorAll('.room-filter-pill').forEach(pill => {
+      const ativo = pill.getAttribute('data-room-pill') === roomId;
+      pill.className = ativo
+        ? 'room-filter-pill inline-flex items-center gap-1.5 px-3.5 min-h-[38px] rounded-full text-xs font-semibold transition-all shrink-0 bg-[#0F172A] text-white border border-[#0F172A]'
+        : 'room-filter-pill inline-flex items-center gap-1.5 px-3.5 min-h-[38px] rounded-full text-xs font-semibold transition-all shrink-0 bg-white text-[#0F172A] border border-[#EAEAEA] hover:border-[#CBD5E1]';
+    });
+
+    calendar.getEvents().forEach(event => {
+      const visivel = (roomId === 'todos' || String(event.extendedProps.quarto_id) === String(roomId));
+      event.setProp('display', visivel ? 'auto' : 'none');
+    });
+  }
 
   document.getElementById('filtroQuarto')?.addEventListener('change', function(e) {
-    let room_id = e.target.value;
-    calendar.getEvents().forEach(event => {
-      event.setProp('display', (room_id === 'todos' || event.extendedProps.quarto_id === room_id) ? 'auto' : 'none');
+    aplicarFiltroQuarto(e.target.value);
+  });
+
+  document.querySelectorAll('.room-filter-pill').forEach(pill => {
+    pill.addEventListener('click', function() {
+      aplicarFiltroQuarto(this.getAttribute('data-room-pill'));
     });
   });
+
+  // Navegação Mobile Nativa por Swipe Horizontal
+  let touchStartX = 0;
+  let touchStartY = 0;
+  calendarEl.addEventListener('touchstart', function(e) {
+    if (e.changedTouches && e.changedTouches.length > 0) {
+      touchStartX = e.changedTouches[0].screenX;
+      touchStartY = e.changedTouches[0].screenY;
+    }
+  }, { passive: true });
+
+  calendarEl.addEventListener('touchend', function(e) {
+    if (!e.changedTouches || e.changedTouches.length === 0) return;
+    const dx = e.changedTouches[0].screenX - touchStartX;
+    const dy = e.changedTouches[0].screenY - touchStartY;
+    if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.8) {
+      if (dx < 0) calendar.next();
+      else calendar.prev();
+    }
+  }, { passive: true });
 });
 </script>
 
@@ -396,12 +640,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 {# ================================================================= #}
-{# MODAL DE NOVO AGENDAMENTO MANUAL                                  #}
+{# MODAL DE NOVO AGENDAMENTO / RESERVA MANUAL                        #}
 {# ================================================================= #}
-<div id="novoAgendamentoModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
-  <div class="saas-card w-full max-w-lg max-h-[90vh] overflow-y-auto bg-white">
+<div id="novoAgendamentoModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 hidden">
+  <div class="saas-card w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-white rounded-t-2xl sm:rounded-xl">
     <div class="px-5 py-4 border-b border-[#EAEAEA] flex justify-between items-center sticky top-0 bg-white z-10">
-      <h3 class="text-base font-bold heading-tight">{{ vocab_agenda.novo_btn }} Manual</h3>
+      <div>
+        <h3 class="text-base font-bold text-[#0F172A] heading-tight">{{ vocab_agenda.novo_btn }} Manual</h3>
+        <p class="text-xs text-[#64748B]">Verificação automática de conflitos de disponibilidade ativa.</p>
+      </div>
       <button type="button"
               onclick="document.getElementById('novoAgendamentoModal').classList.add('hidden')"
               class="saas-icon-btn !min-w-[36px] !min-h-[36px]">
@@ -409,12 +656,12 @@ document.addEventListener('DOMContentLoaded', function() {
       </button>
     </div>
 
-    <form method="post" action="{{ url_for('main.agenda') }}">
+    <form id="formNovoAgendamentoModal" method="post" action="{{ url_for('main.agenda') }}">
       <div class="p-5 flex flex-col gap-4">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label for="nome_cliente" class="saas-label">Nome do Cliente</label>
-            <input type="text" id="nome_cliente" name="nome_cliente" class="saas-input" placeholder="Ex: Mariana Silva" required>
+            <label for="nome_cliente" class="saas-label">Nome do Cliente / Hóspede</label>
+            <input type="text" id="nome_cliente" name="nome_cliente" class="saas-input" placeholder="Ex: Mariana Silva (2 pess.)" required>
           </div>
           <div>
             <label for="telefone_cliente" class="saas-label">Telefone (WhatsApp)</label>
@@ -437,15 +684,41 @@ document.addEventListener('DOMContentLoaded', function() {
             <select id="servico_id" name="servico_id" class="saas-select" required>
               <option value="" disabled selected>Selecione...</option>
               {% for servico in servicos %}
-                <option value="{{ servico.id }}">{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco)|replace('.', ',') }}</option>
+                {% set dias_srv = servico.duracao / 1440 %}
+                <option value="{{ servico.id }}"
+                        data-duracao="{{ servico.duracao }}"
+                        data-preco="{{ '%.2f'|format(servico.preco)|replace('.', ',') }}">
+                  {{ servico.nome }} ({% if is_pousada and dias_srv >= 1 %}{{ "%g"|format(dias_srv) }} diária(s){% elif is_pousada %}{{ "%g"|format(servico.duracao / 60) }}h{% else %}{{ servico.duracao }} min{% endif %}) — R$ {{ "%.2f"|format(servico.preco)|replace('.', ',') }}
+                </option>
               {% endfor %}
             </select>
           </div>
         </div>
 
         <div>
-          <label for="data_hora" class="saas-label">Data e Hora</label>
+          <label for="data_hora" class="saas-label">{% if is_pousada %}Data e Horário de Check-in{% else %}Data e Hora{% endif %}</label>
           <input type="datetime-local" id="data_hora" name="data_hora" class="saas-input tabular-nums" required>
+        </div>
+
+        {# Resumo Dinâmico de Check-out e Tarifa #}
+        <div id="boxResumoEstadia" class="hidden p-3.5 rounded-xl bg-[#F8F9FA] border border-[#EAEAEA] flex items-center justify-between gap-3">
+          <div>
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Liberação / Check-out Previsto</span>
+            <span id="resumoCheckoutTexto" class="text-xs sm:text-sm font-bold text-[#0F172A] tabular-nums mt-0.5 block">—</span>
+          </div>
+          <div class="text-right">
+            <span class="block text-[10px] font-semibold uppercase tracking-wider text-[#64748B]">Valor Total</span>
+            <span id="resumoPrecoTexto" class="text-sm font-bold text-[#047857] tabular-nums mt-0.5 block">R$ 0,00</span>
+          </div>
+        </div>
+
+        {# Alerta Ativo de Conflito (Overbooking Bloqueado) #}
+        <div id="boxAlertaConflito" class="hidden p-3.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2.5">
+          <svg class="w-4 h-4 text-red-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <div class="text-xs text-red-900">
+            <strong class="block font-bold mb-0.5">Indisponibilidade Detectada (Bloqueio de Overbooking)</strong>
+            <span id="textoAlertaConflito">Esta acomodação já possui uma reserva ativa que sobrepõe o período selecionado.</span>
+          </div>
         </div>
       </div>
 
@@ -455,7 +728,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 class="saas-btn-secondary w-full sm:w-auto">
           Cancelar
         </button>
-        <button type="submit" class="saas-btn-primary w-full sm:w-auto">
+        <button type="submit" id="btnConfirmarModalAgenda" class="saas-btn-primary w-full sm:w-auto">
           Confirmar {{ vocab_agenda.agenda }}
         </button>
       </div>
@@ -469,9 +742,97 @@ document.addEventListener('DOMContentLoaded', function() {
 document.addEventListener('DOMContentLoaded', function () {
   const modal = document.getElementById('novoAgendamentoModal');
   const btnAbrirModal = document.getElementById('btnAbrirModal');
+  const profSelect = document.getElementById('profissional_id');
+  const servSelect = document.getElementById('servico_id');
+  const dataInput = document.getElementById('data_hora');
+  const boxResumo = document.getElementById('boxResumoEstadia');
+  const resumoCheckout = document.getElementById('resumoCheckoutTexto');
+  const resumoPreco = document.getElementById('resumoPrecoTexto');
+  const boxConflito = document.getElementById('boxAlertaConflito');
+  const textoConflito = document.getElementById('textoAlertaConflito');
+  const btnConfirmar = document.getElementById('btnConfirmarModalAgenda');
+  const formModal = document.getElementById('formNovoAgendamentoModal');
+
+  window.validarConflitoFormularioReserva = function () {
+    if (!profSelect || !servSelect || !dataInput) return false;
+    const profId = profSelect.value;
+    const optServ = servSelect.options[servSelect.selectedIndex];
+    const duracaoMin = optServ && optServ.dataset.duracao ? parseInt(optServ.dataset.duracao, 10) : 0;
+    const precoFmt = optServ && optServ.dataset.preco ? optServ.dataset.preco : '0,00';
+    const dtVal = dataInput.value;
+
+    if (!dtVal || !duracaoMin) {
+      boxResumo?.classList.add('hidden');
+      boxConflito?.classList.add('hidden');
+      if (btnConfirmar) btnConfirmar.disabled = false;
+      return false;
+    }
+
+    const dtInicio = new Date(dtVal);
+    if (isNaN(dtInicio.getTime())) return false;
+    const dtFim = new Date(dtInicio.getTime() + duracaoMin * 60000);
+
+    if (boxResumo && resumoCheckout && resumoPreco) {
+      const fmtData = dtFim.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const fmtHora = dtFim.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      resumoCheckout.textContent = `${fmtData} às ${fmtHora}`;
+      resumoPreco.textContent = `R$ ${precoFmt}`;
+      boxResumo.classList.remove('hidden');
+    }
+
+    // Validação instantânea contra eventos do calendário (se carregados)
+    const eventos = window.__hotelCalendarEvents || [];
+    let conflitoEncontrado = null;
+    if (profId && eventos.length > 0) {
+      for (const ev of eventos) {
+        const props = ev.extendedProps || {};
+        if (String(props.quarto_id) !== String(profId)) continue;
+        const evStart = ev.start;
+        const evEnd = ev.end || new Date(evStart.getTime() + (props.duracao || 1440) * 60000);
+        if (dtInicio < evEnd && dtFim > evStart) {
+          conflitoEncontrado = { title: props.nome_cliente || ev.title, checkin: props.checkin, checkout: props.checkout };
+          break;
+        }
+      }
+    }
+
+    if (conflitoEncontrado) {
+      if (textoConflito) {
+        textoConflito.textContent = `Ocupado por ${conflitoEncontrado.title} (${conflitoEncontrado.checkin} até ${conflitoEncontrado.checkout}). Escolha outra data ou acomodação.`;
+      }
+      boxConflito?.classList.remove('hidden');
+      if (btnConfirmar) {
+        btnConfirmar.disabled = true;
+        btnConfirmar.classList.add('opacity-50', 'cursor-not-allowed');
+      }
+      return true;
+    } else {
+      boxConflito?.classList.add('hidden');
+      if (btnConfirmar) {
+        btnConfirmar.disabled = false;
+        btnConfirmar.classList.remove('opacity-50', 'cursor-not-allowed');
+      }
+      return false;
+    }
+  };
+
+  profSelect?.addEventListener('change', window.validarConflitoFormularioReserva);
+  servSelect?.addEventListener('change', window.validarConflitoFormularioReserva);
+  dataInput?.addEventListener('change', window.validarConflitoFormularioReserva);
+  dataInput?.addEventListener('input', window.validarConflitoFormularioReserva);
+
+  formModal?.addEventListener('submit', function (e) {
+    if (window.validarConflitoFormularioReserva()) {
+      e.preventDefault();
+      if (window.showToast) {
+        window.showToast('Reserva bloqueada: já existe uma ocupação conflitante para este período.', 'error');
+      }
+    }
+  });
 
   if (btnAbrirModal) {
     btnAbrirModal.addEventListener('click', function () {
+      window.validarConflitoFormularioReserva();
       if (modal) modal.classList.remove('hidden');
     });
   }
@@ -481,12 +842,10 @@ document.addEventListener('DOMContentLoaded', function () {
       const horarioSelecionado = this.dataset.horario;
       const profissionalSelecionadoId = document.getElementById('profissional_id_filtro') ? document.getElementById('profissional_id_filtro').value : '';
 
-      const profissionalSelect = document.getElementById('profissional_id');
-      const dataHoraInput = document.getElementById('data_hora');
+      if (profSelect && profissionalSelecionadoId) profSelect.value = profissionalSelecionadoId;
+      if (dataInput) dataInput.value = horarioSelecionado;
 
-      if (profissionalSelect && profissionalSelecionadoId) profissionalSelect.value = profissionalSelecionadoId;
-      if (dataHoraInput) dataHoraInput.value = horarioSelecionado;
-
+      window.validarConflitoFormularioReserva();
       if (modal) modal.classList.remove('hidden');
     });
   });

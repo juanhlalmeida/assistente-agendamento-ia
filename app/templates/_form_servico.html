@@ -19,8 +19,8 @@
         {% set is_pousada = true %}
         {% set form_vocab.label_nome = 'Nome do Pacote / Tarifa' %}
         {% set form_vocab.placeholder_nome = 'Ex: Pacote Casal (Sexta a Domingo)' %}
-        {% set form_vocab.label_duracao = 'Tempo de Ocupação (Bloqueio)' %}
-        {% set form_vocab.help_duracao = 'Escolha o tempo que o quarto ficará bloqueado.' %}
+        {% set form_vocab.label_duracao = 'Tempo de Ocupação (Bloqueio na Agenda)' %}
+        {% set form_vocab.help_duracao = 'Define por quanto tempo a acomodação ficará bloqueada no calendário.' %}
     {% elif 'lash' in nome or 'studio' in nome %}
         {% set form_vocab.label_nome = 'Nome do Procedimento' %}
         {% set form_vocab.placeholder_nome = 'Ex: Extensão Volume Russo' %}
@@ -30,36 +30,38 @@
 {% endif %}
 {# ================================================================= #}
 
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
   
   {# CAMPO 1: NOME #}
   <div class="md:col-span-3">
-    <label for="nome" class="block text-sm font-medium text-text-secondary-dark mb-1">{{ form_vocab.label_nome }}</label>
+    <label for="nome" class="saas-label">{{ form_vocab.label_nome }}</label>
     <input 
       type="text" 
       id="nome" 
       name="nome" 
-      class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
+      class="saas-input" 
       value="{{ form_data.get('nome', '') }}" 
       placeholder="{{ form_vocab.placeholder_nome }}"
       required>
       
       {% if is_pousada %}
-        <p class="text-xs text-primary mt-1 flex items-center gap-1">
-            <span class="material-symbols-outlined text-[14px]">lightbulb</span>
-            Dica para a IA: Coloque a capacidade no nome (Ex: "Diária Triplo", "Pacote Casal") para a assistente entender quem cabe no quarto.
-        </p>
+        <div class="mt-2 p-2.5 rounded-lg bg-blue-50/70 border border-blue-200/70 flex items-start gap-2">
+          <i data-lucide="sparkles" class="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5"></i>
+          <p class="text-xs text-slate-700 leading-relaxed">
+            <strong class="text-[#0F172A]">Dica de Inteligência Hoteleira:</strong> Inclua a capacidade na descrição (ex: <em>"Diária Casal"</em>, <em>"Diária Triplo"</em>, <em>"Pacote 4 Pessoas"</em>) para que a assistente virtual cruze automaticamente com a capacidade dos quartos disponíveis.
+          </p>
+        </div>
       {% endif %}
   </div>
 
   {# CAMPO 2: DURAÇÃO (INTELIGENTE PARA POUSADA) #}
   <div class="md:col-span-2">
-    <label for="duracao" class="block text-sm font-medium text-text-secondary-dark mb-1">{{ form_vocab.label_duracao }}</label>
+    <label for="duracao" class="saas-label">{{ form_vocab.label_duracao }}</label>
     
     {% if is_pousada %}
         {# Dropdown de Combos para a Pousada #}
         {% set dur_atual = form_data.get('duracao', '') | string %}
-        <select id="duracao" name="duracao" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" required>
+        <select id="duracao" name="duracao" class="saas-select tabular-nums" required>
             <option value="" disabled {% if not dur_atual %}selected{% endif %}>Selecione o tipo de pacote...</option>
             
             <optgroup label="Day Use (Sem Pernoite)">
@@ -83,40 +85,40 @@
           name="duracao" 
           min="1" 
           step="1"
-          class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full p-2.5 outline-none transition-colors" 
+          class="saas-input tabular-nums" 
           value="{{ form_data.get('duracao', '') }}" 
           required>
     {% endif %}
     
-    <p class="text-xs text-text-secondary-dark mt-1">{{ form_vocab.help_duracao }}</p>
+    <p class="text-xs text-slate-500 mt-1">{{ form_vocab.help_duracao }}</p>
   </div>
 
   {# CAMPO 3: PREÇO #}
   <div>
-    <label for="preco" class="block text-sm font-medium text-text-secondary-dark mb-1">Preço Total (R$)</label>
+    <label for="preco" class="saas-label">Preço Total (R$)</label>
     <div class="relative">
-        <span class="absolute left-3 top-2.5 text-gray-400 text-sm font-bold">R$</span>
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">R$</span>
         <input 
           type="text" 
           inputmode="decimal" 
           id="preco" 
           name="preco" 
-          class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-1 focus:ring-primary focus:border-primary block w-full pl-9 p-2.5 outline-none transition-colors" 
+          class="saas-input pl-9 tabular-nums font-semibold" 
           value="{{ form_data.get('preco', '') }}" 
           placeholder="0.00"
           required>
     </div>
-    <p class="text-xs text-text-secondary-dark mt-1">Total do pacote.</p>
+    <p class="text-xs text-slate-500 mt-1">Valor final cobrado pelo pacote.</p>
   </div>
 </div>
 
 {# BOTÕES DE AÇÃO #}
-<div class="border-t border-gray-800 pt-6 flex justify-end gap-3">
-  <a href="{{ url_for('servicos.index') }}" class="py-2 px-4 rounded-lg bg-transparent border border-gray-600 text-gray-300 font-semibold hover:bg-gray-800 transition-colors">
+<div class="border-t border-slate-200 pt-5 flex justify-end gap-2.5">
+  <a href="{{ url_for('servicos.index') }}" class="saas-btn-secondary px-4 py-2 text-sm inline-flex items-center gap-1.5">
     Cancelar
   </a>
-  <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 flex items-center gap-2">
-    <span class="material-symbols-outlined text-[20px]">save</span>
-    {{ submit_button_text | default('Salvar') }} 
+  <button type="submit" class="saas-btn-primary px-5 py-2 text-sm inline-flex items-center gap-2 cursor-pointer">
+    <i data-lucide="check" class="w-4 h-4"></i>
+    <span>{{ submit_button_text | default('Salvar') }}</span>
   </button>
 </div>

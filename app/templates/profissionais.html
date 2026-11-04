@@ -21,7 +21,8 @@
   {# 🧠 CÉREBRO DO VOCABULÁRIO LOCAL (BLINDADO COM NAMESPACE)        #}
   {# ================================================================= #}
   
-  {% set vocab_local = namespace(singular='Profissional', plural='Profissionais', icon='person') %}
+  {% set vocab_local = namespace(singular='Profissional', plural='Profissionais', icon='user') %}
+  {% set is_pousada = false %}
 
   {% if current_user.is_authenticated and current_user.barbearia %}
       {% set tipo = current_user.barbearia.business_type %}
@@ -29,15 +30,16 @@
 
       {# POUSADA #}
       {% if tipo == 'pousada' or 'pousada' in nome %}
+          {% set is_pousada = true %}
           {% set vocab_local.singular = 'Quarto' %}
-          {% set vocab_local.plural = 'Quartos' %}
-          {% set vocab_local.icon = 'bed' %}
+          {% set vocab_local.plural = 'Quartos e Acomodações' %}
+          {% set vocab_local.icon = 'bed-double' %}
 
       {# LASH #}
       {% elif 'lash' in nome or 'studio' in nome %}
           {% set vocab_local.singular = 'Designer' %}
           {% set vocab_local.plural = 'Designers' %}
-          {% set vocab_local.icon = 'face_3' %}
+          {% set vocab_local.icon = 'sparkles' %}
       {% endif %}
   {% endif %}
   {# ================================================================= #}
@@ -45,75 +47,118 @@
   {# Mensagens Flash #}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-      {% for category, message in messages %}
-        {% set color_class = 'bg-blue-500' %}
-        {% if category == 'success' %}{% set color_class = 'bg-green-500' %}{% endif %}
-        {% if category == 'danger' %}{% set color_class = 'bg-red-500' %}{% endif %}
-        {% if category == 'warning' %}{% set color_class = 'bg-yellow-500' %}{% endif %}
-        
-        <div class="{{ color_class }} text-white p-4 rounded-lg mb-6 flex justify-between items-center shadow-lg" role="alert">
-          <span>{{ message }}</span>
-          <button type="button" onclick="this.parentElement.remove()">
-            <span class="material-symbols-outlined">close</span>
-          </button>
-        </div>
-      {% endfor %}
+      <div class="space-y-2.5 mb-6">
+        {% for category, message in messages %}
+          {% set alert_style = 'bg-blue-50 border-blue-200 text-blue-800' %}
+          {% if category == 'success' %}{% set alert_style = 'bg-emerald-50 border-emerald-200 text-emerald-800' %}{% endif %}
+          {% if category == 'danger' %}{% set alert_style = 'bg-red-50 border-red-200 text-red-800' %}{% endif %}
+          {% if category == 'warning' %}{% set alert_style = 'bg-amber-50 border-amber-200 text-amber-800' %}{% endif %}
+          
+          <div class="{{ alert_style }} border px-4 py-3 rounded-lg flex justify-between items-center text-sm font-medium" role="alert">
+            <div class="flex items-center gap-2">
+              <i data-lucide="{% if category == 'success' %}check-circle-2{% elif category == 'danger' %}alert-circle{% else %}info{% endif %}" class="w-4 h-4 shrink-0"></i>
+              <span>{{ message }}</span>
+            </div>
+            <button type="button" onclick="this.parentElement.remove()" class="p-1 rounded hover:bg-black/5">
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+        {% endfor %}
+      </div>
     {% endif %}
   {% endwith %}
 
   {# Cabeçalho da Página #}
-  <div class="flex justify-between items-center mb-6">
-    {# Título Dinâmico #}
-    <h2 class="text-text-primary-dark text-3xl font-bold">{{ vocab_local.plural }}</h2>
+  <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+    <div>
+      <div class="flex items-center gap-2">
+        <h2 class="text-[#0F172A] text-xl sm:text-2xl font-bold tracking-tight">{{ vocab_local.plural }}</h2>
+        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 tabular-nums">
+          {{ profissionais|length }}
+        </span>
+      </div>
+      <p class="text-xs sm:text-sm text-[#64748B] mt-0.5">
+        {% if is_pousada %}
+          Gerencie as unidades habitacionais disponíveis para reserva no mapa de ocupação e atendimento IA.
+        {% else %}
+          Gerencie a equipe de atendimento vinculada à agenda.
+        {% endif %}
+      </p>
+    </div>
     
-    {# Botão Dinâmico #}
     <a href="{{ url_for('profissionais.novo_profissional') }}" 
-       class="flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-lg h-12 px-6 bg-primary text-white text-base font-bold hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20">
-      <span class="material-symbols-outlined">add</span>
-      <span class="truncate">Novo {{ vocab_local.singular }}</span>
+       class="saas-btn-primary px-4 py-2.5 text-sm flex items-center justify-center gap-2 w-full sm:w-auto">
+      <i data-lucide="plus" class="w-4 h-4"></i>
+      <span>Novo {{ vocab_local.singular }}</span>
     </a>
   </div>
 
-  {# Tabela #}
-  <div class="bg-surface-dark rounded-xl shadow-lg overflow-x-auto border border-white/5">
+  {# Tabela Executiva #}
+  <div class="saas-card bg-white overflow-x-auto">
     <table class="w-full min-w-[400px] lg:min-w-full text-left align-middle">
-      <thead class="bg-background-dark/50">
+      <thead class="bg-slate-50 border-b border-slate-200">
         <tr>
-          {# Coluna Nome Dinâmica #}
-          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider">Nome do {{ vocab_local.singular }}</th>
-          <th class="p-4 text-sm font-semibold text-text-secondary-dark uppercase tracking-wider text-center">Ações</th>
+          <th class="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Nome do {{ vocab_local.singular }}</th>
+          {% if is_pousada %}
+          <th class="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Capacidade Máx.</th>
+          {% endif %}
+          <th class="px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Ações</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody class="divide-y divide-slate-200/80">
         {% for profissional in profissionais %}
-          <tr class="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
-            <td class="p-4 font-semibold text-text-primary-dark flex items-center gap-3">
-                {# Ícone ao lado do nome (Cama ou Pessoa) #}
-                <div class="bg-primary/10 p-2 rounded-lg flex items-center justify-center">
-                    <span class="material-symbols-outlined text-primary">{{ vocab_local.icon }}</span>
+          <tr class="hover:bg-slate-50/80 transition-colors">
+            <td class="px-5 py-4 font-semibold text-[#0F172A] text-sm">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200/80 flex items-center justify-center text-[#2563EB] shrink-0">
+                  <i data-lucide="{{ vocab_local.icon }}" class="w-4 h-4"></i>
                 </div>
-                {{ profissional.nome }}
+                <span>{{ profissional.nome }}</span>
+              </div>
             </td>
-            <td class="p-4 text-center space-x-2">
-              <a href="{{ url_for('profissionais.editar_profissional', profissional_id=profissional.id) }}" 
-                 class="inline-flex items-center justify-center p-2 text-text-secondary-dark hover:text-primary hover:bg-primary/10 rounded-lg transition-all" title="Editar">
-                <span class="material-symbols-outlined text-xl">edit</span>
-              </a>
-              <form action="{{ url_for('profissionais.apagar_profissional', profissional_id=profissional.id) }}" 
-                    method="post" class="inline" onsubmit="return confirm('Tem certeza que deseja apagar o {{ vocab_local.singular|lower }} \'{{ profissional.nome }}\'?');">
-                <button type="submit" class="inline-flex items-center justify-center p-2 text-text-secondary-dark hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all" title="Apagar">
-                  <span class="material-symbols-outlined text-xl">delete</span>
+            {% if is_pousada %}
+            <td class="px-5 py-4 text-xs text-slate-600 font-medium tabular-nums">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                <i data-lucide="users" class="w-3 h-3 text-slate-500"></i>
+                Até {{ profissional.capacidade or 4 }} hóspedes
+              </span>
+            </td>
+            {% endif %}
+            <td class="px-5 py-4 text-right">
+              <div class="inline-flex items-center justify-end gap-1.5" id="prof-actions-{{ profissional.id }}">
+                <a href="{{ url_for('profissionais.editar_profissional', profissional_id=profissional.id) }}" 
+                   class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors" title="Editar">
+                  <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                  <span>Editar</span>
+                </a>
+                <button type="button"
+                        onclick="document.getElementById('prof-actions-{{ profissional.id }}').classList.add('hidden'); document.getElementById('prof-confirm-{{ profissional.id }}').classList.remove('hidden');"
+                        class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer" title="Apagar">
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
                 </button>
-              </form>
+              </div>
+              <div class="hidden items-center justify-end gap-1.5" id="prof-confirm-{{ profissional.id }}">
+                <span class="text-xs font-semibold text-red-700 mr-1">Confirmar exclusão?</span>
+                <button type="button"
+                        onclick="document.getElementById('prof-confirm-{{ profissional.id }}').classList.add('hidden'); document.getElementById('prof-actions-{{ profissional.id }}').classList.remove('hidden');"
+                        class="px-2 py-1 text-xs font-medium text-slate-600 bg-slate-100 rounded-md cursor-pointer">
+                  Não
+                </button>
+                <form action="{{ url_for('profissionais.apagar_profissional', profissional_id=profissional.id) }}" method="post" class="inline">
+                  <button type="submit" class="px-2.5 py-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-md cursor-pointer">
+                    Sim, excluir
+                  </button>
+                </form>
+              </div>
             </td>
           </tr>
         {% else %} 
           <tr>
-            <td colspan="2" class="p-12 text-center">
-                <div class="flex flex-col items-center justify-center text-text-secondary-dark">
-                    <span class="material-symbols-outlined text-6xl mb-4 opacity-20">{{ vocab_local.icon }}</span>
-                    <p class="text-lg">Nenhum {{ vocab_local.singular|lower }} cadastrado ainda.</p>
-                </div>
+            <td colspan="{{ 3 if is_pousada else 2 }}" class="p-12 text-center">
+              <div class="flex flex-col items-center justify-center text-slate-500">
+                <i data-lucide="{{ vocab_local.icon }}" class="w-8 h-8 mb-2 text-slate-400"></i>
+                <p class="text-sm font-medium">Nenhum {{ vocab_local.singular|lower }} cadastrado ainda.</p>
+              </div>
             </td>
           </tr>
         {% endfor %} 

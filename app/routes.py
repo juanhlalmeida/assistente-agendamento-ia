@@ -356,26 +356,38 @@ def agenda():
             novo_inicio = datetime.strptime(data_hora_str, '%Y-%m-%dT%H:%M').replace(tzinfo=None)
             novo_fim = novo_inicio + timedelta(minutes=servico.duracao)
             
-            inicio_dia, fim_dia = _range_do_dia(novo_inicio)
+            # 🛡️ TRAVA ANTI-OVERBOOKING MULTI-DIAS (15 dias de lookback para cobrir diárias/pacotes em andamento)
+            janela_inicio = novo_inicio - timedelta(days=15)
+            janela_fim = novo_fim + timedelta(days=1)
             ags = (
                 Agendamento.query
                 .options(joinedload(Agendamento.servico))
                 .filter(
                     Agendamento.barbearia_id == barbearia_id_logada,
                     Agendamento.profissional_id == profissional.id,
-                    Agendamento.data_hora >= inicio_dia,
-                    Agendamento.data_hora < fim_dia
+                    Agendamento.data_hora >= janela_inicio,
+                    Agendamento.data_hora < janela_fim
                 )
                 .all()
             )
             
-            conflito = any(
-                max(novo_inicio, ag.data_hora) < min(novo_fim, ag.data_hora + timedelta(minutes=ag.servico.duracao))
-                for ag in ags
+            conflito_ag = next(
+                (
+                    ag for ag in ags
+                    if max(novo_inicio, ag.data_hora) < min(novo_fim, ag.data_hora + timedelta(minutes=(ag.servico.duracao if ag.servico else 60)))
+                ),
+                None
             )
             
-            if conflito:
-                flash('Erro: O profissional já está ocupado neste horário.', 'danger')
+            if conflito_ag:
+                fim_conflito = conflito_ag.data_hora + timedelta(minutes=(conflito_ag.servico.duracao if conflito_ag.servico else 60))
+                msg_conflito = (
+                    f'Conflito de disponibilidade: "{profissional.nome}" já possui reserva/ocupação para '
+                    f'{conflito_ag.nome_cliente} ({conflito_ag.data_hora.strftime("%d/%m às %H:%M")} até {fim_conflito.strftime("%d/%m às %H:%M")}).'
+                )
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({"success": False, "error": msg_conflito}), 409
+                flash(msg_conflito, 'danger')
             else:
                 novo_agendamento = Agendamento(
                     nome_cliente=nome_cliente,
@@ -540,9 +552,13 @@ def excluir_agendamento(agendamento_id):
     try:
         db.session.delete(ag)
         db.session.commit()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({"success": True, "message": "Reserva removida com sucesso."}), 200
         flash('Agendamento excluído com sucesso!', 'warning')
     except Exception as e:
         db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({"success": False, "error": f"Erro ao excluir: {str(e)}"}), 500
         flash(f'Erro ao excluir agendamento: {str(e)}', 'danger')
     
     return redirect(url_for('main.agenda', data=data_redirect, profissional_id=prof_redirect))
@@ -565,13 +581,51 @@ def editar_agendamento(agendamento_id):
                 flash('Profissional ou Serviço inválido.', 'danger')
                 raise ValueError("Dados inválidos.")
             
+            novo_inicio = datetime.strptime(request.form.get('data_hora'), '%Y-%m-%dT%H:%M').replace(tzinfo=None)
+            novo_fim = novo_inicio + timedelta(minutes=serv.duracao)
+
+            # 🛡️ TRAVA ANTI-OVERBOOKING TAMBÉM NA EDIÇÃO (Ignora o próprio registro)
+            janela_inicio = novo_inicio - timedelta(days=15)
+            janela_fim = novo_fim + timedelta(days=1)
+            ags_existentes = (
+                Agendamento.query
+                .options(joinedload(Agendamento.servico))
+                .filter(
+                    Agendamento.barbearia_id == barbearia_id_logada,
+                    Agendamento.profissional_id == novo_profissional_id,
+                    Agendamento.id != ag.id,
+                    Agendamento.data_hora >= janela_inicio,
+                    Agendamento.data_hora < janela_fim
+                )
+                .all()
+            )
+            conflito_edit = next(
+                (
+                    item for item in ags_existentes
+                    if max(novo_inicio, item.data_hora) < min(novo_fim, item.data_hora + timedelta(minutes=(item.servico.duracao if item.servico else 60)))
+                ),
+                None
+            )
+            if conflito_edit:
+                fim_c = conflito_edit.data_hora + timedelta(minutes=(conflito_edit.servico.duracao if conflito_edit.servico else 60))
+                msg_c = (
+                    f'Conflito de disponibilidade: "{prof.nome}" já está ocupado por '
+                    f'{conflito_edit.nome_cliente} ({conflito_edit.data_hora.strftime("%d/%m às %H:%M")} até {fim_c.strftime("%d/%m às %H:%M")}).'
+                )
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({"success": False, "error": msg_c}), 409
+                flash(msg_c, 'danger')
+                return redirect(url_for('main.editar_agendamento', agendamento_id=agendamento_id))
+
             ag.nome_cliente = request.form.get('nome_cliente')
             ag.telefone_cliente = request.form.get('telefone_cliente')
-            ag.data_hora = datetime.strptime(request.form.get('data_hora'), '%Y-%m-%dT%H:%M').replace(tzinfo=None)
+            ag.data_hora = novo_inicio
             ag.profissional_id = novo_profissional_id
             ag.servico_id = novo_servico_id
             
             db.session.commit()
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({"success": True, "message": "Reserva atualizada com sucesso."}), 200
             flash('Agendamento atualizado com sucesso!', 'success')
             return redirect(url_for('main.agenda',
                                     data=ag.data_hora.strftime('%Y-%m-%d'),
@@ -579,6 +633,8 @@ def editar_agendamento(agendamento_id):
         
         except Exception as e:
             db.session.rollback()
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({"success": False, "error": str(e)}), 400
             flash(f'Erro ao atualizar agendamento: {str(e)}', 'danger')
             return redirect(url_for('main.editar_agendamento', agendamento_id=agendamento_id))
     
@@ -2011,43 +2067,67 @@ from flask import jsonify
 def api_reservas_calendario():
     if not current_user.barbearia_id:
         return jsonify([])
-    
-    agendamentos = (
+
+    query = (
         Agendamento.query
         .options(joinedload(Agendamento.servico), joinedload(Agendamento.profissional))
         .filter_by(barbearia_id=current_user.barbearia_id)
-        .all()
     )
+
+    # Filtro opcional de janela de datas (FullCalendar envia ?start=...&end=...) com 15 dias de margem
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    try:
+        if start_str:
+            dt_start = datetime.fromisoformat(start_str[:10]) - timedelta(days=15)
+            query = query.filter(Agendamento.data_hora >= dt_start)
+        if end_str:
+            dt_end = datetime.fromisoformat(end_str[:10]) + timedelta(days=2)
+            query = query.filter(Agendamento.data_hora <= dt_end)
+    except Exception:
+        pass
+
+    agendamentos = query.order_by(Agendamento.data_hora.asc()).all()
     eventos = []
     
-    # Paleta de cores premium para diferenciar os quartos
-    cores = ['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981', '#f43f5e', '#6366f1', '#14b8a6', '#f97316']
+    # Paleta executiva de alto contraste para diferenciar acomodações
+    cores = ['#0F172A', '#0284C7', '#059669', '#D97706', '#7C3AED', '#E11D48', '#0D9488', '#4F46E5']
     
     for ag in agendamentos:
         duracao = ag.servico.duracao if ag.servico else 1440
+        preco = float(ag.servico.preco) if ag.servico and ag.servico.preco is not None else 0.0
+        servico_nome = ag.servico.nome if ag.servico else 'Diária Padrão'
         fim = ag.data_hora + timedelta(minutes=duracao)
         
         # Lógica inteligente: Se for menos de 12h (720 min) ou tiver 'day' no nome, é Day Use.
         is_day_use = duracao <= 720 or (ag.servico and 'day' in ag.servico.nome.lower())
-        icone = '☀️' if is_day_use else '🛏️'
-        tipo_texto = 'Day Use' if is_day_use else 'Diária'
+        tipo_texto = 'Day Use' if is_day_use else f'{duracao / 1440:g} Diária(s)'
         
         # Cada quarto ganha uma cor fixa baseada no ID dele
-        cor_quarto = cores[ag.profissional_id % len(cores)]
+        cor_quarto = cores[ag.profissional_id % len(cores)] if ag.profissional_id else '#0F172A'
+        tel_limpo = str(ag.telefone_cliente or '').replace('whatsapp:', '').split('@')[0]
         
         eventos.append({
             'id': ag.id,
-            'title': f"{icone} {ag.nome_cliente}",
+            'title': ag.nome_cliente,
             'start': ag.data_hora.strftime('%Y-%m-%dT%H:%M:%S'),
             'end': fim.strftime('%Y-%m-%dT%H:%M:%S'),
-            'color': cor_quarto, # Envia a cor para o calendário
+            'color': cor_quarto,
             'extendedProps': {
+                'nome_cliente': ag.nome_cliente,
                 'quarto_id': str(ag.profissional_id),
-                'quarto_nome': ag.profissional.nome if ag.profissional else '',
-                'telefone': str(ag.telefone_cliente or '').split('@')[0],
+                'quarto_nome': ag.profissional.nome if ag.profissional else 'Acomodação',
+                'servico_id': str(ag.servico_id or ''),
+                'servico_nome': servico_nome,
+                'duracao': duracao,
+                'preco': preco,
+                'preco_formatado': f"R$ {preco:,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.'),
+                'telefone': tel_limpo,
                 'tipo': tipo_texto,
-                'checkin': ag.data_hora.strftime('%d/%m às %H:%M'),
-                'checkout': fim.strftime('%d/%m às %H:%M')
+                'is_day_use': is_day_use,
+                'checkin': ag.data_hora.strftime('%d/%m/%Y às %H:%M'),
+                'checkout': fim.strftime('%d/%m/%Y às %H:%M'),
+                'data_hora_input': ag.data_hora.strftime('%Y-%m-%dT%H:%M')
             }
         })
         

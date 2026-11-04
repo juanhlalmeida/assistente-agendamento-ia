@@ -9,6 +9,7 @@ from flask import url_for
 from app.plugins.base_plugin import BaseBusinessPlugin
 from app.models.tables import Profissional, Agendamento, Servico, ChatLog
 from app.extensions import db, cache
+from sqlalchemy.orm import joinedload
 from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 # Configuração de Log
@@ -72,6 +73,7 @@ Se o cliente pedir menos que isso, EXPLIQUE AS REGRAS EDUCADAMENTE MAS NÃO ENCE
 
 - Se o cliente ajustar os dados, chame a ferramenta novamente.
 - Se a ferramenta retornar lista vazia (nenhum quarto disponível), diga: "Infelizmente não temos quartos disponíveis para esses critérios. Gostaria de tentar outras datas ou ajustar o número de pessoas/dias?"
+- REGRA DE OURO ANTI-OVERBOOKING: Você está PROIBIDO de confirmar qualquer reserva sem antes consultar `verificar_disponibilidade_hotel` e receber confirmação positiva de vaga livre da ferramenta `realizar_reserva_quarto`.
 
 - Quando a reserva for confirmada com sucesso, agradeça e reforce os dados de forma acolhedora.
 
@@ -108,11 +110,16 @@ LISTA DE QUARTOS (Copie exatamente estes nomes):
         checkout_desejado = (checkin_desejado + timedelta(days=dias_estadia)).replace(hour=16, minute=0, second=0)
 
         # Busca conflitos (reservas existentes que batem com as datas)
-        reservas = Agendamento.query.filter(
-            Agendamento.barbearia_id == self.business.id,
-            Agendamento.profissional_id == quarto_id,
-            Agendamento.data_hora >= datetime.now(tz) - timedelta(days=30)
-        ).all()
+        reservas = (
+            Agendamento.query
+            .options(joinedload(Agendamento.servico))
+            .filter(
+                Agendamento.barbearia_id == self.business.id,
+                Agendamento.profissional_id == quarto_id,
+                Agendamento.data_hora >= datetime.now(tz) - timedelta(days=30)
+            )
+            .all()
+        )
 
         for reserva in reservas:
             inicio_existente = reserva.data_hora

@@ -1,6 +1,7 @@
 # app/blueprints/servicos/routes.py
 import logging
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
+from sqlalchemy import func
 from app.models.tables import Servico, Agendamento
 from app.extensions import db
 from flask_login import login_required, current_user # Para proteger a rota e filtrar
@@ -18,14 +19,23 @@ def index():
     # Validação do usuário e barbearia (importante manter)
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        return redirect(url_for('auth.login')) # Redireciona para o login (assumindo que login está em 'auth')
-        # Se seu login ainda estiver no 'main', use 'main.login'
+        return redirect(url_for('main.login'))
         
     barbearia_id_logada = current_user.barbearia_id
+    uso_por_servico = {}
     
     try:
         # Busca no banco APENAS os serviços pertencentes a esta barbearia
-        lista_servicos = Servico.query.filter_by(barbearia_id=barbearia_id_logada).order_by(Servico.nome).all()
+        lista_servicos = Servico.query.filter_by(barbearia_id=barbearia_id_logada).order_by(Servico.duracao.asc(), Servico.nome.asc()).all()
+
+        # Consulta única agrupada (Zero N+1) para saber quantos agendamentos/reservas usam cada pacote
+        contagens = (
+            db.session.query(Agendamento.servico_id, func.count(Agendamento.id))
+            .filter(Agendamento.barbearia_id == barbearia_id_logada)
+            .group_by(Agendamento.servico_id)
+            .all()
+        )
+        uso_por_servico = {srv_id: int(qtd) for srv_id, qtd in contagens if srv_id is not None}
     except Exception as e:
         # Loga o erro caso a consulta falhe
         current_app.logger.error(f"Erro ao buscar serviços para barbearia {barbearia_id_logada}: {e}", exc_info=True)
@@ -33,7 +43,7 @@ def index():
         lista_servicos = [] # Retorna lista vazia em caso de erro
 
     # Passa a lista de serviços para o template
-    return render_template('servicos.html', servicos=lista_servicos)
+    return render_template('servicos.html', servicos=lista_servicos, uso_por_servico=uso_por_servico)
 
 @bp.route('/novo', methods=['GET', 'POST'])
 @login_required
@@ -44,72 +54,68 @@ def novo_servico():
     # Validação do usuário e barbearia
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        # Ajuste 'auth.login' se seu blueprint de login tiver outro nome
-        return redirect(url_for('auth.login')) 
+        return redirect(url_for('main.login')) 
         
     barbearia_id_logada = current_user.barbearia_id
 
     if request.method == 'POST':
         # Obter dados do formulário
-        nome = request.form.get('nome')
-        duracao_str = request.form.get('duracao')
-        preco_str = request.form.get('preco')
+        nome = (request.form.get('nome') or '').strip()
+        duracao_str = (request.form.get('duracao') or '').strip()
+        preco_str = (request.form.get('preco') or '').strip()
 
-        # Validação simples (pode ser melhorada com WTForms no futuro)
+        # Validação simples
         erros = []
         if not nome:
-            erros.append("O nome do serviço é obrigatório.")
+            erros.append("O nome do pacote/serviço é obrigatório.")
         if not duracao_str or not duracao_str.isdigit() or int(duracao_str) <= 0:
             erros.append("A duração deve ser um número inteiro positivo (em minutos).")
         if not preco_str:
             erros.append("O preço é obrigatório.")
         else:
             try:
-                # Tenta converter o preço para float, tratando vírgula como ponto decimal
-                preco = float(preco_str.replace(',', '.'))
+                # Tenta converter o preço para float, tratando vírgula como ponto decimal e pontos de milhar
+                preco_normalizado = preco_str.replace('R$', '').strip()
+                if ',' in preco_normalizado and '.' in preco_normalizado:
+                    preco_normalizado = preco_normalizado.replace('.', '').replace(',', '.')
+                else:
+                    preco_normalizado = preco_normalizado.replace(',', '.')
+                preco = float(preco_normalizado)
                 if preco < 0:
                      erros.append("O preço não pode ser negativo.")
             except ValueError:
-                erros.append("O preço deve ser um número válido (ex: 40.00 ou 40,00).")
+                erros.append("O preço deve ser um número válido (ex: 450,00).")
 
         if erros:
-            # Se houver erros, exibe-os e re-renderiza o formulário com os dados inseridos
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({"success": False, "error": " ".join(erros)}), 400
             for erro in erros:
                 flash(erro, 'danger')
-            # Passa os dados de volta para preencher o formulário novamente
             return render_template('novo_servico.html', form_data=request.form)
         else:
-            # Se não houver erros, cria o novo serviço
             try:
                 novo = Servico(
                     nome=nome,
                     duracao=int(duracao_str),
                     preco=preco,
-                    barbearia_id=barbearia_id_logada # Associa à barbearia correta
+                    barbearia_id=barbearia_id_logada
                 )
                 db.session.add(novo)
                 db.session.commit()
-                flash(f'Serviço "{nome}" adicionado com sucesso!', 'success')
-                # Redireciona de volta para a lista de serviços
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({"success": True, "message": f'"{nome}" adicionado com sucesso!'}), 200
+                flash(f'"{nome}" adicionado com sucesso!', 'success')
                 return redirect(url_for('servicos.index')) 
             except Exception as e:
                 db.session.rollback()
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({"success": False, "error": str(e)}), 500
                 flash(f'Erro ao adicionar serviço: {str(e)}', 'danger')
                 current_app.logger.error(f"Erro ao adicionar serviço: {e}", exc_info=True)
-                # Re-renderiza o formulário em caso de erro no banco
                 return render_template('novo_servico.html', form_data=request.form)
 
     # Se for método GET, apenas exibe o formulário vazio
-    return render_template('novo_servico.html', form_data={}) # Passa form_data vazio
-
-# ... (Rotas Editar/Apagar futuras) ...
-from app.models.tables import Servico
-from app.extensions import db
-from flask_login import login_required, current_user
-# Importa 'abort' se ainda não estiver importado
-from flask import abort, current_app, flash, redirect, url_for 
-
-# ... (blueprint 'bp', rota 'index', rota 'novo_servico') ...
+    return render_template('novo_servico.html', form_data={})
 
 # --- ROTA PARA EDITAR UM SERVIÇO EXISTENTE ---
 @bp.route('/editar/<int:servico_id>', methods=['GET', 'POST'])
@@ -121,7 +127,7 @@ def editar_servico(servico_id):
     # Validação do usuário e barbearia
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        return redirect(url_for('auth.login')) # Ajuste se necessário
+        return redirect(url_for('main.login'))
 
     barbearia_id_logada = current_user.barbearia_id
 
@@ -133,104 +139,107 @@ def editar_servico(servico_id):
         abort(404, description="Serviço não encontrado ou não pertence à sua barbearia.")
 
     if request.method == 'POST':
-        # Obter dados do formulário
-        nome = request.form.get('nome')
-        duracao_str = request.form.get('duracao')
-        preco_str = request.form.get('preco')
+        nome = (request.form.get('nome') or '').strip()
+        duracao_str = (request.form.get('duracao') or '').strip()
+        preco_str = (request.form.get('preco') or '').strip()
 
-        # Validação (igual à da rota 'novo_servico')
         erros = []
         if not nome:
-            erros.append("O nome do serviço é obrigatório.")
+            erros.append("O nome do pacote/serviço é obrigatório.")
         if not duracao_str or not duracao_str.isdigit() or int(duracao_str) <= 0:
             erros.append("A duração deve ser um número inteiro positivo (em minutos).")
         if not preco_str:
             erros.append("O preço é obrigatório.")
         else:
             try:
-                preco = float(preco_str.replace(',', '.'))
+                preco_normalizado = preco_str.replace('R$', '').strip()
+                if ',' in preco_normalizado and '.' in preco_normalizado:
+                    preco_normalizado = preco_normalizado.replace('.', '').replace(',', '.')
+                else:
+                    preco_normalizado = preco_normalizado.replace(',', '.')
+                preco = float(preco_normalizado)
                 if preco < 0:
                      erros.append("O preço não pode ser negativo.")
             except ValueError:
-                erros.append("O preço deve ser um número válido (ex: 40.00 ou 40,00).")
+                erros.append("O preço deve ser um número válido (ex: 450,00).")
 
         if erros:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({"success": False, "error": " ".join(erros)}), 400
             for erro in erros:
                 flash(erro, 'danger')
-            # Re-renderiza o formulário de EDIÇÃO com os dados (errados) inseridos
-            # Passamos o 'servico' original também para manter o ID na URL
             return render_template('editar_servico.html', servico=servico, form_data=request.form)
         else:
-            # Se não houver erros, ATUALIZA o serviço existente
             try:
                 servico.nome = nome
                 servico.duracao = int(duracao_str)
                 servico.preco = preco
-                # O barbearia_id não muda
                 
-                db.session.commit() # Salva as alterações no banco
-                flash(f'Serviço "{nome}" atualizado com sucesso!', 'success')
+                db.session.commit()
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({"success": True, "message": f'"{nome}" atualizado com sucesso!'}), 200
+                flash(f'"{nome}" atualizado com sucesso!', 'success')
                 return redirect(url_for('servicos.index')) 
             except Exception as e:
                 db.session.rollback()
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return jsonify({"success": False, "error": str(e)}), 500
                 flash(f'Erro ao atualizar serviço: {str(e)}', 'danger')
                 current_app.logger.error(f"Erro ao atualizar serviço ID {servico_id}: {e}", exc_info=True)
-                # Re-renderiza o formulário de EDIÇÃO em caso de erro no banco
                 return render_template('editar_servico.html', servico=servico, form_data=request.form)
 
-    # Se for método GET, exibe o formulário preenchido com os dados do serviço
-    # Passamos os dados do 'servico' para a variável 'form_data' do template
     form_data_preenchido = {
         'nome': servico.nome,
         'duracao': servico.duracao,
-        'preco': f"{servico.preco:.2f}".replace('.', ',') # Formata com vírgula para o input
+        'preco': f"{servico.preco:.2f}".replace('.', ',')
     }
     return render_template('editar_servico.html', servico=servico, form_data=form_data_preenchido)
 
-# ... (Rota Apagar futura) ...
 
 @bp.route('/apagar/<int:servico_id>', methods=['POST']) 
 @login_required
 def apagar_servico(servico_id):
     """Apaga um serviço existente, APENAS se não houver agendamentos associados."""
 
-    # Validação do usuário e barbearia (mantém)
     if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
         flash('Erro: Usuário inválido ou não associado a uma barbearia.', 'danger')
-        return redirect(url_for('auth.login')) 
+        return redirect(url_for('main.login')) 
         
     barbearia_id_logada = current_user.barbearia_id
 
-    # Busca o serviço específico E garante que pertence à barbearia logada
     servico = Servico.query.filter_by(id=servico_id, barbearia_id=barbearia_id_logada).first()
 
     if not servico:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "error": "Item não encontrado."}), 404
         flash('Serviço não encontrado ou não pertence à sua barbearia.', 'danger')
         return redirect(url_for('servicos.index'))
 
     # --- VERIFICAÇÃO DE DEPENDÊNCIA ---
-    # Conta quantos agendamentos (desta barbearia) usam este serviço
     agendamentos_existentes = Agendamento.query.filter_by(
         servico_id=servico.id, 
-        barbearia_id=barbearia_id_logada # Garante filtro por barbearia
+        barbearia_id=barbearia_id_logada
     ).count()
 
     if agendamentos_existentes > 0:
-        # Se existem agendamentos, IMPEDE a exclusão
-        flash(f'Erro: Não é possível apagar o serviço "{servico.nome}", pois ele já foi utilizado em {agendamentos_existentes} agendamento(s).', 'danger')
+        msg_dep = f'Não é possível remover "{servico.nome}", pois está vinculado a {agendamentos_existentes} reserva(s)/agendamento(s).'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "error": msg_dep}), 409
+        flash(f'Erro: {msg_dep}', 'danger')
         return redirect(url_for('servicos.index'))
-    # --- FIM DA VERIFICAÇÃO ---
         
-    # Se chegou aqui, é seguro apagar
     try:
         nome_servico_apagado = servico.nome 
         db.session.delete(servico)
         db.session.commit()
-        flash(f'Serviço "{nome_servico_apagado}" apagado com sucesso!', 'warning')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": True, "message": f'"{nome_servico_apagado}" removido com sucesso.'}), 200
+        flash(f'"{nome_servico_apagado}" removido com sucesso!', 'warning')
     except Exception as e:
         db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"success": False, "error": str(e)}), 500
         flash(f'Erro ao apagar serviço: {str(e)}', 'danger')
         current_app.logger.error(f"Erro ao apagar serviço ID {servico_id}: {e}", exc_info=True)
 
-    # Redireciona sempre de volta para a lista de serviços
     return redirect(url_for('servicos.index'))

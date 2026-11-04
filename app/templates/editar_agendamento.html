@@ -3,90 +3,134 @@
 {% block title %}Editar Agendamento{% endblock %}
 
 {% block content %}
-{# 
-  Em vez de 'row' e 'col', usamos 'flex' para centralizar o contêiner.
-  'max-w-4xl' define uma largura máxima para o formulário.
-#}
-<div class="flex justify-center">
-  <div class="w-full max-w-4xl">
-    
-    {# 
-      O 'card' do Bootstrap vira um 'bg-surface-dark rounded-xl'.
-      'overflow-hidden' é importante para os cantos arredondados funcionarem no header.
-    #}
-    <div class="bg-surface-dark rounded-xl shadow-lg overflow-hidden">
-      
-      {# O 'card-header' vira um 'div' com padding e borda #}
-      <div class="p-6 border-b border-gray-700">
-        <h2 class="text-xl font-bold text-text-primary-dark">Editar Agendamento</h2>
-      </div>
-      
-      {# O 'card-body' vira um 'div' com padding #}
-      <div class="p-6">
-        <form method="post">
-          {# 
-            Usamos 'grid' para alinhar os campos do formulário, 
-            exatamente como fizemos no modal.
-          #}
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            
-            {# Campo: Nome do Cliente #}
-            <div>
-              <label for="nome_cliente" class="block text-sm font-medium text-text-secondary-dark mb-1">Nome do Cliente</label>
-              <input type="text" id="nome_cliente" name="nome_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" value="{{ agendamento.nome_cliente }}" required>
-            </div>
-            
-            {# Campo: Telefone #}
-            <div>
-              <label for="telefone_cliente" class="block text-sm font-medium text-text-secondary-dark mb-1">Telefone</label>
-              <input type="text" id="telefone_cliente" name="telefone_cliente" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" value="{{ agendamento.telefone_cliente }}" required>
-            </div>
+{% set is_pousada = false %}
+{% set vocab_edit = namespace(
+    titulo='Editar Agendamento',
+    cliente='Nome do Cliente',
+    prof='Profissional',
+    serv='Serviço',
+    data='Data e Hora'
+) %}
+{% if current_user.is_authenticated and current_user.barbearia %}
+    {% set tipo = current_user.barbearia.business_type %}
+    {% set nome = current_user.barbearia.nome_fantasia.lower() %}
+    {% if tipo == 'pousada' or 'pousada' in nome %}
+        {% set is_pousada = true %}
+        {% set vocab_edit.titulo = 'Editar Reserva de Hospedagem' %}
+        {% set vocab_edit.cliente = 'Nome do Hóspede' %}
+        {% set vocab_edit.prof = 'Acomodação / Quarto' %}
+        {% set vocab_edit.serv = 'Tarifa / Pacote' %}
+        {% set vocab_edit.data = 'Check-in (Data e Hora de Entrada)' %}
+    {% elif 'lash' in nome or 'studio' in nome %}
+        {% set vocab_edit.prof = 'Designer' %}
+        {% set vocab_edit.serv = 'Procedimento' %}
+    {% endif %}
+{% endif %}
 
-            {# Campo: Profissional #}
-            <div>
-              <label for="profissional_id" class="block text-sm font-medium text-text-secondary-dark mb-1">Profissional</label>
-              <select id="profissional_id" name="profissional_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
-                {% for profissional in profissionais %}
-                  <option value="{{ profissional.id }}" {% if profissional.id == agendamento.profissional_id %}selected{% endif %}>{{ profissional.nome }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            
-            {# Campo: Serviço #}
-            <div>
-              <label for="servico_id" class="block text-sm font-medium text-text-secondary-dark mb-1">Serviço</label>
-              <select id="servico_id" name="servico_id" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" required>
-                {% for servico in servicos %}
-                  <option value="{{ servico.id }}" {% if servico.id == agendamento.servico_id %}selected{% endif %}>{{ servico.nome }} ({{ servico.duracao }} min) - R$ {{ "%.2f"|format(servico.preco) }}</option>
-                {% endfor %}
-              </select>
-            </div>
+<div class="max-w-3xl mx-auto">
 
-            {# Campo: Data e Hora (ocupa as 2 colunas em telas médias) #}
-            <div class="md:col-span-2">
-              <label for="data_hora" class="block text-sm font-medium text-text-secondary-dark mb-1">Data e Hora</label>
-              <input type="datetime-local" id="data_hora" name="data_hora" class="bg-background-dark border border-gray-700 text-white text-sm rounded-lg focus:ring-primary focus:border-primary block w-full p-2.5" value="{{ agendamento.data_hora.strftime('%Y-%m-%dT%H:%M') }}" required>
+  {# Mensagens Flash (incluindo alertas de conflito de Overbooking) #}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="space-y-2.5 mb-6">
+        {% for category, message in messages %}
+          {% set alert_style = 'bg-blue-50 border-blue-200 text-blue-800' %}
+          {% if category == 'success' %}{% set alert_style = 'bg-emerald-50 border-emerald-200 text-emerald-800' %}{% endif %}
+          {% if category == 'danger' %}{% set alert_style = 'bg-red-50 border-red-200 text-red-800' %}{% endif %}
+          {% if category == 'warning' %}{% set alert_style = 'bg-amber-50 border-amber-200 text-amber-800' %}{% endif %}
+          <div class="{{ alert_style }} border px-4 py-3 rounded-lg flex justify-between items-center text-sm font-medium" role="alert">
+            <div class="flex items-center gap-2">
+              <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+              <span>{{ message }}</span>
             </div>
-          </div>
-          
-          {# O 'hr' vira uma borda. 'my-6' dá mais espaço (margin-top e bottom) #}
-          <div class="border-t border-gray-700 my-6"></div>
-          
-          {# Botões de ação alinhados à direita #}
-          <div class="flex justify-end gap-3">
-            {# Botão Cancelar #}
-            <a href="{{ url_for('main.agenda') }}" class="py-2 px-4 rounded-lg bg-gray-600 text-white font-semibold hover:bg-gray-500 transition-colors">
-              Cancelar
-            </a>
-            {# Botão Salvar #}
-            <button type="submit" class="py-2 px-4 rounded-lg bg-primary text-white font-semibold hover:bg-primary/90 transition-colors">
-              Salvar Alterações
+            <button type="button" onclick="this.parentElement.remove()" class="p-1 rounded hover:bg-black/5">
+              <i data-lucide="x" class="w-4 h-4"></i>
             </button>
           </div>
-        </form>
+        {% endfor %}
       </div>
+    {% endif %}
+  {% endwith %}
+
+  <div class="saas-card bg-white overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563EB]">
+          <i data-lucide="calendar-cog" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h2 class="text-base sm:text-lg font-bold text-[#0F172A]">{{ vocab_edit.titulo }}</h2>
+          <p class="text-xs text-slate-500">Validação ativa contra conflitos de horário e overbooking</p>
+        </div>
+      </div>
+      <a href="{{ url_for('main.agenda') }}" class="text-xs font-medium text-slate-500 hover:text-slate-800 inline-flex items-center gap-1">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        Voltar à Agenda
+      </a>
     </div>
-    
+
+    <div class="p-6">
+      <form method="post">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          
+          {# Campo: Nome do Cliente #}
+          <div>
+            <label for="nome_cliente" class="saas-label">{{ vocab_edit.cliente }}</label>
+            <input type="text" id="nome_cliente" name="nome_cliente" class="saas-input" value="{{ agendamento.nome_cliente }}" required>
+          </div>
+          
+          {# Campo: Telefone #}
+          <div>
+            <label for="telefone_cliente" class="saas-label">Telefone / WhatsApp</label>
+            <input type="text" id="telefone_cliente" name="telefone_cliente" class="saas-input tabular-nums" value="{{ agendamento.telefone_cliente | format_phone }}" required>
+          </div>
+
+          {# Campo: Profissional / Quarto #}
+          <div>
+            <label for="profissional_id" class="saas-label">{{ vocab_edit.prof }}</label>
+            <select id="profissional_id" name="profissional_id" class="saas-select" required>
+              {% for profissional in profissionais %}
+                <option value="{{ profissional.id }}" {% if profissional.id == agendamento.profissional_id %}selected{% endif %}>{{ profissional.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          {# Campo: Serviço / Pacote #}
+          <div>
+            <label for="servico_id" class="saas-label">{{ vocab_edit.serv }}</label>
+            <select id="servico_id" name="servico_id" class="saas-select tabular-nums" required>
+              {% for servico in servicos %}
+                {% if is_pousada %}
+                  {% set dias = servico.duracao / 1440 %}
+                  {% set label_dur = (dias|round(1) ~ ' Diária(s)') if dias >= 1 else ((servico.duracao / 60)|round(1) ~ 'h Day Use') %}
+                {% else %}
+                  {% set label_dur = servico.duracao ~ ' min' %}
+                {% endif %}
+                <option value="{{ servico.id }}" {% if servico.id == agendamento.servico_id %}selected{% endif %}>
+                  {{ servico.nome }} ({{ label_dur }}) - R$ {{ "%.2f"|format(servico.preco) }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          {# Campo: Data e Hora #}
+          <div class="md:col-span-2">
+            <label for="data_hora" class="saas-label">{{ vocab_edit.data }}</label>
+            <input type="datetime-local" id="data_hora" name="data_hora" class="saas-input tabular-nums" value="{{ agendamento.data_hora.strftime('%Y-%m-%dT%H:%M') }}" required>
+          </div>
+        </div>
+        
+        <div class="border-t border-slate-200 mt-6 pt-5 flex justify-end gap-2.5">
+          <a href="{{ url_for('main.agenda') }}" class="saas-btn-secondary px-4 py-2 text-sm">
+            Cancelar
+          </a>
+          <button type="submit" class="saas-btn-primary px-5 py-2 text-sm inline-flex items-center gap-2 cursor-pointer">
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>Salvar Alterações</span>
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 {% endblock %}

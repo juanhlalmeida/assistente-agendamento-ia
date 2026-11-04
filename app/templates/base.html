@@ -342,7 +342,7 @@
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" x2="7.01" y1="7" y2="7"/>
           </svg>
-          <span>Serviços</span>
+          <span>{{ vocab.serv_label }}</span>
         </a>
 
         <a href="{{ url_for('main.configuracoes') }}"
@@ -358,7 +358,52 @@
 
   </div>
 
+  {# Sistema Global de Notificações Toast (Padrão Linear / Stripe) #}
+  <div id="saasToastContainer" class="fixed top-4 right-4 left-4 sm:left-auto sm:w-96 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
   <script>
+    window.showToast = function (message, type) {
+      const container = document.getElementById('saasToastContainer');
+      if (!container || !message) return;
+      const toast = document.createElement('div');
+      const isError = type === 'danger' || type === 'error';
+      const isSuccess = type === 'success';
+      const isWarning = type === 'warning';
+
+      let borderClass = 'border-[#EAEAEA] bg-white text-[#0F172A]';
+      let iconSvg = '<svg class="w-4 h-4 text-[#0F172A] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+
+      if (isSuccess) {
+        borderClass = 'border-emerald-200 bg-[#ECFDF5] text-[#065F46]';
+        iconSvg = '<svg class="w-4 h-4 text-[#059669] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+      } else if (isError) {
+        borderClass = 'border-red-200 bg-[#FEF2F2] text-[#991B1B]';
+        iconSvg = '<svg class="w-4 h-4 text-[#DC2626] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+      } else if (isWarning) {
+        borderClass = 'border-amber-200 bg-[#FFFBEB] text-[#92400E]';
+        iconSvg = '<svg class="w-4 h-4 text-[#D97706] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+      }
+
+      toast.className = `pointer-events-auto rounded-xl border px-4 py-3 shadow-md flex items-start justify-between gap-3 text-xs sm:text-sm font-medium transition-all duration-200 opacity-0 translate-y-[-8px] ${borderClass}`;
+      toast.innerHTML = `
+        <div class="flex items-start gap-2.5 min-w-0">
+          <div class="mt-0.5">${iconSvg}</div>
+          <span class="leading-snug break-words">${message}</span>
+        </div>
+        <button type="button" class="text-current opacity-60 hover:opacity-100 p-0.5 shrink-0" onclick="this.parentElement.remove()">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      `;
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-[-8px]');
+      });
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-[-8px]');
+        setTimeout(() => toast.remove(), 220);
+      }, 4500);
+    };
+
     if (window.lucide) {
       lucide.createIcons({ attrs: { 'stroke-width': 1.75 } });
     }
