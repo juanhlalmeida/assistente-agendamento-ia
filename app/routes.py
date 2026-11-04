@@ -1,6 +1,7 @@
 # app/routes.py
 # (VERSÃO FINAL: BASEADO NO SEU ARQUIVO ORIGINAL + ATUALIZAÇÃO DE PLANOS)
 import os
+import re
 import logging
 import json
 import requests
@@ -129,6 +130,19 @@ def enviar_mensagem_whatsapp_meta(destinatario: str, mensagem: str, barbearia: B
     Roteador Central: Decide se envia pela Meta ou pelo WAHA baseado no cadastro.
     Mantemos o nome da função original para não quebrar a IA nem outras dependências.
     """
+    # 🛡️ TRAVA ANTI-TIMEOUT (Early Return): bloqueia números vazios, '0', '550' ou com menos de 10 dígitos
+    numero_base = str(destinatario or '').split('@')[0]
+    numero_limpo = re.sub(r'\D', '', numero_base)
+    if (
+        not numero_limpo
+        or numero_limpo in ('0', '550')
+        or set(numero_limpo) == {'0'}
+        or (numero_limpo.startswith('55') and set(numero_limpo[2:]) == {'0'})
+        or len(numero_limpo) < 10
+    ):
+        logging.warning(f"Envio ignorado: número inválido/fictício ({destinatario})")
+        return False
+
     # 1. DESVIO PARA O NOVO MOTOR (WAHA)
     if getattr(barbearia, 'provedor_mensageria', 'meta') == 'waha':
         from app.services.waha_service import enviar_mensagem_waha
@@ -426,15 +440,26 @@ def agenda():
                             f"📅 *Salvar na Agenda:* 👇\n{link_curto}"
                         )
                         
-                        tel_destino = telefone_cliente
-                        if len(tel_destino) <= 11: tel_destino = "55" + tel_destino
-                        
-                        # 🧵 DISPARO ASSÍNCRONO PARA O CLIENTE (THREAD)
-                        t_cliente = threading.Thread(
-                            target=enviar_mensagem_whatsapp_meta, 
-                            args=(tel_destino, msg_cliente, barbearia_atual)
-                        )
-                        t_cliente.start()
+                        tel_limpo = re.sub(r'\D', '', str(telefone_cliente or ''))
+                        if (
+                            not tel_limpo
+                            or tel_limpo in ('0', '550')
+                            or set(tel_limpo) == {'0'}
+                            or (tel_limpo.startswith('55') and set(tel_limpo[2:]) == {'0'})
+                            or len(tel_limpo) < 10
+                        ):
+                            logging.warning(f"Envio ignorado: número inválido/fictício ({telefone_cliente})")
+                        else:
+                            tel_destino = tel_limpo
+                            if len(tel_destino) <= 11:
+                                tel_destino = "55" + tel_destino
+                            
+                            # 🧵 DISPARO ASSÍNCRONO PARA O CLIENTE (THREAD)
+                            t_cliente = threading.Thread(
+                                target=enviar_mensagem_whatsapp_meta, 
+                                args=(tel_destino, msg_cliente, barbearia_atual)
+                            )
+                            t_cliente.start()
 
                     # --- Preparar Mensagem do Dono ---
                     barbearia_dono = profissional.barbearia

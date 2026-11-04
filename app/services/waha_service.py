@@ -31,6 +31,19 @@ def formatar_numero_waha(numero):
 
 def enviar_mensagem_waha(session_id, to_number, text):
     """Envia uma mensagem de texto simulando o comportamento humano (Typing...)"""
+    # 🛡️ TRAVA ANTI-TIMEOUT (Early Return): bloqueia números vazios, '0', '550' ou com menos de 10 dígitos
+    numero_base = str(to_number or '').split('@')[0]
+    numero_limpo = re.sub(r'\D', '', numero_base)
+    if (
+        not numero_limpo
+        or numero_limpo in ('0', '550')
+        or set(numero_limpo) == {'0'}
+        or (numero_limpo.startswith('55') and set(numero_limpo[2:]) == {'0'})
+        or len(numero_limpo) < 10
+    ):
+        logging.warning(f"[WAHA] Envio ignorado: número inválido/fictício ({to_number})")
+        return False, "Envio ignorado: número inválido/fictício"
+
     chat_id = formatar_numero_waha(to_number)
     
     # 👇 ALTERAÇÃO CIRÚRGICA: Injeta a assinatura invisível da IA (Zero-Width Space)
@@ -84,6 +97,18 @@ def enviar_mensagem_waha(session_id, to_number, text):
 
 def enviar_midia_waha(session_id, to_number, url_arquivo, caption=""):
     """Envia imagem/mídia via WAHA forçando o formato de Imagem (Foto nativa)"""
+    numero_base = str(to_number or '').split('@')[0]
+    numero_limpo = re.sub(r'\D', '', numero_base)
+    if (
+        not numero_limpo
+        or numero_limpo in ('0', '550')
+        or set(numero_limpo) == {'0'}
+        or (numero_limpo.startswith('55') and set(numero_limpo[2:]) == {'0'})
+        or len(numero_limpo) < 10
+    ):
+        logging.warning(f"[WAHA] Envio de mídia ignorado: número inválido/fictício ({to_number})")
+        return False
+
     chat_id = formatar_numero_waha(to_number)
     payload = {
         "session": session_id,
