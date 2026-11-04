@@ -2,7 +2,10 @@
 seed_odonto.py — Script de Seed da Vitrine Odontológica 'Concept Dental Studio'.
 Pode ser executado via terminal (`python seed_odonto.py`) ou acessando a rota `/setup-odonto`.
 """
+from werkzeug.security import generate_password_hash
 from app import create_app
+from app.extensions import db
+from app.models.tables import User
 from app.routes import executar_seed_odonto
 
 
@@ -10,6 +13,13 @@ def main():
     app = create_app()
     with app.app_context():
         clinica, admin_user, resumo = executar_seed_odonto()
+
+        # Garante atualização explícita do hash da senha caso o usuário já existisse no banco
+        usuario_existente = User.query.filter_by(email="contato@conceptdental.com.br").first()
+        if usuario_existente:
+            usuario_existente.password_hash = generate_password_hash("odonto123")
+            db.session.add(usuario_existente)
+            db.session.commit()
         print("=" * 64)
         print("🦷 VITRINE ODONTOLÓGICA CRIADA / ATUALIZADA COM SUCESSO!")
         print("=" * 64)
