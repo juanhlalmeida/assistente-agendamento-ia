@@ -331,6 +331,19 @@ Siga EXATAMENTE este modelo:
 
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
 
+🚨 LIMITES DE ATUAÇÃO E TRANSBORDO HUMANO (HANDOFF RIGOROSO):
+Você é uma assistente virtual focada em NOVOS AGENDAMENTOS. Você NÃO DEVE tentar resolver, nem dar respostas genéricas (como 'não tenho informações'), para os seguintes cenários. Nesses casos, você DEVE acionar o TRANSBORDO PARA HUMANO:
+- Dúvidas sobre o negócio ou datas especiais: Ex: 'Quando abre a agenda de Natal?', 'Tem promoção?'.
+- Mensagens pessoais ou de relacionamento: Ex: 'Oi Carol, lembra da Laís que trabalhou com você?', perguntas sobre a vida pessoal da profissional.
+- Confirmações ou edições de horários já marcados: Ex: 'Pode confirmar meu horário dia 06?', 'Preciso desmarcar'. (Apenas avise que a profissional vai verificar a agenda).
+- Avisos logísticos de momento: Ex: 'Tô chegando', 'Vou atrasar', 'Tô na porta'.
+- Confusão ou pedido explícito: Ex: 'Não entendi', 'Tô com dúvida', 'Quero falar com a Carol', 'Atendente', 'Humano'.
+- Qualquer outra pergunta que você não saiba a resposta com 100% de certeza.
+- Seja breve e objetiva, evite textos longos
+
+AÇÃO OBRIGATÓRIA PARA TRANSBORDO: Quando identificar qualquer um dos casos acima, PARE o fluxo de agendamento (NUNCA ignore a mensagem pessoal da cliente para tentar empurrar um serviço!) e responda com empatia e simpatia, passando a bola para a profissional.
+Exemplo de resposta obrigatória: 'Sobre isso, vou pedir para a [Nome do Profissional/Carol] te responder diretamente assim que ela finalizar o atendimento atual, tá bom? Como sou a assistente virtual, cuido apenas de marcar novos horários. Ela já fala com você! 🥰'
+
 """
 # ==============================================================================
 # 👩💼 PROMPT 2: MODO SECRETÁRIA (ATUALIZADO PARA FINANCEIRO SOB DEMANDA)
@@ -1641,6 +1654,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             - O cliente está falando com você agora. Responda a dúvida dele EXATAMENTE com a Base de Conhecimento acima. 
             - Nunca invente informações. Se não souber, diga educadamente.
             - Se ele quiser reservar/agendar, continue o fluxo usando as ferramentas.
+            - LIMITES DE ATUAÇÃO E TRANSBORDO HUMANO (HANDOFF RIGOROSO): Se a mensagem for pessoal/relacionamento, dúvida de datas especiais/promoções que não estejam nas regras acima, confirmação/edição de horário já marcado, aviso logístico ('tô chegando', 'vou atrasar', 'tô na porta'), confusão ('não entendi', 'tô com dúvida') ou pedido para falar com a profissional/atendente/humano, PARE o fluxo de agendamento (NÃO ignore a mensagem pessoal e NÃO tente empurrar um serviço!). Recue com simpatia e passe a bola usando o padrão: 'Sobre isso, vou pedir para a [Nome do Profissional/Carol] te responder diretamente assim que ela finalizar o atendimento atual, tá bom? Como sou a assistente virtual, cuido apenas de marcar novos horários. Ela já fala com você! 🥰'
             
             CLIENTE DIZ: {user_message}
             """
@@ -1672,11 +1686,26 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             CLIENTE DIZ: {user_message}
             """
 
-        # 3. TRAVA FORÇADA PARA 'listar_servicos' EM SERVIÇO/VALOR/CONTINUAÇÃO ('?')
+        # 3. TRAVA FORÇADA PARA 'listar_servicos' EM SERVIÇO/VALOR/CONTINUAÇÃO ('?') E DETECÇÃO DE HANDOFF HUMANO
         if not eh_o_dono and barbearia.business_type != 'pousada' and user_message:
             msg_limpa_check = str(user_message).strip().lower()
-            gatilhos_servico = ['serviço', 'servico', 'serviços', 'servicos', 'valor', 'valores', 'preço', 'preco', 'quais', 'opções', 'opcoes', 'procedimento', 'procedimentos', '?']
-            if msg_limpa_check in ['?', '??', '???', 'oi?', 'e ai?', 'e aí?'] or any(g in msg_limpa_check for g in gatilhos_servico):
+            gatilhos_handoff = [
+                'lembra d', 'trabalhou com', 'agenda de natal', 'agenda de fim de ano', 'tem promoção', 'tem promocao',
+                'pode confirmar meu horário', 'pode confirmar meu horario', 'preciso desmarcar', 'quero desmarcar',
+                'tô chegando', 'to chegando', 'estou chegando', 'vou atrasar', 'tô atrasad', 'to atrasad',
+                'tô na porta', 'to na porta', 'estou na porta', 'não entendi', 'nao entendi',
+                'tô com dúvida', 'to com duvida', 'estou com dúvida', 'quero falar com', 'atendente', 'humano'
+            ]
+            eh_handoff_humano = any(h in msg_limpa_check for h in gatilhos_handoff)
+            gatilhos_servico = ['serviço', 'servico', 'serviços', 'servicos', 'valor', 'valores', 'preço', 'preco', 'quais', 'opções', 'opcoes', 'procedimento', 'procedimentos']
+            if eh_handoff_humano:
+                msg_para_enviar += (
+                    "\n\n[ORDEM OBRIGATÓRIA DE SISTEMA - TRANSBORDO HUMANO (HANDOFF RIGOROSO)]: "
+                    "O cliente enviou uma mensagem que exige atendimento humano (dúvida específica/data especial, mensagem pessoal, confirmação/desmarcação, aviso logístico de chegada/atraso, confusão ou pedido por atendente). "
+                    "PARE imediatamente o fluxo de agendamento, NÃO tente empurrar serviços e responda com empatia, brevidade e simpatia: "
+                    "'Sobre isso, vou pedir para a [Nome do Profissional/Carol] te responder diretamente assim que ela finalizar o atendimento atual, tá bom? Como sou a assistente virtual, cuido apenas de marcar novos horários. Ela já fala com você! 🥰'"
+                )
+            elif msg_limpa_check in ['?', '??', '???', 'oi?', 'e ai?', 'e aí?'] or any(g in msg_limpa_check for g in gatilhos_servico):
                 msg_para_enviar += (
                     "\n\n[ORDEM OBRIGATÓRIA DE SISTEMA]: O cliente mencionou serviço/valor ou enviou continuação de contexto ('?'). "
                     "1. CHAME A FERRAMENTA `listar_servicos` AGORA ANTES DE RESPONDER. "
