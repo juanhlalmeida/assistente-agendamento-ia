@@ -64,9 +64,26 @@ FLUXO OBRIGATÓRIO:
 3. Falta algo? -> Pergunte.
 
 CANCELAMENTO: Use cancelar_agendamento_por_telefone(dia="AAAA-MM-DD")
+
+🚨 BLINDAGEM DE SERVIÇOS INTERNOS E TROCA DE SERVIÇO (REGRA ABSOLUTA):
+- No atendimento ao cliente, você JAMAIS deve listar, mencionar, sugerir ou permitir que uma cliente comum agende serviços internos ou de parceria cujo nome contenha "troca", "permuta", "parceria", "cortesia" ou "bloqueio" (ou que tenham valor R$ 0,00). Eles são 100% invisíveis para o público.
 """
 
 # --- FERRAMENTAS ---
+
+_PALAVRAS_OCULTAS_AUDIO = ('troca', 'permuta', 'parceria', 'cortesia', 'bloqueio')
+
+def _eh_servico_oculto_audio(nome_servico: str, preco_servico=None) -> bool:
+    nome_s = (nome_servico or "").strip().lower()
+    if any(p in nome_s for p in _PALAVRAS_OCULTAS_AUDIO):
+        return True
+    if preco_servico is not None:
+        try:
+            if float(preco_servico) <= 0.0:
+                return True
+        except (TypeError, ValueError):
+            pass
+    return False
 
 def encontrar_melhor_match(termo, lista, cutoff=60):
     if not termo or not lista: return None
@@ -79,10 +96,11 @@ def listar_profissionais(barbearia_id: int) -> str:
     return f"Profissionais: {', '.join([p.nome for p in profs])}."
 
 def listar_servicos(barbearia_id: int) -> str:
-    servs = Servico.query.filter(
+    servs_db = Servico.query.filter(
         Servico.barbearia_id == barbearia_id,
         Servico.nome != "Bloqueio Administrativo"
     ).order_by(Servico.nome).all()
+    servs = [s for s in servs_db if not _eh_servico_oculto_audio(s.nome, s.preco)]
     if not servs: return "Nenhum serviço."
     lista = [f"▫️ {s.nome} - R$ {s.preco:.2f}".replace('.', ',') for s in servs]
     return "\n".join(lista)
@@ -176,6 +194,11 @@ def calcular_horarios_disponiveis(barbearia_id: int, profissional_nome: str, dia
     return f"Vagas para {match} em {dia_dt.strftime('%d/%m')}: {', '.join([h.strftime('%H:%M') for h in horarios])}."
 
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
+    barbearia_obj = Barbearia.query.get(barbearia_id)
+    tel_cli_limpo = ''.join(filter(str.isdigit, str(telefone_cliente or '').split('@')[0]))
+    tel_adm_limpo = ''.join(filter(str.isdigit, str((barbearia_obj.telefone_admin if barbearia_obj else '') or '')))
+    eh_o_dono_ag = bool(tel_adm_limpo and tel_cli_limpo and (tel_adm_limpo in tel_cli_limpo or tel_cli_limpo in tel_adm_limpo))
+
     # Profissional
     profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
     prof_match = encontrar_melhor_match(profissional_nome, [p.nome for p in profs])
@@ -183,9 +206,17 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
     profissional = next(p for p in profs if p.nome == prof_match)
     
     # Serviço
-    servs = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+    servs_db = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+    servs_publicos = [s for s in servs_db if not _eh_servico_oculto_audio(s.nome, s.preco)]
+    if not eh_o_dono_ag:
+        if _eh_servico_oculto_audio(servico_nome):
+            return f"Serviço não disponível para agendamento online. Opções: {', '.join([s.nome for s in servs_publicos])}"
+        servs = servs_publicos
+    else:
+        servs = servs_db
+
     serv_match = encontrar_melhor_match(servico_nome, [s.nome for s in servs])
-    if not serv_match: return f"Serviço não encontrado. Opções: {', '.join([s.nome for s in servs])}"
+    if not serv_match: return f"Serviço não encontrado. Opções: {', '.join([s.nome for s in servs_publicos])}"
     servico = next(s for s in servs if s.nome == serv_match)
     
     dt_obj = datetime.strptime(data_hora, '%Y-%m-%d %H:%M').replace(tzinfo=None)

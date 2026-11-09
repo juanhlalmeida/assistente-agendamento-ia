@@ -529,6 +529,14 @@ def agenda():
         return redirect(url_for('main.agenda', data=redirect_date_str, profissional_id=prof_id_redirect))
     
     # --- Lógica GET ---
+    from app.blueprints.dashboard.routes import (
+        garantir_servicos_troca_studio,
+        _eh_bloqueio,
+        _eh_troca_servico,
+        _eh_agendamento_pago,
+    )
+    garantir_servicos_troca_studio(barbearia_id_logada)
+
     data_sel_str = request.args.get('data', date.today().strftime('%Y-%m-%d'))
     profissional_sel_id = request.args.get('profissional_id')
     
@@ -570,6 +578,11 @@ def agenda():
         .order_by(Agendamento.data_hora.asc())
         .all()
     )
+
+    for ag_item in ags_dia:
+        ag_item.eh_bloqueio = _eh_bloqueio(ag_item)
+        ag_item.eh_troca = _eh_troca_servico(ag_item)
+        ag_item.eh_pago = _eh_agendamento_pago(ag_item)
     
     return render_template(
         'agenda.html',

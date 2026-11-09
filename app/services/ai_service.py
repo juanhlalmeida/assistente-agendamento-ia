@@ -344,6 +344,9 @@ Você é uma assistente virtual focada em NOVOS AGENDAMENTOS. Você NÃO DEVE te
 AÇÃO OBRIGATÓRIA PARA TRANSBORDO: Quando identificar qualquer um dos casos acima, PARE o fluxo de agendamento (NUNCA ignore a mensagem pessoal da cliente para tentar empurrar um serviço!) e responda com empatia e simpatia, passando a bola para a profissional.
 Exemplo de resposta obrigatória: 'Sobre isso, vou pedir para a [Nome do Profissional/Carol] te responder diretamente assim que ela finalizar o atendimento atual, tá bom? Como sou a assistente virtual, cuido apenas de marcar novos horários. Ela já fala com você! 🥰'
 
+🚨 BLINDAGEM DE SERVIÇOS INTERNOS E TROCA DE SERVIÇO (REGRA ABSOLUTA):
+- No atendimento normal ao cliente (WhatsApp), você JAMAIS deve listar, mencionar, sugerir ou permitir que uma cliente comum agende serviços internos ou de parceria cujo nome contenha "troca", "permuta", "parceria", "cortesia" ou "bloqueio" (ou que tenham valor R$ 0,00). Eles são 100% invisíveis para o público.
+
 """
 # ==============================================================================
 # 👩💼 PROMPT 2: MODO SECRETÁRIA (ATUALIZADO PARA FINANCEIRO SOB DEMANDA)
@@ -367,6 +370,11 @@ COMO AGIR (REGRA DE AÇÃO IMEDIATA):
    - Pergunte data e hora (se faltar).
    - ⚡ CHAME A TOOL `bloquear_agenda_dono` IMEDIATAMENTE.
    - Use 'hoje' ou 'amanhã' no parametro data se o chefe falar assim.
+
+3. SE O CHEFE PEDIR PARA AGENDAR "TROCA DE SERVIÇO" / "PARCERIA" OU UM HORÁRIO MANUAL:
+   - ⚡ CHAME A TOOL `criar_agendamento` IMEDIATAMENTE usando:
+     * "Troca de Serviço - Colocação" (120 min | R$ 0,00) quando for colocação de parceria/troca;
+     * "Troca de Serviço - Manutenção" (90 min | R$ 0,00) quando for manutenção de parceria/troca.
 
 💰 SOBRE FINANCEIRO:
 - A ferramenta calcula tudo. Mostre valores (R$) APENAS se o chefe perguntar explicitamente sobre "dinheiro" ou "faturamento".
@@ -396,7 +404,7 @@ TOM DE VOZ E PERSONALIDADE:
 - Seja breve e eficiente.
 
 💰 SOBRE FINANCEIRO (IMPORTANTE):
-- A ferramenta vai te entregar os valores de cada serviço e o total previsto.
+- A ferramenta vai te entregar os valores de cada serviço e o total previsto (excluindo bloqueios e trocas de serviço da soma de receita paga e do ticket médio).
 - PORÉM, você só deve mostrar valores (R$) se o chefe perguntar explicitamente sobre "faturamento", "dinheiro", "quanto deu", "valores" ou "resumo financeiro".
 - Se ele perguntar apenas "como está a agenda" ou "quem vem hoje", mostre apenas os horários e nomes, OMITINDO OS VALORES.
 
@@ -479,8 +487,88 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # =====================================================================
-# FUNÇÕES TOOLS (MODIFICADAS COM FUZZY MATCH)
+# FUNÇÕES TOOLS (MODIFICADAS COM FUZZY MATCH E BLINDAGEM DE TROCAS)
 # =====================================================================
+
+_PALAVRAS_OCULTAS_CLIENTE = ('troca', 'permuta', 'parceria', 'cortesia', 'bloqueio')
+_PALAVRAS_TROCA_PARCERIA = ('troca', 'permuta', 'parceria', 'cortesia')
+_SERVICOS_TROCA_PADRAO = (
+    ("Troca de Serviço - Colocação", 120, 0.0),
+    ("Troca de Serviço - Manutenção", 90, 0.0),
+)
+
+
+def _eh_servico_oculto_cliente(nome_servico: str, preco_servico=None, nome_cliente: str = "") -> bool:
+    """
+    Verifica se um serviço é interno (Bloqueio Administrativo) ou de parceria
+    (Troca de Serviço / Permuta / Cortesia / R$ 0,00), devendo ficar 100% invisível
+    para clientes comuns no WhatsApp.
+    """
+    nome_s = (nome_servico or "").strip().lower()
+    nome_c = (nome_cliente or "").strip().lower()
+    if any(p in nome_s for p in _PALAVRAS_OCULTAS_CLIENTE) or any(p in nome_c for p in _PALAVRAS_OCULTAS_CLIENTE):
+        return True
+    if preco_servico is not None:
+        try:
+            if float(preco_servico) <= 0.0:
+                return True
+        except (TypeError, ValueError):
+            pass
+    return False
+
+
+def _eh_bloqueio_agendamento(nome_servico: str, nome_cliente: str = "") -> bool:
+    nome_s = (nome_servico or "").strip().lower()
+    nome_c = (nome_cliente or "").strip().lower()
+    return "bloqueio" in nome_s or "bloqueio" in nome_c or "⛔" in nome_c
+
+
+def _eh_troca_agendamento(nome_servico: str, nome_cliente: str = "") -> bool:
+    if _eh_bloqueio_agendamento(nome_servico, nome_cliente):
+        return False
+    nome_s = (nome_servico or "").strip().lower()
+    nome_c = (nome_cliente or "").strip().lower()
+    return any(p in nome_s for p in _PALAVRAS_TROCA_PARCERIA) or any(p in nome_c for p in _PALAVRAS_TROCA_PARCERIA)
+
+
+def garantir_servicos_troca_por_id(barbearia_id: int) -> None:
+    """
+    Rotina idempotente que garante a existência dos serviços:
+    - Troca de Serviço - Colocação (120 min | R$ 0,00)
+    - Troca de Serviço - Manutenção (90 min | R$ 0,00)
+    para o Studio Lima Lash e demais clínicas/studios (exceto pousadas).
+    """
+    if not barbearia_id:
+        return
+    try:
+        barbearia = Barbearia.query.get(barbearia_id)
+        if not barbearia or getattr(barbearia, 'business_type', '') == 'pousada':
+            return
+        alterou = False
+        for nome_padrao, duracao_padrao, preco_padrao in _SERVICOS_TROCA_PADRAO:
+            srv = Servico.query.filter_by(barbearia_id=barbearia.id, nome=nome_padrao).first()
+            if not srv:
+                srv = Servico(
+                    nome=nome_padrao,
+                    duracao=duracao_padrao,
+                    preco=preco_padrao,
+                    barbearia_id=barbearia.id
+                )
+                db.session.add(srv)
+                alterou = True
+            else:
+                if srv.preco is None or float(srv.preco) != 0.0:
+                    srv.preco = 0.0
+                    alterou = True
+                if not srv.duracao:
+                    srv.duracao = duracao_padrao
+                    alterou = True
+        if alterou:
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logging.warning(f"Aviso ao garantir serviços de troca para loja {barbearia_id}: {e}")
+
 
 def listar_profissionais(barbearia_id: int) -> str:
     try:
@@ -496,14 +584,20 @@ def listar_profissionais(barbearia_id: int) -> str:
         return f"Erro ao listar profissionais: Ocorreu um erro interno."
 
 def listar_servicos(barbearia_id: int) -> str:
-    """Lista os serviços, excluindo serviços internos de bloqueio."""
+    """Lista os serviços públicos, excluindo bloqueios, trocas de serviço, permutas, parcerias, cortesias e valores R$ 0,00."""
     try:
         with current_app.app_context():
-            # ✅ ALTERAÇÃO: Filtra para NÃO mostrar o Bloqueio Administrativo
-            servicos = Servico.query.filter(
+            # ✅ BLINDAGEM DE SERVIÇOS INTERNOS E TROCA DE SERVIÇO:
+            # Filtra para NÃO mostrar Bloqueio Administrativo, Troca de Serviço, Permuta, Parceria, Cortesia ou R$ 0,00
+            todos_servicos_db = Servico.query.filter(
                 Servico.barbearia_id == barbearia_id,
                 Servico.nome != "Bloqueio Administrativo"
             ).order_by(Servico.nome).all()
+
+            servicos = [
+                s for s in todos_servicos_db
+                if not _eh_servico_oculto_cliente(s.nome, s.preco)
+            ]
 
             if not servicos:
                 logging.warning(f"Ferramenta 'listar_servicos' (barbearia_id: {barbearia_id}): Nenhum serviço cadastrado.")
@@ -721,6 +815,7 @@ def consultar_agenda_dono(barbearia_id: int, data_inicio: str, data_fim: str) ->
             relatorio = [f"📅 RELATÓRIO DE {dt_ini.strftime('%d/%m')} A {dt_fim.strftime('%d/%m')}\n"]
             faturamento_total = 0.0
             qtd_clientes_reais = 0
+            qtd_trocas = 0
             dia_atual = ""
 
             for ag in agendamentos:
@@ -729,24 +824,35 @@ def consultar_agenda_dono(barbearia_id: int, data_inicio: str, data_fim: str) ->
                     relatorio.append(f"\n🔹 {data_ag_str}")
                     dia_atual = data_ag_str
 
-                valor = ag.servico.preco if ag.servico else 0.0
-                nome_cliente = ag.nome_cliente
+                valor = float(ag.servico.preco) if (ag.servico and ag.servico.preco is not None) else 0.0
+                nome_cliente = ag.nome_cliente or "Cliente"
                 nome_servico = ag.servico.nome if ag.servico else "Serviço"
+                primeiro_nome = nome_cliente.split()[0] if nome_cliente.strip() else "Cliente"
                 
-                # Tratamento visual para bloqueios
-                if "bloqueio" in nome_cliente.lower() or "bloqueio" in nome_servico.lower() or valor == 0:
+                # Tratamento visual e financeiro separado para Bloqueios vs Trocas de Serviço vs Pagantes
+                if _eh_bloqueio_agendamento(nome_servico, nome_cliente):
                     linha = f" ⛔ {ag.data_hora.strftime('%H:%M')} - BLOQUEADO / INDISPONÍVEL"
+                elif _eh_troca_agendamento(nome_servico, nome_cliente):
+                    qtd_trocas += 1
+                    linha = f" 🤝 {ag.data_hora.strftime('%H:%M')} - {primeiro_nome} ({nome_servico}) [Troca de Serviço · R$ 0,00]"
+                elif valor <= 0.0:
+                    linha = f" ⛔ {ag.data_hora.strftime('%H:%M')} - {primeiro_nome} ({nome_servico}) [R$ 0,00]"
                 else:
                     faturamento_total += valor
                     qtd_clientes_reais += 1
-                    linha = f" ⏰ {ag.data_hora.strftime('%H:%M')} - {nome_cliente.split()[0]} ({nome_servico}) [R$ {valor:.2f}]"
+                    linha = f" ⏰ {ag.data_hora.strftime('%H:%M')} - {primeiro_nome} ({nome_servico}) [R$ {valor:.2f}]"
                 
                 relatorio.append(linha)
 
+            ticket_medio_real = (faturamento_total / qtd_clientes_reais) if qtd_clientes_reais > 0 else 0.0
             relatorio.append("\n" + "="*20)
             relatorio.append(f"📊 RESUMO FINANCEIRO:")
-            relatorio.append(f"✅ Clientes Agendados: {qtd_clientes_reais}")
+            relatorio.append(f"✅ ClientesAgendados (Pagos): {qtd_clientes_reais}")
+            if qtd_trocas > 0:
+                relatorio.append(f"🤝 Trocas de Serviço: {qtd_trocas}")
             relatorio.append(f"💰 Faturamento Previsto: R$ {faturamento_total:.2f}")
+            if qtd_clientes_reais > 0:
+                relatorio.append(f"🎯 Ticket Médio Real: R$ {ticket_medio_real:.2f}")
             relatorio.append("="*20)
 
             return "\n".join(relatorio)
@@ -757,6 +863,18 @@ def consultar_agenda_dono(barbearia_id: int, data_inicio: str, data_fim: str) ->
 def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: str, data_hora: str, profissional_nome: str, servico_nome: str) -> str:
     try:
         with current_app.app_context():
+            barbearia_obj = Barbearia.query.get(barbearia_id)
+            tel_cli_limpo = ''.join(filter(str.isdigit, str(telefone_cliente or '').split('@')[0]))
+            tel_adm_limpo = ''.join(filter(str.isdigit, str((barbearia_obj.telefone_admin if barbearia_obj else '') or '')))
+            eh_o_dono_ag = bool(
+                tel_adm_limpo
+                and tel_cli_limpo
+                and (tel_adm_limpo in tel_cli_limpo or tel_cli_limpo in tel_adm_limpo)
+            )
+
+            if eh_o_dono_ag:
+                garantir_servicos_troca_por_id(barbearia_id)
+
             todos_profs = Profissional.query.filter_by(barbearia_id=barbearia_id).all()
             nome_prof_match = encontrar_melhor_match(profissional_nome, [p.nome for p in todos_profs])
 
@@ -765,12 +883,29 @@ def criar_agendamento(barbearia_id: int, nome_cliente: str, telefone_cliente: st
 
             profissional = next(p for p in todos_profs if p.nome == nome_prof_match)
 
-            todos_servicos = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+            todos_servicos_db = Servico.query.filter_by(barbearia_id=barbearia_id).all()
+            servicos_publicos = [
+                s for s in todos_servicos_db
+                if not _eh_servico_oculto_cliente(s.nome, s.preco)
+            ]
+
+            # 🛡️ BLINDAGEM NA IA: Cliente comum NUNCA pode agendar serviços de troca/permuta/parceria/cortesia/bloqueio ou R$ 0,00
+            if not eh_o_dono_ag:
+                if _eh_servico_oculto_cliente(servico_nome):
+                    logging.warning(f"🛡️ Bloqueada tentativa de cliente comum agendar serviço interno/troca: '{servico_nome}'")
+                    return (
+                        f"Serviço '{servico_nome}' não disponível para agendamento online. "
+                        f"Por favor, escolha um dos nossos serviços: {', '.join([s.nome for s in servicos_publicos])}."
+                    )
+                todos_servicos = servicos_publicos
+            else:
+                todos_servicos = todos_servicos_db
+
             nome_serv_match = encontrar_melhor_match(servico_nome, [s.nome for s in todos_servicos])
 
             if not nome_serv_match:
                 logging.warning(f"Tentativa de agendar serviço inexistente: '{servico_nome}'")
-                return f"Serviço '{servico_nome}' não encontrado. Por favor, confirme o nome do serviço na lista: {', '.join([s.nome for s in todos_servicos])}."
+                return f"Serviço '{servico_nome}' não encontrado. Por favor, confirme o nome do serviço na lista: {', '.join([s.nome for s in servicos_publicos])}."
 
             servico = next(s for s in todos_servicos if s.nome == nome_serv_match)
 
@@ -1334,13 +1469,19 @@ def processar_ia_gemini(user_message: str, barbearia_id: int, cliente_whatsapp: 
         tel_cliente_limpo = ''.join(filter(str.isdigit, cliente_whatsapp))
         tel_admin_limpo = ''.join(filter(str.isdigit, barbearia.telefone_admin or ''))
 
-        eh_o_dono = (tel_admin_limpo and tel_admin_limpo in tel_cliente_limpo) or (tel_cliente_limpo in tel_admin_limpo)
+        eh_o_dono = bool(
+            tel_admin_limpo
+            and tel_cliente_limpo
+            and (tel_admin_limpo in tel_cliente_limpo or tel_cliente_limpo in tel_admin_limpo)
+        )
 
         if eh_o_dono:
+            garantir_servicos_troca_por_id(barbearia_id)
+            system_prompt = SYSTEM_INSTRUCTION_SECRETARIA.format(data_de_hoje=data_hoje_str)
             msg_para_enviar = f"""
             [LEMBRETE DE SISTEMA]
             Você é a Secretária Pessoal da loja. A DONA DA LOJA está falando com você agora.
-            Obedeça as ordens de bloqueio ou consulta de agenda imediatamente usando as ferramentas.
+            Obedeça as ordens de bloqueio, consulta de agenda ou agendamento de Troca de Serviço ("Troca de Serviço - Colocação" ou "Troca de Serviço - Manutenção") imediatamente usando as ferramentas.
             
             DONA DIZ: {user_message}
             """
@@ -1636,7 +1777,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             msg_para_enviar = f"""
             [LEMBRETE DE SISTEMA]
             Você é a Secretária Pessoal da loja. A DONA DA LOJA está falando com você agora.
-            Obedeça as ordens de bloqueio ou consulta de agenda imediatamente usando as ferramentas.
+            Obedeça as ordens de bloqueio, consulta de agenda ou agendamento de Troca de Serviço ("Troca de Serviço - Colocação" ou "Troca de Serviço - Manutenção") imediatamente usando as ferramentas.
             
             DONA DIZ: {user_message}
             """
@@ -1654,6 +1795,7 @@ Se o cliente não especificar, ASSUMA IMEDIATAMENTE que é com {nome_unico} e pr
             - O cliente está falando com você agora. Responda a dúvida dele EXATAMENTE com a Base de Conhecimento acima. 
             - Nunca invente informações. Se não souber, diga educadamente.
             - Se ele quiser reservar/agendar, continue o fluxo usando as ferramentas.
+            - BLINDAGEM ABSOLUTA DE SERVIÇOS INTERNOS/TROCA: NUNCA liste, mencione, sugira ou permita agendar serviços cujo nome contenha 'troca', 'permuta', 'parceria', 'cortesia' ou 'bloqueio' (ou valor R$ 0,00).
             - LIMITES DE ATUAÇÃO E TRANSBORDO HUMANO (HANDOFF RIGOROSO): Se a mensagem for pessoal/relacionamento, dúvida de datas especiais/promoções que não estejam nas regras acima, confirmação/edição de horário já marcado, aviso logístico ('tô chegando', 'vou atrasar', 'tô na porta'), confusão ('não entendi', 'tô com dúvida') ou pedido para falar com a profissional/atendente/humano, PARE o fluxo de agendamento (NÃO ignore a mensagem pessoal e NÃO tente empurrar um serviço!). Recue com simpatia e passe a bola usando o padrão: 'Sobre isso, vou pedir para a [Nome do Profissional/Carol] te responder diretamente assim que ela finalizar o atendimento atual, tá bom? Como sou a assistente virtual, cuido apenas de marcar novos horários. Ela já fala com você! 🥰'
             
             CLIENTE DIZ: {user_message}

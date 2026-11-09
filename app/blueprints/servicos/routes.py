@@ -25,6 +25,9 @@ def index():
     uso_por_servico = {}
     
     try:
+        from app.blueprints.dashboard.routes import garantir_servicos_troca_studio
+        garantir_servicos_troca_studio(barbearia_id_logada)
+
         # Busca no banco APENAS os serviços pertencentes a esta barbearia
         lista_servicos = Servico.query.filter_by(barbearia_id=barbearia_id_logada).order_by(Servico.duracao.asc(), Servico.nome.asc()).all()
 

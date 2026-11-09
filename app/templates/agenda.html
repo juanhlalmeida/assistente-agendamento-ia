@@ -1196,7 +1196,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
       <div class="p-3 md:p-5 flex flex-col gap-2.5">
         {% for agendamento in agendamentos %}
-          <div class="timeline-item flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {% set nome_srv_lower = (agendamento.servico.nome.lower() if agendamento.servico and agendamento.servico.nome else '') %}
+          {% set nome_cli_lower = (agendamento.nome_cliente.lower() if agendamento.nome_cliente else '') %}
+          {% set is_bloqueio = agendamento.eh_bloqueio if agendamento.eh_bloqueio is defined else ('bloqueio' in nome_srv_lower or 'bloqueio' in nome_cli_lower or '⛔' in nome_cli_lower) %}
+          {% set is_troca = agendamento.eh_troca if agendamento.eh_troca is defined else ((not is_bloqueio) and ('troca' in nome_srv_lower or 'permuta' in nome_srv_lower or 'parceria' in nome_srv_lower or 'cortesia' in nome_srv_lower)) %}
+
+          <div class="timeline-item flex flex-col sm:flex-row sm:items-center justify-between gap-3 {% if is_troca %}border-violet-200/90 bg-violet-50/20{% elif is_bloqueio %}border-slate-200 bg-slate-50/60 opacity-85{% endif %}">
             
             {# Esquerda: Horário em destaque tabular + Cliente + Badge Serviço/Duração #}
             <div class="flex items-start sm:items-center gap-3.5 min-w-0">
@@ -1207,10 +1212,29 @@ document.addEventListener('DOMContentLoaded', function() {
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="font-bold text-sm md:text-base text-[#0F172A] truncate">{{ agendamento.nome_cliente }}</p>
-                  {% if agendamento.servico %}
+
+                  {% if is_troca %}
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+                      <span>🤝 Troca de Serviço</span>
+                      {% if agendamento.servico and agendamento.servico.duracao %}
+                        <span class="opacity-60">·</span>
+                        <span class="tabular-nums">{{ agendamento.servico.duracao }} min</span>
+                      {% endif %}
+                    </span>
+                  {% elif is_bloqueio %}
+                    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      <span>🔒 Bloqueio</span>
+                      {% if agendamento.servico and agendamento.servico.duracao %}
+                        <span class="opacity-60">·</span>
+                        <span class="tabular-nums">{{ agendamento.servico.duracao }} min</span>
+                      {% endif %}
+                    </span>
+                  {% endif %}
+
+                  {% if agendamento.servico and not is_bloqueio %}
                     <span class="saas-badge">
                       <span>{{ agendamento.servico.nome }}</span>
-                      {% if agendamento.servico.duracao %}
+                      {% if agendamento.servico.duracao and not is_troca %}
                         <span class="opacity-60">·</span>
                         <span class="tabular-nums">{{ agendamento.servico.duracao }} min</span>
                       {% endif %}
@@ -1233,7 +1257,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
             {# Direita: Valor Tabular + Botões de Ação (mínimo 44x44px) #}
             <div class="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#EAEAEA]">
-              {% if agendamento.servico and agendamento.servico.preco is not none %}
+              {% if is_troca %}
+                <span class="text-xs font-bold tabular-nums text-violet-700 bg-violet-50 px-2.5 py-1 rounded-md border border-violet-200">
+                  Parceria · R$ 0,00
+                </span>
+              {% elif is_bloqueio %}
+                <span class="text-xs font-semibold tabular-nums text-slate-500">
+                  Indisponível
+                </span>
+              {% elif agendamento.servico and agendamento.servico.preco is not none %}
                 <span class="text-sm font-bold tabular-nums text-[#0F172A]">
                   R$ {{ "%.2f"|format(agendamento.servico.preco)|replace('.', ',') }}
                 </span>
