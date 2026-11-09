@@ -1,0 +1,355 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% set rf = relatorio_financeiro if relatorio_financeiro is defined else {} %}
+{% set periodo_ativo = rf.get('periodo', 'este_mes') %}
+{% set servico_id_ativo = rf.get('servico_id', 'todos') %}
+
+<!-- Cabeçalho Executivo -->
+<div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div>
+        <div class="flex items-center gap-2.5 flex-wrap">
+            <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Financeiro</h1>
+            <span id="finBadgePeriodo" class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                {{ rf.get('label_periodo', 'Este Mês') }}
+            </span>
+        </div>
+        <p class="text-sm text-slate-500 mt-1">Acompanhamento de receita, ticket médio e desempenho por {{ vocab.serv_singular|lower if vocab is defined else 'procedimento' }}.</p>
+    </div>
+    <div class="flex items-center gap-2">
+        <a href="{{ url_for('main.agenda') }}" class="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 font-semibold px-4 py-2.5 rounded-xl border border-slate-200 transition-all shadow-xs text-sm">
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            Ver Agenda
+        </a>
+    </div>
+</div>
+
+<!-- Painel Principal Financeiro -->
+<div id="secaoFinanceiro" class="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+    <!-- Barra de Filtros -->
+    <div class="p-5 sm:p-6 border-b border-slate-100 bg-slate-50/50">
+        <form id="formFiltroFinanceiro" method="GET" action="{{ url_for('main.financeiro') }}" class="space-y-3">
+            <input type="hidden" name="periodo" id="inputPeriodoFinanceiro" value="{{ periodo_ativo }}">
+
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <!-- Pills de Período -->
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+                    {% set opcoes_periodo = [
+                        ('hoje', 'Hoje'),
+                        ('esta_semana', 'Esta Semana'),
+                        ('este_mes', 'Este Mês'),
+                        ('mes_passado', 'Mês Passado'),
+                        ('personalizado', 'Personalizado')
+                    ] %}
+                    {% for valor_p, label_p in opcoes_periodo %}
+                    <button type="button"
+                            data-periodo="{{ valor_p }}"
+                            onclick="selecionarPeriodoFinanceiro('{{ valor_p }}')"
+                            class="btn-periodo-fin whitespace-nowrap px-3.5 py-2 rounded-xl text-xs font-bold transition-all border {% if periodo_ativo == valor_p %}bg-slate-900 text-white border-slate-900 shadow-xs{% else %}bg-white text-slate-600 border-slate-200/90 hover:bg-slate-100 hover:text-slate-900{% endif %}">
+                        {{ label_p }}
+                    </button>
+                    {% endfor %}
+                </div>
+
+                <!-- Dropdown de Procedimento / Serviço -->
+                <div class="flex items-center gap-2 min-w-[240px] sm:min-w-[280px]">
+                    <label for="selectServicoFinanceiro" class="text-xs font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                        {{ vocab.serv_singular if vocab is defined else 'Procedimento' }}:
+                    </label>
+                    <select name="servico_id" id="selectServicoFinanceiro" onchange="submeterFiltroFinanceiro()"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+                        <option value="todos" {% if servico_id_ativo == 'todos' %}selected{% endif %}>Todos os {{ vocab.serv_label|lower if vocab is defined else 'procedimentos' }}</option>
+                        {% if servicos_filtro is defined %}
+                            {% for srv in servicos_filtro %}
+                            <option value="{{ srv.id }}" {% if servico_id_ativo == (srv.id ~ '') %}selected{% endif %}>
+                                {{ srv.nome }} {% if (srv.preco|float) > 0 %}(R$ {{ "%.2f"|format(srv.preco|float)|replace('.', ',') }}){% endif %}
+                            </option>
+                            {% endfor %}
+                        {% endif %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Datas Personalizadas (exibidas quando período == personalizado) -->
+            <div id="boxDatasPersonalizadas" class="{% if periodo_ativo != 'personalizado' %}hidden{% endif %} pt-3 border-t border-slate-200/60 flex flex-col sm:flex-row sm:items-end gap-3">
+                <div>
+                    <label for="inputDataInicioFin" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Data Inicial</label>
+                    <input type="date" name="data_inicio" id="inputDataInicioFin" value="{{ rf.get('data_inicio', '') }}"
+                           class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label for="inputDataFimFin" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Data Final</label>
+                    <input type="date" name="data_fim" id="inputDataFimFin" value="{{ rf.get('data_fim', '') }}"
+                           class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 focus:border-indigo-500 focus:outline-none">
+                </div>
+                <button type="button" onclick="submeterFiltroFinanceiro()"
+                        class="inline-flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-xs transition-all">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path></svg>
+                    Aplicar Período
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- 3 Cards Resumo do Período Filtrado -->
+    <div class="p-5 sm:p-6 grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-slate-100">
+        <!-- Card 1: Receita Real no Período -->
+        <div class="rounded-2xl bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/40 border border-emerald-200/80 p-5 flex items-start justify-between">
+            <div>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">Receita Real</span>
+                <p id="finReceitaReal" class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1.5 tracking-tight">R$ {{ rf.get('receita_real_fmt', '0,00') }}</p>
+                <p id="finSubReceita" class="text-xs text-slate-500 font-medium mt-1.5">
+                    Referente a <strong class="text-slate-700">{{ rf.get('total_pagos', 0) }}</strong> atendimento(s) faturado(s)
+                </p>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+        </div>
+
+        <!-- Card 2: Atendimentos Pagos vs Trocas de Serviço -->
+        <div class="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-5 flex items-start justify-between">
+            <div class="w-full pr-3">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Atendimentos no Período</span>
+                <div class="mt-2 flex items-baseline gap-4 flex-wrap">
+                    <div>
+                        <span id="finTotalPagos" class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">{{ rf.get('total_pagos', 0) }}</span>
+                        <span class="text-xs font-bold text-emerald-700 ml-1">pagos</span>
+                    </div>
+                    <span class="text-slate-300 font-light text-xl">/</span>
+                    <div>
+                        <span id="finTotalTrocas" class="text-xl sm:text-2xl font-extrabold text-slate-600 tracking-tight">{{ rf.get('total_trocas', 0) }}</span>
+                        <span class="text-xs font-semibold text-slate-500 ml-1">troca(s)*</span>
+                    </div>
+                </div>
+                <p id="finSubVolume" class="text-xs text-slate-500 font-medium mt-1.5">
+                    Período: {{ rf.get('data_inicio_br', '') }} até {{ rf.get('data_fim_br', '') }}
+                </p>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            </div>
+        </div>
+
+        <!-- Card 3: Ticket Médio (com ícone 'i' discreto) -->
+        <div class="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-5 flex items-start justify-between">
+            <div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">Ticket Médio</span>
+                    <span class="inline-flex items-center justify-center w-4 h-4 rounded-full bg-slate-200/80 text-slate-500 text-[10px] font-bold cursor-help select-none"
+                          title="Calculado apenas sobre atendimentos pagos. Trocas de serviço não entram no cálculo.">i</span>
+                </div>
+                <p id="finTicketMedio" class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-1.5 tracking-tight">R$ {{ rf.get('ticket_medio_real_fmt', '0,00') }}</p>
+                <p class="text-xs text-slate-500 font-medium mt-1.5">Média por atendimento pago</p>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-violet-50 text-violet-600 border border-violet-100 flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Ranking de Serviços -->
+    <div class="p-5 sm:p-6">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Ranking de {{ vocab.serv_label if vocab is defined else 'Procedimentos' }}</h3>
+                <p class="text-xs text-slate-500 mt-0.5">Quantidade de atendimentos faturados e receita gerada no período selecionado.</p>
+            </div>
+        </div>
+
+        {% set ranking = rf.get('ranking_servicos', []) %}
+        <div id="finContainerRanking">
+            {% if ranking %}
+            <div class="overflow-x-auto rounded-xl border border-slate-200/80">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/90 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                            <th class="py-3 px-4">{{ vocab.serv_singular if vocab is defined else 'Procedimento' }}</th>
+                            <th class="py-3 px-4 text-center">Atendimentos</th>
+                            <th class="py-3 px-4 hidden sm:table-cell">Participação na Receita</th>
+                            <th class="py-3 px-4 text-right">Receita Gerada</th>
+                        </tr>
+                    </thead>
+                    <tbody id="finTbodyRanking" class="divide-y divide-slate-100 text-sm">
+                        {% for item in ranking %}
+                        <tr class="hover:bg-slate-50/80 transition-colors">
+                            <td class="py-3 px-4 font-semibold text-slate-800">
+                                {{ item.nome }}
+                            </td>
+                            <td class="py-3 px-4 text-center">
+                                <span class="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-lg text-xs font-extrabold bg-slate-100 text-slate-800">
+                                    {{ item.qtd }}x
+                                </span>
+                            </td>
+                            <td class="py-3 px-4 hidden sm:table-cell w-48">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                                        <div class="bg-emerald-500 h-full rounded-full" style="width: {{ item.percentual }}%"></div>
+                                    </div>
+                                    <span class="text-xs font-bold text-slate-600 w-12 text-right">{{ item.percentual }}%</span>
+                                </div>
+                            </td>
+                            <td class="py-3 px-4 text-right font-extrabold text-emerald-700">
+                                R$ {{ item.receita_fmt }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-8 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                <p class="text-sm font-semibold text-slate-600">Nenhum atendimento faturado registrado para este filtro no período selecionado.</p>
+                <p class="text-xs text-slate-400 mt-1">Altere o período acima ou selecione outro procedimento para consultar.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Nota de rodapé discreta -->
+        <p class="text-[11px] text-slate-400 mt-4 text-right">*Trocas de serviço não contabilizadas na receita.</p>
+    </div>
+</div>
+
+<script>
+function selecionarPeriodoFinanceiro(periodo) {
+    const inputPeriodo = document.getElementById('inputPeriodoFinanceiro');
+    const boxDatas = document.getElementById('boxDatasPersonalizadas');
+    if (!inputPeriodo) return;
+    inputPeriodo.value = periodo;
+
+    document.querySelectorAll('.btn-periodo-fin').forEach(btn => {
+        if (btn.getAttribute('data-periodo') === periodo) {
+            btn.className = 'btn-periodo-fin whitespace-nowrap px-3.5 py-2 rounded-xl text-xs font-bold transition-all border bg-slate-900 text-white border-slate-900 shadow-xs';
+        } else {
+            btn.className = 'btn-periodo-fin whitespace-nowrap px-3.5 py-2 rounded-xl text-xs font-bold transition-all border bg-white text-slate-600 border-slate-200/90 hover:bg-slate-100 hover:text-slate-900';
+        }
+    });
+
+    if (periodo === 'personalizado') {
+        if (boxDatas) boxDatas.classList.remove('hidden');
+        return;
+    } else {
+        if (boxDatas) boxDatas.classList.add('hidden');
+        submeterFiltroFinanceiro();
+    }
+}
+
+async function submeterFiltroFinanceiro() {
+    const form = document.getElementById('formFiltroFinanceiro');
+    if (!form) return;
+
+    const params = new URLSearchParams(new FormData(form));
+    const urlApi = `{{ url_for('dashboard.api_financeiro') }}?` + params.toString();
+
+    try {
+        const resp = await fetch(urlApi, { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) {
+            form.submit();
+            return;
+        }
+        const data = await resp.json();
+        if (!data.success) {
+            form.submit();
+            return;
+        }
+        atualizarDOMFinanceiro(data);
+        const novaUrl = `${window.location.pathname}?${params.toString()}`;
+        window.history.replaceState({}, '', novaUrl);
+    } catch (e) {
+        form.submit();
+    }
+}
+
+function escapeHtmlFin(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function atualizarDOMFinanceiro(rf) {
+    const badge = document.getElementById('finBadgePeriodo');
+    if (badge) {
+        badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> ${escapeHtmlFin(rf.label_periodo || 'Período')}`;
+    }
+    const elReceita = document.getElementById('finReceitaReal');
+    if (elReceita) elReceita.textContent = `R$ ${rf.receita_real_fmt || '0,00'}`;
+
+    const elSubReceita = document.getElementById('finSubReceita');
+    if (elSubReceita) {
+        elSubReceita.innerHTML = `Referente a <strong class="text-slate-700">${rf.total_pagos || 0}</strong> atendimento(s) faturado(s)`;
+    }
+
+    const elPagos = document.getElementById('finTotalPagos');
+    if (elPagos) elPagos.textContent = rf.total_pagos || 0;
+
+    const elTrocas = document.getElementById('finTotalTrocas');
+    if (elTrocas) elTrocas.textContent = rf.total_trocas || 0;
+
+    const elSubVol = document.getElementById('finSubVolume');
+    if (elSubVol) {
+        elSubVol.textContent = `Período: ${rf.data_inicio_br || ''} até ${rf.data_fim_br || ''}`;
+    }
+
+    const elTicket = document.getElementById('finTicketMedio');
+    if (elTicket) elTicket.textContent = `R$ ${rf.ticket_medio_real_fmt || '0,00'}`;
+
+    const container = document.getElementById('finContainerRanking');
+    if (!container) return;
+
+    const ranking = rf.ranking_servicos || [];
+    if (ranking.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 bg-slate-50/60 rounded-xl border border-dashed border-slate-200">
+                <p class="text-sm font-semibold text-slate-600">Nenhum atendimento faturado registrado para este filtro no período selecionado.</p>
+                <p class="text-xs text-slate-400 mt-1">Altere o período acima ou selecione outro procedimento para consultar.</p>
+            </div>`;
+        return;
+    }
+
+    const rows = ranking.map(item => {
+        const pct = Number(item.percentual || 0);
+        return `
+            <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="py-3 px-4 font-semibold text-slate-800">
+                    ${escapeHtmlFin(item.nome)}
+                </td>
+                <td class="py-3 px-4 text-center">
+                    <span class="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-lg text-xs font-extrabold bg-slate-100 text-slate-800">
+                        ${Number(item.qtd || 0)}x
+                    </span>
+                </td>
+                <td class="py-3 px-4 hidden sm:table-cell w-48">
+                    <div class="flex items-center gap-2">
+                        <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                            <div class="bg-emerald-500 h-full rounded-full" style="width: ${pct}%"></div>
+                        </div>
+                        <span class="text-xs font-bold text-slate-600 w-12 text-right">${pct}%</span>
+                    </div>
+                </td>
+                <td class="py-3 px-4 text-right font-extrabold text-emerald-700">R$ ${escapeHtmlFin(item.receita_fmt || '0,00')}</td>
+            </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="overflow-x-auto rounded-xl border border-slate-200/80">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50/90 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        <th class="py-3 px-4">{{ vocab.serv_singular if vocab is defined else 'Procedimento' }}</th>
+                        <th class="py-3 px-4 text-center">Atendimentos</th>
+                        <th class="py-3 px-4 hidden sm:table-cell">Participação na Receita</th>
+                        <th class="py-3 px-4 text-right">Receita Gerada</th>
+                    </tr>
+                </thead>
+                <tbody id="finTbodyRanking" class="divide-y divide-slate-100 text-sm">
+                    ${rows}
+                </tbody>
+            </table>
+        </div>`;
+}
+</script>
+{% endblock %}

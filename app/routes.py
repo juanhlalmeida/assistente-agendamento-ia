@@ -594,6 +594,13 @@ def agenda():
         profissional_selecionado=profissional_sel
     )
 
+@bp.route('/financeiro')
+@login_required
+def financeiro():
+    """Rota independente /financeiro para a aba dedicada de Controle Financeiro."""
+    from app.blueprints.dashboard.routes import renderizar_pagina_financeiro
+    return renderizar_pagina_financeiro()
+
 @bp.route('/agendamento/excluir/<int:agendamento_id>', methods=['POST'])
 @login_required
 def excluir_agendamento(agendamento_id):

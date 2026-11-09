@@ -175,6 +175,12 @@
               <span>Agenda</span>
             </a>
 
+            <a href="{{ url_for('main.financeiro') }}"
+               class="desktop-nav-item {% if request.endpoint in ['main.financeiro', 'dashboard.financeiro'] %}active{% endif %}">
+              <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <span>Financeiro</span>
+            </a>
+
             <a href="{{ url_for('clientes.index') }}"
                class="desktop-nav-item {% if request.endpoint and request.endpoint.startswith('clientes.index') %}active{% endif %}">
               <svg class="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -339,6 +345,14 @@
             <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/>
           </svg>
           <span>Agenda</span>
+        </a>
+
+        <a href="{{ url_for('main.financeiro') }}"
+           class="mobile-nav-item {% if request.endpoint in ['main.financeiro', 'dashboard.financeiro'] %}active{% endif %}">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" x2="12" y1="1" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+          </svg>
+          <span>Financeiro</span>
         </a>
 
         <a href="{{ url_for('clientes.index') }}"

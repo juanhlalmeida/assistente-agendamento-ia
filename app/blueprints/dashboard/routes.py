@@ -314,6 +314,83 @@ def api_financeiro():
         return jsonify({'success': False, 'error': 'Não foi possível calcular o relatório financeiro.'}), 500
 
 
+def renderizar_pagina_financeiro():
+    """Renderiza a página dedicada de Controle Financeiro & Relatórios (financeiro.html)."""
+    if hasattr(current_user, 'role') and current_user.role == 'super_admin':
+        return redirect(url_for('superadmin.listar_barbearias'))
+
+    if not hasattr(current_user, 'barbearia_id') or not current_user.barbearia_id:
+        flash('Erro: Usuário admin inválido ou não associado a uma barbearia.', 'danger')
+        return redirect(url_for('main.login'))
+
+    barbearia_id_logada = current_user.barbearia_id
+    garantir_servicos_troca_studio(barbearia_id_logada)
+
+    sao_paulo_tz = pytz.timezone('America/Sao_Paulo')
+    hoje_local = datetime.now(sao_paulo_tz).date()
+    nome_mes_atual = _MESES_PT.get(hoje_local.month, hoje_local.strftime('%B').capitalize())
+
+    filtro_periodo = request.args.get('periodo', 'este_mes')
+    filtro_data_inicio = request.args.get('data_inicio', '')
+    filtro_data_fim = request.args.get('data_fim', '')
+    filtro_servico_id = request.args.get('servico_id', 'todos')
+
+    try:
+        servicos_filtro = (
+            Servico.query.filter(
+                Servico.barbearia_id == barbearia_id_logada,
+                Servico.nome != 'Bloqueio Administrativo'
+            )
+            .order_by(Servico.nome.asc())
+            .all()
+        )
+
+        relatorio_financeiro = _calcular_relatorio_financeiro(
+            barbearia_id=barbearia_id_logada,
+            hoje_local=hoje_local,
+            periodo=filtro_periodo,
+            data_inicio_str=filtro_data_inicio,
+            data_fim_str=filtro_data_fim,
+            servico_id_str=filtro_servico_id
+        )
+    except Exception as e:
+        current_app.logger.error(f"Erro ao carregar página financeiro para barbearia {barbearia_id_logada}: {e}", exc_info=True)
+        flash('Ocorreu um erro ao carregar os relatórios financeiros.', 'danger')
+        servicos_filtro = []
+        relatorio_financeiro = {
+            'periodo': 'este_mes',
+            'label_periodo': f'Este Mês ({nome_mes_atual})',
+            'data_inicio': hoje_local.replace(day=1).strftime('%Y-%m-%d'),
+            'data_fim': hoje_local.strftime('%Y-%m-%d'),
+            'data_inicio_br': hoje_local.replace(day=1).strftime('%d/%m/%Y'),
+            'data_fim_br': hoje_local.strftime('%d/%m/%Y'),
+            'servico_id': 'todos',
+            'receita_real': 0.0,
+            'receita_real_fmt': '0,00',
+            'total_pagos': 0,
+            'total_trocas': 0,
+            'total_bloqueios': 0,
+            'ticket_medio_real': 0.0,
+            'ticket_medio_real_fmt': '0,00',
+            'ranking_servicos': [],
+            'resumo_trocas': [],
+        }
+
+    return render_template(
+        'financeiro.html',
+        servicos_filtro=servicos_filtro,
+        relatorio_financeiro=relatorio_financeiro,
+        nome_mes_atual=nome_mes_atual
+    )
+
+
+@bp.route('/financeiro')
+@login_required
+def financeiro():
+    """Rota /dashboard/financeiro para a aba dedicada de Controle Financeiro."""
+    return renderizar_pagina_financeiro()
+
+
 @bp.route('/')
 @login_required
 def index():

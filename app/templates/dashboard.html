@@ -97,12 +97,7 @@
       </div>
       <div>
         <p class="saas-kpi-value">{{ agendamentos_hoje }}</p>
-        <p class="text-[11px] text-[#64748B] mt-1">
-          Atendimentos pagos
-          {% if trocas_hoje|default(0, true) > 0 %}
-            · <span class="text-violet-700 font-semibold">+{{ trocas_hoje }} troca(s)</span>
-          {% endif %}
-        </p>
+        <p class="text-[11px] text-[#64748B] mt-1">Atendimentos do dia</p>
       </div>
     </div>
 
@@ -118,7 +113,7 @@
       </div>
       <div>
         <p class="saas-kpi-value">R$ {{ "%.2f"|format(receita_hoje|default(0, true))|replace('.', ',') }}</p>
-        <p class="text-[11px] text-[#64748B] mt-1">Previsão diária (pagos)</p>
+        <p class="text-[11px] text-[#64748B] mt-1">Previsão diária</p>
       </div>
     </div>
 
@@ -134,12 +129,7 @@
       </div>
       <div>
         <p class="saas-kpi-value">{{ agendamentos_semana|default(agendamentos_hoje, true) }}</p>
-        <p class="text-[11px] text-[#64748B] mt-1">
-          Pagos na semana
-          {% if trocas_semana|default(0, true) > 0 %}
-            · <span class="text-violet-700 font-semibold">+{{ trocas_semana }} troca(s)</span>
-          {% endif %}
-        </p>
+        <p class="text-[11px] text-[#64748B] mt-1">Horários na semana</p>
       </div>
     </div>
 
@@ -176,225 +166,10 @@
       </div>
       <div>
         <p class="saas-kpi-value text-emerald-950">R$ {{ "%.2f"|format(receita_mes|default(0, true))|replace('.', ',') }}</p>
-        <div class="flex flex-wrap items-center justify-between gap-1 mt-1 text-[11px] text-[#475569]">
-          <span class="font-medium tabular-nums"><strong class="text-[#0F172A]">{{ agendamentos_mes|default(0, true) }}</strong> atendimentos pagos no mês</span>
-          {% if trocas_mes|default(0, true) > 0 %}
-            <span class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full text-[10px] font-semibold bg-violet-50 text-violet-700 border border-violet-200 tabular-nums" title="Trocas de Serviço não entram na soma de receita paga">
-              🤝 {{ trocas_mes }} troca(s)
-            </span>
-          {% endif %}
-        </div>
+        <p class="text-[11px] text-[#64748B] mt-1 tabular-nums"><strong class="text-[#0F172A]">{{ agendamentos_mes|default(0, true) }}</strong> atendimentos no mês</p>
       </div>
     </div>
 
-  </section>
-
-  {# ===================================================================== #}
-  {# CONTROLE FINANCEIRO & RELATÓRIOS (INTERATIVO COM FILTROS RÁPIDOS)     #}
-  {# ===================================================================== #}
-  {% set rf = relatorio_financeiro if relatorio_financeiro is defined else {} %}
-  {% set periodo_ativo = rf.get('periodo', 'este_mes') %}
-  <section class="saas-card overflow-hidden mb-8" id="painelControleFinanceiro" aria-label="Controle Financeiro e Relatórios">
-    
-    {# Cabeçalho + Filtros Rápidos Mobile-First #}
-    <div class="px-4 py-4 md:px-6 border-b border-[#EAEAEA] bg-[#FAFAFA]/70">
-      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <div class="flex flex-wrap items-center gap-2">
-            <svg class="w-[18px] h-[18px] text-emerald-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/>
-            </svg>
-            <h2 class="text-base font-bold heading-tight text-[#0F172A]">Controle Financeiro & Relatórios</h2>
-            <span id="badgePeriodoFinanceiro" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white text-[#0F172A] border border-[#E2E8F0] tabular-nums">
-              {{ rf.get('label_periodo', 'Este Mês') }}
-            </span>
-          </div>
-          <p class="text-xs text-[#64748B] mt-0.5">
-            Caixa real blindado: <strong class="text-[#0F172A]">Trocas de Serviço</strong> e <strong class="text-[#0F172A]">Bloqueios</strong> são contabilizados à parte e não diluem seu Ticket Médio.
-          </p>
-        </div>
-
-        {# Pílulas de Filtro Rápido de Período #}
-        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 no-scrollbar" role="tablist" aria-label="Período do relatório">
-          {% set opcoes_periodo = [
-            ('hoje', 'Hoje'),
-            ('esta_semana', 'Esta Semana'),
-            ('este_mes', 'Este Mês'),
-            ('mes_passado', 'Mês Passado'),
-            ('personalizado', 'Período Personalizado')
-          ] %}
-          {% for chave_p, rotulo_p in opcoes_periodo %}
-            <button type="button"
-                    data-fin-periodo="{{ chave_p }}"
-                    class="fin-periodo-pill inline-flex items-center justify-center px-3 min-h-[36px] rounded-full text-xs font-semibold transition-all shrink-0 cursor-pointer {% if periodo_ativo == chave_p %}bg-[#0F172A] text-white border border-[#0F172A]{% else %}bg-white text-[#475569] border border-[#E2E8F0] hover:border-[#94A3B8] hover:text-[#0F172A]{% endif %}">
-              {{ rotulo_p }}
-            </button>
-          {% endfor %}
-        </div>
-      </div>
-
-      {# Barra de Filtro por Serviço + Datas Personalizadas #}
-      <form id="formFiltroFinanceiro" method="get" action="{{ url_for('dashboard.index') }}" class="mt-3.5 pt-3.5 border-t border-[#EAEAEA] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
-        <input type="hidden" name="periodo" id="inputFinPeriodo" value="{{ periodo_ativo }}">
-
-        <div class="sm:col-span-2 lg:col-span-4">
-          <label for="selectFinServico" class="saas-label">Filtrar por Procedimento / Serviço</label>
-          <select name="servico_id" id="selectFinServico" class="saas-select">
-            <option value="todos" {% if rf.get('servico_id', 'todos') == 'todos' %}selected{% endif %}>Todos os procedimentos</option>
-            {% if servicos_filtro is defined %}
-              {% for srv in servicos_filtro %}
-                <option value="{{ srv.id }}" {% if rf.get('servico_id') == (srv.id|string) %}selected{% endif %}>
-                  {{ srv.nome }} (R$ {{ "%.2f"|format(srv.preco)|replace('.', ',') }})
-                </option>
-              {% endfor %}
-            {% endif %}
-          </select>
-        </div>
-
-        <div id="wrapDatasPersonalizadas" class="sm:col-span-2 lg:col-span-6 grid grid-cols-2 gap-2.5 {% if periodo_ativo != 'personalizado' %}hidden{% endif %}">
-          <div>
-            <label for="inputFinDataInicio" class="saas-label">Data Inicial</label>
-            <input type="date" name="data_inicio" id="inputFinDataInicio" value="{{ rf.get('data_inicio', '') }}" class="saas-input tabular-nums">
-          </div>
-          <div>
-            <label for="inputFinDataFim" class="saas-label">Data Final</label>
-            <input type="date" name="data_fim" id="inputFinDataFim" value="{{ rf.get('data_fim', '') }}" class="saas-input tabular-nums">
-          </div>
-        </div>
-
-        <div class="sm:col-span-2 lg:col-span-2 flex items-center justify-end gap-2">
-          <button type="submit" id="btnAplicarFiltroFin" class="saas-btn-secondary w-full lg:w-auto justify-center">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
-            <span>Atualizar</span>
-          </button>
-        </div>
-      </form>
-    </div>
-
-    {# Corpo do Painel Financeiro: 3 Indicadores + Ranking por Procedimento #}
-    <div class="p-4 md:p-6">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 mb-6">
-
-        {# a) Receita Real no Período #}
-        <div class="p-4 rounded-xl border border-emerald-200/80 bg-emerald-50/40 flex flex-col justify-between gap-2">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-semibold uppercase tracking-wider text-emerald-900">Receita Real no Período</span>
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
-              Somente Pagos
-            </span>
-          </div>
-          <div>
-            <p class="text-2xl md:text-3xl font-extrabold text-[#0F172A] tabular-nums">
-              R$ <span id="finReceitaReal">{{ rf.get('receita_real_fmt', '0,00') }}</span>
-            </p>
-            <p class="text-[11px] text-[#64748B] mt-1">Exclui permutas, parcerias e bloqueios</p>
-          </div>
-        </div>
-
-        {# b) Total de Atendimentos Pagos vs. Total de Trocas de Serviço #}
-        <div class="p-4 rounded-xl border border-[#EAEAEA] bg-white flex flex-col justify-between gap-2">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-semibold uppercase tracking-wider text-[#64748B]">Atendimentos Pagos vs. Trocas</span>
-            <span class="text-[11px] font-semibold text-violet-700">🤝 Parcerias</span>
-          </div>
-          <div class="grid grid-cols-2 gap-2.5 pt-1">
-            <div class="p-2.5 rounded-lg bg-[#F8F9FA] border border-[#EAEAEA]">
-              <span class="block text-[10px] font-semibold uppercase text-[#64748B]">Clientes Pagos</span>
-              <span id="finTotalPagos" class="text-lg md:text-xl font-extrabold text-[#0F172A] tabular-nums">{{ rf.get('total_pagos', 0) }}</span>
-            </div>
-            <div class="p-2.5 rounded-lg bg-violet-50/80 border border-violet-200">
-              <span class="block text-[10px] font-semibold uppercase text-violet-800">Trocas de Serviço</span>
-              <span id="finTotalTrocas" class="text-lg md:text-xl font-extrabold text-violet-700 tabular-nums">{{ rf.get('total_trocas', 0) }}</span>
-            </div>
-          </div>
-          <div id="finResumoTrocasBox" class="text-[11px] text-violet-800 {% if not rf.get('resumo_trocas') %}hidden{% endif %}">
-            {% if rf.get('resumo_trocas') %}
-              {% for t_item in rf.get('resumo_trocas', []) %}
-                <span class="inline-flex items-center gap-1 mr-2">🤝 {{ t_item.nome }}: <strong>{{ t_item.qtd }}</strong></span>
-              {% endfor %}
-            {% endif %}
-          </div>
-        </div>
-
-        {# c) Ticket Médio Real #}
-        <div class="p-4 rounded-xl border border-[#EAEAEA] bg-white flex flex-col justify-between gap-2">
-          <div class="flex items-center justify-between gap-2">
-            <span class="text-xs font-semibold uppercase tracking-wider text-[#64748B]">Ticket Médio Real</span>
-            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-700">
-              Sem Diluição
-            </span>
-          </div>
-          <div>
-            <p class="text-2xl md:text-3xl font-extrabold text-[#0F172A] tabular-nums">
-              R$ <span id="finTicketMedio">{{ rf.get('ticket_medio_real_fmt', '0,00') }}</span>
-            </p>
-            <p class="text-[11px] text-[#64748B] mt-1">Calculado estritamente sobre clientes pagantes</p>
-          </div>
-        </div>
-
-      </div>
-
-      {# d) Ranking de Serviços (Resumo por Procedimento) #}
-      <div class="border border-[#EAEAEA] rounded-xl overflow-hidden">
-        <div class="px-4 py-3 bg-[#F8F9FA] border-b border-[#EAEAEA] flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2">
-            <svg class="w-4 h-4 text-[#64748B]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>
-            <h3 class="text-xs sm:text-sm font-bold text-[#0F172A]">Ranking de Serviços (Resumo por Procedimento Pago)</h3>
-          </div>
-          <span class="text-[11px] text-[#64748B] tabular-nums" id="finRankingCount">
-            {{ rf.get('ranking_servicos', [])|length }} procedimento(s)
-          </span>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="border-b border-[#EAEAEA] text-[11px] font-semibold uppercase tracking-wider text-[#64748B] bg-white">
-                <th class="py-2.5 px-4">Procedimento</th>
-                <th class="py-2.5 px-3 text-center">Atendimentos</th>
-                <th class="py-2.5 px-3 text-right hidden sm:table-cell">Participação</th>
-                <th class="py-2.5 px-4 text-right">Receita Gerada</th>
-              </tr>
-            </thead>
-            <tbody id="finRankingBody" class="divide-y divide-[#EAEAEA] text-xs sm:text-sm">
-              {% if rf.get('ranking_servicos') %}
-                {% for item in rf.get('ranking_servicos', []) %}
-                  <tr class="hover:bg-[#F8F9FA]/60 transition-colors">
-                    <td class="py-3 px-4 font-semibold text-[#0F172A]">
-                      <div class="flex items-center gap-2">
-                        <span class="w-5 h-5 rounded-full bg-slate-100 text-[#475569] text-[11px] font-bold inline-flex items-center justify-center shrink-0 tabular-nums">{{ loop.index }}º</span>
-                        <span class="truncate">{{ item.nome }}</span>
-                      </div>
-                    </td>
-                    <td class="py-3 px-3 text-center tabular-nums font-medium text-[#475569]">
-                      {{ item.qtd }}
-                    </td>
-                    <td class="py-3 px-3 text-right hidden sm:table-cell tabular-nums">
-                      <div class="inline-flex items-center gap-2 justify-end w-28">
-                        <div class="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                          <div class="h-full bg-emerald-600 rounded-full" style="width: {{ item.percentual }}%;"></div>
-                        </div>
-                        <span class="text-[11px] text-[#64748B] w-9 text-right">{{ "%.1f"|format(item.percentual)|replace('.', ',') }}%</span>
-                      </div>
-                    </td>
-                    <td class="py-3 px-4 text-right font-bold text-[#0F172A] tabular-nums">
-                      R$ {{ item.receita_fmt }}
-                    </td>
-                  </tr>
-                {% endfor %}
-              {% else %}
-                <tr>
-                  <td colspan="4" class="py-8 px-4 text-center text-xs text-[#64748B]">
-                    Nenhum atendimento pago registrado neste período para os filtros selecionados.
-                  </td>
-                </tr>
-              {% endif %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
   </section>
 
   {# ===================================================================== #}
@@ -531,143 +306,5 @@
       {% endif %}
     </div>
   </section>
-
-  <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    const pills = document.querySelectorAll('.fin-periodo-pill');
-    const inputPeriodo = document.getElementById('inputFinPeriodo');
-    const wrapDatas = document.getElementById('wrapDatasPersonalizadas');
-    const inputDataIni = document.getElementById('inputFinDataInicio');
-    const inputDataFim = document.getElementById('inputFinDataFim');
-    const selectServico = document.getElementById('selectFinServico');
-    const formFiltro = document.getElementById('formFiltroFinanceiro');
-    const badgePeriodo = document.getElementById('badgePeriodoFinanceiro');
-    const elReceita = document.getElementById('finReceitaReal');
-    const elPagos = document.getElementById('finTotalPagos');
-    const elTrocas = document.getElementById('finTotalTrocas');
-    const elTicket = document.getElementById('finTicketMedio');
-    const elRankingBody = document.getElementById('finRankingBody');
-    const elRankingCount = document.getElementById('finRankingCount');
-    const elResumoTrocas = document.getElementById('finResumoTrocasBox');
-
-    function atualizarVisualPills(periodoSelecionado) {
-      pills.forEach(btn => {
-        const ativo = btn.getAttribute('data-fin-periodo') === periodoSelecionado;
-        btn.className = ativo
-          ? 'fin-periodo-pill inline-flex items-center justify-center px-3 min-h-[36px] rounded-full text-xs font-semibold transition-all shrink-0 cursor-pointer bg-[#0F172A] text-white border border-[#0F172A]'
-          : 'fin-periodo-pill inline-flex items-center justify-center px-3 min-h-[36px] rounded-full text-xs font-semibold transition-all shrink-0 cursor-pointer bg-white text-[#475569] border border-[#E2E8F0] hover:border-[#94A3B8] hover:text-[#0F172A]';
-      });
-      if (wrapDatas) {
-        if (periodoSelecionado === 'personalizado') {
-          wrapDatas.classList.remove('hidden');
-        } else {
-          wrapDatas.classList.add('hidden');
-        }
-      }
-    }
-
-    async function carregarRelatorioFinanceiroAjax() {
-      const params = new URLSearchParams({
-        periodo: inputPeriodo ? inputPeriodo.value : 'este_mes',
-        data_inicio: inputDataIni ? inputDataIni.value : '',
-        data_fim: inputDataFim ? inputDataFim.value : '',
-        servico_id: selectServico ? selectServico.value : 'todos'
-      });
-
-      try {
-        const resp = await fetch(`{{ url_for('dashboard.api_financeiro') }}?${params.toString()}`, {
-          headers: { 'X-Requested-With': 'XMLHttpRequest' },
-          credentials: 'same-origin'
-        });
-        if (!resp.ok) return;
-        const data = await resp.json();
-        if (!data || !data.success) return;
-
-        if (badgePeriodo) badgePeriodo.textContent = data.label_periodo || '';
-        if (elReceita) elReceita.textContent = data.receita_real_fmt || '0,00';
-        if (elPagos) elPagos.textContent = data.total_pagos ?? 0;
-        if (elTrocas) elTrocas.textContent = data.total_trocas ?? 0;
-        if (elTicket) elTicket.textContent = data.ticket_medio_real_fmt || '0,00';
-        if (inputDataIni && data.data_inicio) inputDataIni.value = data.data_inicio;
-        if (inputDataFim && data.data_fim) inputDataFim.value = data.data_fim;
-
-        if (elResumoTrocas) {
-          const trocasArr = data.resumo_trocas || [];
-          if (trocasArr.length > 0) {
-            elResumoTrocas.innerHTML = trocasArr
-              .map(t => `<span class="inline-flex items-center gap-1 mr-2">🤝 ${t.nome}: <strong>${t.qtd}</strong></span>`)
-              .join('');
-            elResumoTrocas.classList.remove('hidden');
-          } else {
-            elResumoTrocas.innerHTML = '';
-            elResumoTrocas.classList.add('hidden');
-          }
-        }
-
-        const ranking = data.ranking_servicos || [];
-        if (elRankingCount) {
-          elRankingCount.textContent = `${ranking.length} procedimento(s)`;
-        }
-        if (elRankingBody) {
-          if (ranking.length === 0) {
-            elRankingBody.innerHTML = `
-              <tr>
-                <td colspan="4" class="py-8 px-4 text-center text-xs text-[#64748B]">
-                  Nenhum atendimento pago registrado neste período para os filtros selecionados.
-                </td>
-              </tr>
-            `;
-          } else {
-            elRankingBody.innerHTML = ranking.map((item, idx) => {
-              const pctFmt = Number(item.percentual || 0).toFixed(1).replace('.', ',');
-              return `
-                <tr class="hover:bg-[#F8F9FA]/60 transition-colors">
-                  <td class="py-3 px-4 font-semibold text-[#0F172A]">
-                    <div class="flex items-center gap-2">
-                      <span class="w-5 h-5 rounded-full bg-slate-100 text-[#475569] text-[11px] font-bold inline-flex items-center justify-center shrink-0 tabular-nums">${idx + 1}º</span>
-                      <span class="truncate">${item.nome}</span>
-                    </div>
-                  </td>
-                  <td class="py-3 px-3 text-center tabular-nums font-medium text-[#475569]">${item.qtd}</td>
-                  <td class="py-3 px-3 text-right hidden sm:table-cell tabular-nums">
-                    <div class="inline-flex items-center gap-2 justify-end w-28">
-                      <div class="w-16 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                        <div class="h-full bg-emerald-600 rounded-full" style="width: ${item.percentual || 0}%;"></div>
-                      </div>
-                      <span class="text-[11px] text-[#64748B] w-9 text-right">${pctFmt}%</span>
-                    </div>
-                  </td>
-                  <td class="py-3 px-4 text-right font-bold text-[#0F172A] tabular-nums">R$ ${item.receita_fmt}</td>
-                </tr>
-              `;
-            }).join('');
-          }
-        }
-      } catch (err) {
-        console.warn('Falha ao atualizar filtro financeiro via AJAX:', err);
-      }
-    }
-
-    pills.forEach(btn => {
-      btn.addEventListener('click', function () {
-        const p = this.getAttribute('data-fin-periodo');
-        if (inputPeriodo) inputPeriodo.value = p;
-        atualizarVisualPills(p);
-        if (p !== 'personalizado') {
-          carregarRelatorioFinanceiroAjax();
-        }
-      });
-    });
-
-    selectServico?.addEventListener('change', function () {
-      carregarRelatorioFinanceiroAjax();
-    });
-
-    formFiltro?.addEventListener('submit', function (e) {
-      e.preventDefault();
-      carregarRelatorioFinanceiroAjax();
-    });
-  });
-  </script>
 
 {% endblock %}
